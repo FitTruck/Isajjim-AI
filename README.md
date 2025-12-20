@@ -7,6 +7,8 @@ A small FastAPI service that:
 
 This repo contains a single HTTP API (`api.py`) and a subprocess wrapper (`generate_3d_subprocess.py`) which runs the heavier Sam-3d-objects inference in a separate process to avoid GPU/spconv state issues.
 
+![preview](https://github.com/user-attachments/assets/6f0d652f-7c91-4c77-8e1d-70359b187d49)
+
 > 🚧 **Note**
 >
 > This project is meant to work in conjunction with the mobile app - [Sam3D Mobile](https://github.com/andrisgauracs/sam3d-mobile)
