@@ -136,7 +136,7 @@ python api.py
 uvicorn api:app --host 0.0.0.0 --port 8000 --log-level info
 ```
 
-### 프로덕션 환경
+### 프로덕션 환경 (로컬)
 
 Gunicorn + Uvicorn 워커:
 
@@ -155,6 +155,63 @@ uvicorn api:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
 - 프로덕션에서는 NGINX 리버스 프록시 사용을 권장합니다
 
 API 문서 확인: http://localhost:8000/docs
+
+---
+
+## Docker 배포
+
+### 사전 요구사항
+
+1. Docker 및 NVIDIA Container Toolkit 설치
+2. 데이터 디렉토리 설정 (`/data/sam3d/`)
+
+```bash
+# VM 설정 스크립트 실행
+sudo bash scripts/vm-setup-docker.sh
+sudo bash scripts/vm-setup-nvidia-toolkit.sh
+sudo bash scripts/vm-setup-data.sh
+```
+
+### Docker Compose로 실행
+
+```bash
+# 환경 변수 설정
+export GCP_PROJECT_ID=your-project-id
+export GCP_REGION=us-central1
+export IMAGE_TAG=latest
+
+# 컨테이너 시작
+docker compose up -d
+
+# 로그 확인
+docker compose logs -f
+
+# 중지
+docker compose down
+```
+
+### 볼륨 마운트
+
+| 호스트 경로 | 컨테이너 경로 | 설명 |
+|------------|--------------|------|
+| `/data/sam3d/sam-3d-objects` | `/data/sam3d/sam-3d-objects` | SAM-3D 체크포인트 (읽기 전용) |
+| `/data/sam3d/models` | `/data/sam3d/models` | YOLO 모델 (읽기 전용) |
+| `/data/sam3d/huggingface` | `/data/sam3d/huggingface` | HuggingFace 캐시 |
+| `/data/sam3d/assets` | `/app/assets` | 생성된 에셋 |
+
+### CI/CD (GitHub Actions)
+
+`main` 브랜치에 푸시하면 자동으로:
+1. Docker 이미지 빌드
+2. GCP Artifact Registry에 푸시
+3. VM에 SSH로 배포
+
+필요한 GitHub Secrets:
+- `GCP_PROJECT_ID`: GCP 프로젝트 ID
+- `GCP_SA_KEY`: 서비스 계정 JSON 키
+- `VM_HOST`: VM 외부 IP
+- `VM_SSH_KEY`: SSH 개인 키
+- `VM_USER`: VM 사용자 이름
 
 ---
 
