@@ -5,8 +5,7 @@
 # This script:
 # 1. Verifies volume mounts exist
 # 2. Creates symlinks for hardcoded paths in the application
-# 3. Activates conda environment
-# 4. Starts the API server
+# 3. Starts the API server
 # =============================================================================
 
 set -e
@@ -96,9 +95,6 @@ echo ""
 echo "=== Starting SAM3D API ==="
 echo "Command: $@"
 
-# Activate conda environment and execute command
-source /opt/conda/etc/profile.d/conda.sh
-conda activate sam3d
-
+# Virtual environment is already in PATH via Dockerfile ENV
 # Execute the passed command (default: uvicorn)
-exec conda run --no-capture-output -n sam3d "$@"
+exec "$@"

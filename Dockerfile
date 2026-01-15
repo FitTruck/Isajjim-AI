@@ -30,21 +30,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglew-dev \
     libglm-dev \
     ffmpeg \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Miniconda
-ENV CONDA_DIR=/opt/conda
-RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh \
-    && bash /tmp/miniconda.sh -b -p $CONDA_DIR \
-    && rm /tmp/miniconda.sh
-ENV PATH="$CONDA_DIR/bin:$PATH"
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
-# Create conda environment with Python 3.11
-RUN $CONDA_DIR/bin/conda create -n sam3d python=3.11 -y \
-    && $CONDA_DIR/bin/conda clean -afy
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Set shell to use conda environment
-SHELL ["conda", "run", "-n", "sam3d", "/bin/bash", "-c"]
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Set CUDA environment for compilation
 ENV CUDA_HOME=/usr/local/cuda
@@ -70,9 +71,9 @@ RUN pip install --no-cache-dir --no-build-isolation \
     git+https://github.com/NVlabs/nvdiffrast.git
 
 # =============================================================================
-# Stage 2: Dependencies - Install Python packages
+# Stage 2: Runtime - Final image
 # =============================================================================
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 AS deps
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -87,13 +88,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     git \
+    python3.11 \
+    python3.11-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy conda from builder
-COPY --from=builder /opt/conda /opt/conda
-ENV PATH="/opt/conda/bin:$PATH"
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
-SHELL ["conda", "run", "-n", "sam3d", "/bin/bash", "-c"]
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Install remaining Python packages (non-CUDA)
 RUN pip install --no-cache-dir \
@@ -103,7 +108,7 @@ RUN pip install --no-cache-dir \
     Pillow>=10.0.0 \
     numpy>=1.24.0 \
     opencv-python-headless>=4.9.0 \
-    transformers==4.57.3 \
+    transformers==4.43.3 \
     tokenizers>=0.15.0 \
     scipy>=1.10.0 \
     trimesh \
@@ -122,29 +127,6 @@ RUN pip install --no-cache-dir \
 # Install CLIP from OpenAI
 RUN pip install --no-cache-dir git+https://github.com/openai/CLIP.git
 
-# =============================================================================
-# Stage 3: Runtime - Final slim image
-# =============================================================================
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install minimal runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libglew2.2 \
-    ffmpeg \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy conda environment from deps stage
-COPY --from=deps /opt/conda /opt/conda
-ENV PATH="/opt/conda/bin:$PATH"
-
 # Set working directory
 WORKDIR /app
 
@@ -156,10 +138,6 @@ COPY ai/ ./ai/
 # Environment Variables
 # CRITICAL: These must be set before torch/spconv import
 # =============================================================================
-
-# Conda environment
-ENV CONDA_PREFIX=/opt/conda/envs/sam3d
-ENV CUDA_HOME=/opt/conda/envs/sam3d
 
 # spconv configuration (prevents infinite tuning)
 ENV SPCONV_TUNE_DEVICE=0
