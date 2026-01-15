@@ -1,177 +1,284 @@
 # CLAUDE.md
 
-Claude Code (claude.ai/code)가 이 레포지토리에서 작업할 때 참고하는 가이드입니다.
+This guide is for Claude Code (claude.ai/code) when working with this repository.
 
-## 개요
+## Overview
 
-FastAPI 기반 서비스로 다음을 통합합니다:
-1. **SAM 2 (Segment Anything Model 2)** - Meta의 Hugging Face 이미지 세그멘테이션 모델
-2. **Sam-3d-objects** - Facebook Research의 2D 이미지에서 3D 객체 생성 파이프라인
-3. **AI 모듈** - 가구 탐지 및 분석 시스템 (한국어 지원)
+A FastAPI-based service integrating:
+1. **SAM 2 (Segment Anything Model 2)** - Meta's Hugging Face image segmentation model
+2. **Sam-3d-objects** - Facebook Research's 2D image to 3D object generation pipeline
+3. **AI Module** - Furniture detection and analysis system (Korean language support)
+4. **Multi-GPU Parallel Processing** - Round-robin GPU allocation via GPU pool manager
 
-API는 포인트 기반 세그멘테이션으로 2D 이미지를 받아 3D Gaussian Splat, PLY, GIF, GLB 메시를 생성합니다.
+The API accepts 2D images with point-based segmentation and generates 3D Gaussian Splats, PLY, GIF, and GLB meshes.
 
-## 아키텍처
+## Architecture
 
-### 프로세스 격리 패턴
+### Process Isolation Pattern
 
-GPU/spconv 상태 충돌을 방지하기 위해 **subprocess 격리**를 사용합니다:
-- `api.py` - SAM 2 세그멘테이션을 처리하는 메인 FastAPI 서버
-- `ai/subprocess/generate_3d_worker.py` - Sam-3d-objects 3D 생성을 위한 격리된 subprocess
+Uses **subprocess isolation** to prevent GPU/spconv state conflicts:
+- `api.py` - Main FastAPI server handling SAM 2 segmentation
+- `ai/subprocess/generate_3d_worker.py` - Isolated subprocess for Sam-3d-objects 3D generation
 
-spconv는 지속적인 GPU 상태를 가지므로 같은 프로세스에서 모델을 로드하면 충돌이 발생하기 때문에 이 격리는 **필수적**입니다.
+This isolation is **essential** because spconv maintains persistent GPU state, and loading models in the same process causes conflicts.
 
-### 핵심 컴포넌트
+### Multi-GPU Parallel Processing Architecture
 
-1. **메인 API (`api.py`)**
-   - 시작 시 SAM 2 모델을 로드하는 FastAPI 서버
-   - 세그멘테이션 요청 처리 (/segment, /segment-binary)
-   - 백그라운드 워커를 통한 비동기 3D 생성 작업 관리
-   - /assets 엔드포인트에서 정적 에셋(PLY, GIF, GLB) 제공
+Uses **GPU Pool Manager** pattern for parallelizing image processing across multiple GPUs:
 
-2. **3D 생성 Subprocess (`ai/subprocess/generate_3d_worker.py`)**
-   - 각 3D 생성 작업을 위한 새로운 Python 프로세스
-   - Sam-3d-objects 파이프라인을 독립적으로 로드
-   - Gaussian splat 생성, 회전 GIF 렌더링, GLB 메시 내보내기
-   - intrinsics 복구 실패를 방지하기 위해 합성 핀홀 포인트맵 사용
-   - 구형 조화(spherical harmonics)에서 RGB 색상을 추가하여 PLY 파일 후처리
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         API Server (api.py)                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                    GPUPoolManager                         │   │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐     │   │
+│  │  │  GPU 0  │  │  GPU 1  │  │  GPU 2  │  │  GPU 3  │     │   │
+│  │  │Pipeline │  │Pipeline │  │Pipeline │  │Pipeline │     │   │
+│  │  │(YOLO,   │  │(YOLO,   │  │(YOLO,   │  │(YOLO,   │     │   │
+│  │  │ CLIP)   │  │ CLIP)   │  │ CLIP)   │  │ CLIP)   │     │   │
+│  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘     │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                              │                                   │
+│                    Round-robin GPU allocation                    │
+│                              ▼                                   │
+│         ┌─────────────────────────────────────────┐             │
+│         │      process_multiple_images()          │             │
+│         │  img1→GPU0, img2→GPU1, img3→GPU2, ...   │             │
+│         └─────────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-3. **AI 모듈 (`ai/`)**
-   - YOLO-World + SAHI를 사용한 가구 탐지 (작은 객체 탐지)
-   - CLIP을 사용한 세부 가구 서브타입 분류
-   - 이사 서비스를 위한 한국어 인터페이스
-   - 부피 계산을 위한 가구 치수 Knowledge Base
-   - 통합 파이프라인: Firebase URL → YOLO → CLIP → SAM2 → SAM-3D → 부피
+**Key Features:**
+- **Round-robin GPU allocation**: Distributes image requests sequentially across different GPUs
+- **Pipeline pre-initialization**: Loads YOLO/CLIP models on each GPU at server startup
+- **Pipeline reuse**: Uses pre-initialized pipelines instead of creating new ones per request
+- **Thread-safe acquire/release**: Ensures concurrency safety using asyncio.Lock
 
-### 고정 경로 의존성
+### Core Components
 
-Sam-3d-objects 통합은 **고정된 상대 경로**를 사용합니다 (환경 변수 아님):
-- `./sam-3d-objects/notebook` - inference import에 필요
-- `./sam-3d-objects/checkpoints/hf/pipeline.yaml` - 파이프라인 설정
+1. **Main API (`api.py`)**
+   - FastAPI server loading SAM 2 model at startup
+   - Initializes GPU pool and pre-initializes pipelines at startup
+   - Handles segmentation requests (/segment, /segment-binary)
+   - Manages async 3D generation tasks via background workers
+   - Serves static assets (PLY, GIF, GLB) at /assets endpoint
 
-이 경로들은 `api.py`와 `ai/subprocess/generate_3d_worker.py` 모두에 하드코딩되어 있습니다.
+2. **GPU Pool Manager (`ai/gpu/gpu_pool_manager.py`)**
+   - GPUPoolManager class: Manages GPU resource pool
+   - Round-robin GPU allocation (acquire/release)
+   - GPU health check and automatic failover
+   - Pipeline pre-initialization and registry management
+   - gpu_context/pipeline_context async context managers
 
-### 환경 변수 설정
+3. **3D Generation Subprocess (`ai/subprocess/generate_3d_worker.py`)**
+   - Fresh Python process for each 3D generation task
+   - Loads Sam-3d-objects pipeline independently
+   - Gaussian splat generation, rotating GIF rendering, GLB mesh export
+   - Uses synthetic pinhole pointmaps to prevent intrinsics recovery failure
+   - Post-processes PLY files by adding RGB colors from spherical harmonics
 
-**중요**: GPU 튜닝 문제를 방지하기 위해 여러 환경 변수가 **torch/spconv import 전에 설정되어야** 합니다:
+4. **Furniture Analysis Pipeline (`ai/pipeline/furniture_pipeline.py`)**
+   - FurniturePipeline class: Full AI logic orchestrator
+   - device_id parameter for running on specific GPU
+   - gpu_pool parameter for Multi-GPU parallel processing support
+   - process_multiple_images: Parallel image processing from GPU pool
+
+5. **AI Processors (`ai/processors/`)**
+   - Furniture detection using YOLO-World + SAHI (small object detection)
+   - Detailed furniture subtype classification using CLIP
+   - Korean language interface for moving services
+   - Furniture dimension Knowledge Base for volume calculation
+   - Integrated pipeline: Firebase URL → YOLO → CLIP → SAM2 → SAM-3D → Volume
+
+### Fixed Path Dependencies
+
+Sam-3d-objects integration uses **fixed relative paths** (not environment variables):
+- `./sam-3d-objects/notebook` - Required for inference imports
+- `./sam-3d-objects/checkpoints/hf/pipeline.yaml` - Pipeline configuration
+
+These paths are hardcoded in both `api.py` and `ai/subprocess/generate_3d_worker.py`.
+
+### Environment Variable Setup
+
+**Important**: Several environment variables must be set **before importing torch/spconv** to prevent GPU tuning issues:
 - `SPCONV_TUNE_DEVICE=0`
-- `SPCONV_ALGO_TIME_LIMIT=100` (무한 튜닝 방지)
-- `OMP_NUM_THREADS=4` (스레드 폭발 방지)
-- `PYTORCH_ENABLE_MPS_FALLBACK=1` (macOS 호환성)
+- `SPCONV_ALGO_TIME_LIMIT=100` (prevents infinite tuning)
+- `OMP_NUM_THREADS=4` (prevents thread explosion)
+- `PYTORCH_ENABLE_MPS_FALLBACK=1` (macOS compatibility)
 
-이들은 `api.py`와 `ai/subprocess/generate_3d_worker.py` 상단에서 import 전에 설정됩니다.
+These are set at the top of `api.py` and `ai/subprocess/generate_3d_worker.py` before any imports.
 
-### 작업 저장 패턴
+### Task Storage Pattern
 
-3D 생성은 비동기 작업을 추적하기 위해 인메모리 dict (`generation_tasks`)를 사용합니다:
-- POST /generate-3d는 즉시 task_id를 반환 (게이트웨이 타임아웃 방지)
-- 클라이언트가 GET /generate-3d-status/{task_id}로 결과 폴링
-- 작업은 상태(queued/processing/completed/failed), 출력 파일, 메타데이터 저장
+3D generation uses an in-memory dict (`generation_tasks`) to track async tasks:
+- POST /generate-3d returns task_id immediately (avoids gateway timeouts)
+- Client polls GET /generate-3d-status/{task_id} for results
+- Tasks store status (queued/processing/completed/failed), output files, and metadata
 
-## 자주 사용하는 명령어
+## Common Commands
 
-### 설정
+### Setup
 
 ```bash
-# Hugging Face CLI 설치 및 인증
+# Install Hugging Face CLI and authenticate
 pip install 'huggingface-hub[cli]<1.0'
 huggingface-cli login
 
-# setup 스크립트 실행 (sam-3d-objects 클론, conda 환경 생성, 체크포인트 다운로드)
+# Run setup script (clones sam-3d-objects, creates conda env, downloads checkpoints)
 source setup.sh
 ```
 
-### 개발
+### Development
 
 ```bash
-# 자동 리로드로 실행 (개발)
+# Run with auto-reload (development)
 uvicorn api:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 
-# 리로드 없이 실행
+# Run without reload
 python api.py
 ```
 
-### 프로덕션
+### Production
 
 ```bash
-# 여러 워커로 Uvicorn 사용
+# Use Uvicorn with multiple workers
 uvicorn api:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
 
-# Gunicorn + Uvicorn 워커 클래스 사용
+# Use Gunicorn + Uvicorn worker class
 gunicorn -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:8000 api:app --log-level info
 ```
 
-**프로덕션 참고:**
-- 사용 가능한 CPU/메모리에 따라 `--workers` 조정
-- GPU 워크로드의 경우 같은 GPU를 두고 경쟁하는 워커가 너무 많지 않도록 주의
-- 프로덕션에서는 프로세스 매니저(systemd, docker-compose)와 리버스 프록시(NGINX) 사용
-- 시작 전 Sam-3d-objects 경로가 존재하는지 확인
+**Production Notes:**
+- Adjust `--workers` based on available CPU/memory
+- For GPU workloads, be careful not to have too many workers competing for the same GPU
+- Use process manager (systemd, docker-compose) and reverse proxy (NGINX) in production
+- Ensure Sam-3d-objects paths exist before startup
 
-### AI 모듈 (가구 탐지)
+### AI Module (Furniture Detection)
 
-AI 모듈은 메인 API와 통합되어 있습니다:
+The AI module is integrated with the main API:
 
 ```bash
-# 독립 실행 (테스트용)
+# Standalone execution (for testing)
 cd ai
-python main.py  # imgs/ 디렉토리의 이미지 분석
+python main.py  # Analyzes images in imgs/ directory
 ```
 
-## API 엔드포인트
+## API Endpoints
 
-### 핵심 엔드포인트
-- `GET /health` - 모델 상태와 함께 헬스 체크
-- `POST /segment` - 단일 포인트 세그멘테이션 (여러 마스크 반환)
-- `POST /segment-binary` - 다중 포인트 세그멘테이션 (마스크된 PNG 반환)
-- `POST /generate-3d` - 비동기 3D 생성 (task_id 반환)
-- `GET /generate-3d-status/{task_id}` - 3D 생성 결과 폴링
-- `GET /assets-list` - 저장된 PLY/GIF/GLB 파일 목록 조회
-- `GET /assets/{filename}` - 정적 에셋 다운로드
+### Core Endpoints
+- `GET /health` - Health check with model status
+- `GET /gpu-status` - GPU pool status (available GPUs, pipeline initialization status)
+- `POST /segment` - Single point segmentation (returns multiple masks)
+- `POST /segment-binary` - Multi-point segmentation (returns masked PNG)
+- `POST /generate-3d` - Async 3D generation (returns task_id)
+- `GET /generate-3d-status/{task_id}` - Poll 3D generation results
+- `GET /assets-list` - List stored PLY/GIF/GLB files
+- `GET /assets/{filename}` - Download static assets
 
-### 가구 분석 엔드포인트 (AI 통합)
-- `POST /analyze-furniture` - 전체 파이프라인: Firebase URLs → 탐지 → 3D → 부피
-- `POST /analyze-furniture-single` - 단일 이미지 분석
-- `POST /analyze-furniture-base64` - Base64 이미지 입력 (Firebase URL 없음)
-- `POST /detect-furniture` - 탐지만 수행 (3D 없음, 빠른 응답)
+### Furniture Analysis Endpoints (AI Integration)
+- `POST /analyze-furniture` - Full pipeline: Firebase URLs → Detection → 3D → Volume (Multi-GPU parallel processing)
+- `POST /analyze-furniture-single` - Single image analysis
+- `POST /analyze-furniture-base64` - Base64 image input (no Firebase URL)
+- `POST /detect-furniture` - Detection only (no 3D, fast response)
 
-모든 엔드포인트는 base64 인코딩된 이미지 또는 Firebase Storage URL을 사용합니다.
+All endpoints use base64 encoded images or Firebase Storage URLs.
 
-## 3D 생성 파이프라인
+## Multi-GPU Parallel Processing
 
-1. 클라이언트가 이미지 + 마스크를 POST /generate-3d로 전송
-2. API가 task_id를 생성하고 백그라운드 워커 시작
-3. 백그라운드 워커가 새 프로세스에서 generate_3d_worker.py 실행
+### GPU Pool Manager Usage
+
+```python
+from ai.gpu import GPUPoolManager, get_gpu_pool, initialize_gpu_pool
+
+# Initialize global GPU pool (at server startup)
+pool = initialize_gpu_pool(gpu_ids=[0, 1, 2, 3])
+
+# GPU context for automatic acquire/release
+async with pool.gpu_context(task_id="image_1") as gpu_id:
+    # gpu_id is exclusively used in this context
+    process_on_gpu(gpu_id)
+# GPU automatically released
+
+# Use with pre-initialized pipeline
+async with pool.pipeline_context(task_id="image_1") as (gpu_id, pipeline):
+    result = await pipeline.process_single_image(url)
+# GPU automatically released
+```
+
+### Pipeline Pre-initialization
+
+Pre-initializes pipelines on each GPU at server startup to eliminate model loading overhead:
+
+```python
+# In api.py startup event
+await pool.initialize_pipelines(
+    lambda gpu_id: FurniturePipeline(device_id=gpu_id),
+    skip_on_error=True
+)
+```
+
+**Benefits:**
+- Eliminates 3-5 second model loading time per request
+- Independent YOLO/CLIP model instances per GPU
+- Prevents GPU conflicts during parallel image processing
+
+### GPU Status Check
+
+```bash
+# Query GPU pool status
+curl http://localhost:8000/gpu-status
+
+# Example response:
+{
+    "total_gpus": 4,
+    "available_gpus": 3,
+    "pipelines_initialized": 4,
+    "gpus": {
+        "0": {"available": true, "task_id": null, "memory_used_mb": 1024, "has_pipeline": true},
+        "1": {"available": false, "task_id": "image_processing", "memory_used_mb": 2048, "has_pipeline": true},
+        ...
+    }
+}
+```
+
+## 3D Generation Pipeline
+
+1. Client sends image + mask to POST /generate-3d
+2. API generates task_id and starts background worker
+3. Background worker runs generate_3d_worker.py in a new process
 4. Subprocess:
-   - 고정된 설정 경로로 Sam-3d-objects 파이프라인 로드
-   - 합성 핀홀 포인트맵 생성 (MoGe intrinsics 실패 방지)
-   - decode_formats=["gaussian", "glb", "mesh"]로 파이프라인 실행
-   - render_video()를 사용하여 360° 회전 GIF 렌더링
-   - SH 계수에서 RGB 색상을 추가하여 PLY 내보내기
-   - to_glb() 또는 네이티브 파이프라인 출력으로 텍스처 GLB 내보내기 시도
-   - assets/ 폴더에 메타데이터와 함께 파일 저장
-   - stdout 마커로 URL 반환 (GIF_DATA_START/END, MESH_URL_START/END, PLY_URL_START/END)
-5. API가 subprocess stdout에서 URL 추출하고 작업 상태 업데이트
-6. 클라이언트가 /generate-3d-status/{task_id}를 폴링하여 base64 인코딩된 파일 수신
+   - Loads Sam-3d-objects pipeline with fixed config path
+   - Creates synthetic pinhole pointmap (avoids MoGe intrinsics failure)
+   - Runs pipeline with decode_formats=["gaussian", "glb", "mesh"]
+   - Renders 360° rotating GIF using render_video()
+   - Exports PLY with RGB colors added from SH coefficients
+   - Attempts textured GLB export via to_glb() or native pipeline output
+   - Saves files with metadata to assets/ folder
+   - Returns URLs via stdout markers (GIF_DATA_START/END, MESH_URL_START/END, PLY_URL_START/END)
+5. API extracts URLs from subprocess stdout and updates task status
+6. Client polls /generate-3d-status/{task_id} to receive base64 encoded files
 
-## 가구 분석 파이프라인 (AI 통합)
+## Furniture Analysis Pipeline (AI Integration)
 
-`/analyze-furniture` 엔드포인트는 전체 AI Logic 파이프라인을 구현합니다:
+The `/analyze-furniture` endpoint implements the full AI Logic pipeline:
 
-1. **이미지 가져오기**: Firebase Storage URL에서 이미지 다운로드 (5-10장)
-2. **객체 탐지**: YOLO-World + SAHI로 작은 객체 탐지
-3. **분류**: CLIP으로 세부 서브타입 분류 (예: 퀸 침대 vs 킹 침대)
-4. **이동 가능 여부 확인**: knowledge base와 비교하여 is_movable 결정
-5. **마스크 생성**: SAM2가 중심점 프롬프트로 세그멘테이션 마스크 생성
-6. **3D 생성**: SAM-3D가 마스크된 이미지를 3D 모델로 변환
-7. **부피 계산**: trimesh가 상대적 치수를 위해 메시 분석
-8. **절대 치수**: DB 가구 사양과 매칭하여 실제 측정값 산출
+1. **Image Fetch**: Download images from Firebase Storage URLs (5-10 images)
+2. **GPU Allocation**: Round-robin GPU allocation from GPUPoolManager
+3. **Object Detection**: YOLO-World + SAHI for small object detection
+4. **Classification**: CLIP for detailed subtype classification (e.g., queen bed vs king bed)
+5. **Movability Check**: Compare with knowledge base to determine is_movable
+6. **Mask Generation**: SAM2 generates segmentation mask with center point prompt
+7. **3D Generation**: SAM-3D converts masked image to 3D model
+8. **Volume Calculation**: trimesh analyzes mesh for relative dimensions
+9. **Absolute Dimensions**: Match with DB furniture specifications for real measurements
 
-### 응답 형식
+### Response Format
 ```json
 {
   "objects": [
     {
-      "label": "퀸 사이즈 침대",
+      "label": "Queen Size Bed",
       "width": 1500.0,
       "depth": 2000.0,
       "height": 450.0,
@@ -189,82 +296,99 @@ python main.py  # imgs/ 디렉토리의 이미지 분석
 }
 ```
 
-### 핵심 컴포넌트
-- `ai/pipeline/furniture_pipeline.py` - 메인 파이프라인 오케스트레이터
-- `ai/processors/2_Yolo-World_detect.py` - SAHI 강화 YOLO 탐지기
-- `ai/processors/7_volume_calculate.py` - 메시 부피 분석
-- `ai/data/knowledge_base.py` - 가구 치수 데이터베이스
+### Key Components
+- `ai/pipeline/furniture_pipeline.py` - Main pipeline orchestrator
+- `ai/gpu/gpu_pool_manager.py` - Multi-GPU pool manager
+- `ai/processors/2_Yolo-World_detect.py` - SAHI-enhanced YOLO detector
+- `ai/processors/7_volume_calculate.py` - Mesh volume analysis
+- `ai/data/knowledge_base.py` - Furniture dimensions database
 
-## 코드 수정 가이드라인
+## Code Modification Guidelines
 
-### SAM 2 통합 수정 시
-- api.py:segment_image와 api.py:segment_binary의 기존 마스크 처리 확인
-- 마스크 품질을 위한 morphological smoothing (cv2.morphologyEx) 유지
-- SAM 2의 4D 입력 형식 유지: [[[[x, y]]]]
+### When Modifying SAM 2 Integration
+- Check existing mask handling in api.py:segment_image and api.py:segment_binary
+- Maintain morphological smoothing for mask quality (cv2.morphologyEx)
+- Maintain SAM 2's 4D input format: [[[[x, y]]]]
 
-### 3D 생성 수정 시
-- api.py 메인 프로세스에서 Sam-3d-objects를 **절대** 로드하지 말 것 - 항상 subprocess 사용
-- generate_3d_worker.py 상단의 환경 변수 유지
-- MoGe/dummy 맵 대신 합성 핀홀 포인트맵 (make_synthetic_pointmap) 사용
-- subprocess stdout에서 디버그 마커 확인 (PLY_URL_START/END 등)
-- GLB 내보내기 신중하게 테스트 - to_glb()는 메시 데이터가 필요하며 AttributeError가 발생할 수 있음
+### When Modifying 3D Generation
+- **Never** load Sam-3d-objects in the api.py main process - always use subprocess
+- Maintain environment variables at the top of generate_3d_worker.py
+- Use synthetic pinhole pointmaps (make_synthetic_pointmap) instead of MoGe/dummy maps
+- Check debug markers in subprocess stdout (PLY_URL_START/END, etc.)
+- Test GLB export carefully - to_glb() requires mesh data and can raise AttributeError
 
-### 새 엔드포인트 추가 시
-- 5초 이상 걸리는 작업에는 background_tasks 사용
-- 비동기 작업은 즉시 task_id 반환
-- 결과를 generation_tasks dict 또는 영구 저장소에 저장
+### When Modifying Multi-GPU Processing
+- Check GPUPoolManager class in `ai/gpu/gpu_pool_manager.py`
+- Follow acquire/release pattern when adding new GPU features
+- Pipeline factory functions must accept device_id
+- Use GPU context managers to ensure automatic release
+- Check Multi-GPU settings in `ai/config.py` (GPU_IDS, ENABLE_MULTI_GPU, etc.)
 
-### PLY 파일 작업 시
-- PLY 파일은 SH 계수에서 RGB를 추가하여 후처리됨 (add_rgb_to_ply)
-- 호환성을 위해 ASCII 형식 사용 (파일이 클 수 있음)
-- 클라이언트는 결과 폴링 시 대용량 base64 페이로드 처리 필요
+### When Adding New Endpoints
+- Use background_tasks for operations taking more than 5 seconds
+- Return task_id immediately for async operations
+- Store results in generation_tasks dict or persistent storage
+- If Multi-GPU is needed, acquire pool via get_gpu_pool()
 
-### 3D 생성 디버깅 시
-- subprocess stdout/stderr 로그 확인 (_generate_3d_background에서 출력)
-- Sam-3d-objects 경로 존재 확인: ./sam-3d-objects/notebook 및 checkpoints
-- 메모리 문제 확인 - 피크 GPU 메모리가 로그됨
-- 마스크가 충분한 픽셀을 가지는지 검증 (100 이상 권장, subprocess 로그에 출력)
+### When Working with PLY Files
+- PLY files are post-processed to add RGB from SH coefficients (add_rgb_to_ply)
+- ASCII format is used for compatibility (files can be large)
+- Clients need to handle large base64 payloads when polling results
 
-## 파일 구조
+### When Debugging 3D Generation
+- Check subprocess stdout/stderr logs (printed in _generate_3d_background)
+- Verify Sam-3d-objects paths exist: ./sam-3d-objects/notebook and checkpoints
+- Check for memory issues - peak GPU memory is logged
+- Verify mask has sufficient pixels (100+ recommended, logged in subprocess)
+
+## File Structure
 
 ```
-api.py                                  # 메인 FastAPI 서버 (SAM 2 + 작업 관리 + AI 통합)
-requirements.txt                        # Python 의존성
-setup.sh                                # 설정 스크립트 (sam-3d-objects 클론, conda 환경 생성)
-assets/                                 # /assets/에서 제공되는 정적 파일 (PLY, GIF, GLB)
-sam-3d-objects/                         # 클론된 Facebook Research 레포 (git에 없음)
-  notebook/inference.py                 # Sam-3d-objects 파이프라인 클래스
-  checkpoints/hf/pipeline.yaml          # 파이프라인 설정
-ai/                                     # AI 모듈 (메인 API와 통합)
-  __init__.py                           # 모듈 진입점
-  main.py                               # 독립 CLI 진입점
-  config.py                             # YOLO/CLIP 모델 설정
-  processors/                           # AI Logic 단계별 프로세서
-    1_firebase_images_fetch.py          # Step 1: Firebase에서 이미지 가져오기
-    2_Yolo-World_detect.py              # Step 2: YOLO-World 객체 탐지
-    3_CLIP_classify.py                  # Step 3: CLIP 세부 분류
-    4_DB_movability_check.py            # Step 4: is_movable 판단
-    5_SAM2_mask_generate.py             # Step 5: SAM2 마스크 생성
-    6_SAM3D_convert.py                  # Step 6: SAM-3D 3D 변환
-    7_volume_calculate.py               # Step 7: 부피/치수 계산
+api.py                                  # Main FastAPI server (SAM 2 + task management + AI integration)
+requirements.txt                        # Python dependencies
+setup.sh                                # Setup script (clones sam-3d-objects, creates conda env)
+assets/                                 # Static files served at /assets/ (PLY, GIF, GLB)
+sam-3d-objects/                         # Cloned Facebook Research repo (not in git)
+  notebook/inference.py                 # Sam-3d-objects pipeline class
+  checkpoints/hf/pipeline.yaml          # Pipeline configuration
+ai/                                     # AI module (integrated with main API)
+  __init__.py                           # Module entry point (exports FurniturePipeline, processors)
+  main.py                               # Standalone CLI entry point
+  config.py                             # YOLO/CLIP model settings, Multi-GPU settings
+  gpu/                                  # GPU pool management module
+    __init__.py                         # Exports GPUPoolManager, get_gpu_pool
+    gpu_pool_manager.py                 # GPU pool manager implementation
+  processors/                           # AI Logic step-by-step processors
+    __init__.py                         # Exports processor classes
+    1_firebase_images_fetch.py          # Step 1: Fetch images from Firebase
+    2_Yolo-World_detect.py              # Step 2: YOLO-World object detection
+    3_CLIP_classify.py                  # Step 3: CLIP detailed classification
+    4_DB_movability_check.py            # Step 4: is_movable determination
+    5_SAM2_mask_generate.py             # Step 5: SAM2 mask generation
+    6_SAM3D_convert.py                  # Step 6: SAM-3D 3D conversion
+    7_volume_calculate.py               # Step 7: Volume/dimension calculation
   pipeline/
-    furniture_pipeline.py               # 파이프라인 오케스트레이터
+    __init__.py                         # Exports FurniturePipeline
+    furniture_pipeline.py               # Pipeline orchestrator (Multi-GPU support)
   subprocess/
-    generate_3d_worker.py               # 격리된 3D 생성 워커
+    generate_3d_worker.py               # Isolated 3D generation worker
   data/
-    knowledge_base.py                   # 치수가 있는 가구 데이터베이스
+    __init__.py                         # Exports FURNITURE_DB
+    knowledge_base.py                   # Furniture database with dimensions
   utils/
-    image_ops.py                        # 이미지 처리 유틸리티
+    __init__.py                         # Exports utilities
+    image_ops.py                        # Image processing utilities
+  fonts/                                # Korean font files (NanumGothic)
+  imgs/                                 # Test images
+  outputs/                              # Output results
 ```
 
-## 알려진 문제 및 해결 방법
+## Known Issues and Solutions
 
-1. **spconv float64 오류**: 모든 import 전에 torch.set_default_dtype(torch.float32) 설정으로 방지
-2. **Intrinsics 복구 실패**: MoGe 대신 합성 핀홀 포인트맵 사용으로 방지
-3. **GLB 내보내기 AttributeError**: mesh_data가 비메시 객체 리스트일 때 발생 - subprocess가 이제 이를 캐치하고 로깅
-4. **메시 생성 CPU 스파이크**: Gaussian-to-mesh 변환은 기본적으로 비활성화 (CPU 집약적)
-5. **빈 마스크 오류**: Subprocess가 마스크가 0픽셀 이상인지 검증하고 100픽셀 미만이면 경고
-
-## 통합 참고
-
-이 프로젝트는 [Sam3D Mobile](https://github.com/andrisgauracs/sam3d-mobile) 앱과 연동하도록 설계되었습니다.
+1. **spconv float64 error**: Prevented by setting torch.set_default_dtype(torch.float32) before all imports
+2. **Intrinsics recovery failure**: Prevented by using synthetic pinhole pointmaps instead of MoGe
+3. **GLB export AttributeError**: Occurs when mesh_data is a list of non-mesh objects - subprocess now catches and logs this
+4. **Mesh generation CPU spike**: Gaussian-to-mesh conversion is disabled by default (CPU intensive)
+5. **Empty mask error**: Subprocess validates mask has >0 pixels and warns if <100 pixels
+6. **Multi-GPU pipeline not initialized**: Falls back to creating new pipeline on-demand if pre-initialization fails
+7. **GPU allocation timeout**: Raises RuntimeError if wait_timeout (default 300s) is exceeded
