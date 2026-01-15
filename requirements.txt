@@ -1,13 +1,42 @@
+# Core API dependencies
 fastapi
 uvicorn[standard]
 pydantic
-torch
-torchvision
-pillow
-numpy
+
+# PyTorch (DeCl requires >=2.1.0)
+torch>=2.1.0
+torchvision>=0.16.0
+
+# Image processing
+Pillow>=10.0.0
+numpy>=1.24.0
+opencv-python-headless>=4.9.0  # headless version to avoid GUI conflicts
+
+# ML/AI
 transformers==4.57.3
-opencv-python
-scipy
+tokenizers>=0.15.0
+
+# Scientific computing
+scipy>=1.10.0
+
+# 3D processing
 trimesh
 pygltflib
+
+# Gaussian splatting
+# NOTE: Install torch first, then install this package with:
+#   export CUDA_HOME=/path/to/cuda && pip install --no-build-isolation <package>
 git+https://github.com/autonomousvision/mip-splatting.git#subdirectory=submodules/diff-gaussian-rasterization
+
+# Sam-3d-objects dependencies (for 3D generation subprocess)
+omegaconf>=2.3.0
+hydra-core>=1.3.2
+
+# DeCl dependencies (Furniture Detection & Classification)
+ultralytics>=8.1.0  # YOLO-World
+sahi  # Slicing Aided Hyper Inference for small object detection
+aiohttp  # Async HTTP client for Firebase URL fetching
+requests  # Sync HTTP client (fallback)
+ftfy  # Text cleaning for CLIP
+regex  # Regex utilities for tokenizers
+git+https://github.com/openai/CLIP.git  # OpenAI CLIP for classification
