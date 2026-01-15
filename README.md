@@ -1,4 +1,4 @@
-# Yolo-World, CLIO, SAM 2 세그멘테이션 + SAM-3D 생성 API
+# Yolo-World, CLIP, SAM 2 세그멘테이션 + SAM-3D 생성 API
 
 이사 서비스를 위한 가구 탐지, 분류 및 3D 모델 생성 통합 API 서비스입니다.
 
