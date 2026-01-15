@@ -356,5 +356,186 @@ Multi-GPU 병렬 처리 인프라가 성공적으로 구현되었습니다.
 
 ---
 
+## 9. GPU별 파이프라인 사전 초기화 (추가 구현)
+
+### 9.1 문제점 발견
+
+초기 구현에서 다음 문제가 발견되었습니다:
+
+```
+❌ 문제: 요청마다 새 파이프라인 생성
+   - 다른 GPU 할당 시 새 FurniturePipeline 생성
+   - YOLO, CLIP 모델이 매번 다시 로드됨 (3-5초 소요)
+```
+
+**기존 동작 (문제):**
+```
+Image 0 → GPU 0 (기존 파이프라인 재사용)
+Image 1 → GPU 1 (새 파이프라인 생성 - 모델 로드 3-5초)
+Image 2 → GPU 2 (새 파이프라인 생성 - 모델 로드 3-5초)
+Image 3 → GPU 3 (새 파이프라인 생성 - 모델 로드 3-5초)
+```
+
+### 9.2 해결 방안: 파이프라인 사전 초기화
+
+**수정된 파일:**
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `ai/gpu/gpu_pool_manager.py` | 파이프라인 레지스트리 및 사전 초기화 기능 추가 |
+| `ai/pipeline/furniture_pipeline.py` | 사전 초기화된 파이프라인 사용하도록 수정 |
+| `api.py` | 서버 시작 시 GPU별 파이프라인 초기화 |
+
+**GPUPoolManager 추가 메서드:**
+
+```python
+# 파이프라인 등록
+pool.register_pipeline(gpu_id, pipeline)
+
+# 파이프라인 조회
+pipeline = pool.get_pipeline(gpu_id)
+
+# 파이프라인 존재 여부 확인
+pool.has_pipeline(gpu_id)
+
+# 모든 GPU에 파이프라인 사전 초기화
+await pool.initialize_pipelines(
+    lambda gpu_id: FurniturePipeline(device_id=gpu_id)
+)
+
+# 파이프라인과 함께 GPU 획득
+async with pool.pipeline_context() as (gpu_id, pipeline):
+    result = await pipeline.process_single_image(url)
+```
+
+### 9.3 서버 시작 시 초기화 로직
+
+```python
+@app.on_event("startup")
+async def startup_event():
+    # GPU 풀 초기화
+    pool = initialize_gpu_pool(gpu_ids)
+
+    # GPU별 파이프라인 사전 초기화
+    def create_pipeline(gpu_id):
+        return FurniturePipeline(device_id=gpu_id, gpu_pool=pool)
+
+    await pool.initialize_pipelines(create_pipeline)
+```
+
+### 9.4 테스트 결과
+
+**GPU 상태 확인 (`GET /gpu-status`):**
+
+```json
+{
+  "total_gpus": 1,
+  "available_gpus": 1,
+  "pipelines_initialized": 1,
+  "gpus": {
+    "0": {
+      "available": true,
+      "task_id": null,
+      "memory_used_mb": 0.0,
+      "memory_total_mb": 40441.38,
+      "has_pipeline": true
+    }
+  }
+}
+```
+
+**서버 시작 로그 (수정 후):**
+
+```
+[GPUPoolManager] Initialized with 1 GPUs: [0]
+✓ GPU pool initialized with 1 GPUs: [0]
+[GPUPoolManager] Initializing pipelines for 1 GPUs...
+[GPUPoolManager] Creating pipeline for GPU 0...
+[FurniturePipeline] Initializing on device: cuda:0
+[YoloWorldDetector] Loading YOLO-World on cuda:0: yolov8l-world.pt
+[YoloWorldDetector] SAHI enabled on cuda:0
+[ClipClassifier] Loading CLIP on cuda:0: openai/clip-vit-base-patch32
+[ClipClassifier] CLIP loaded successfully on cuda:0
+[MovabilityChecker] Loaded 17 furniture categories
+[FurniturePipeline] Initialized with 57 search classes on cuda:0
+[GPUPoolManager] Registered pipeline for GPU 0
+[GPUPoolManager] Initialized 1/1 pipelines
+✓ Furniture pipelines pre-initialized for 1 GPUs
+```
+
+**요청 처리 로그 (파이프라인 재사용 확인):**
+
+```
+# 이전 (수정 전) - 매 요청마다 새 파이프라인 생성
+[FurniturePipeline] Initializing on device: cuda:0  ← 매번 출력됨
+[YoloWorldDetector] Loading YOLO-World...
+POST /detect-furniture 200 OK
+
+# 이후 (수정 후) - 사전 초기화된 파이프라인 재사용
+POST /detect-furniture 200 OK  ← 새 파이프라인 생성 로그 없음!
+POST /detect-furniture 200 OK  ← 새 파이프라인 생성 로그 없음!
+```
+
+### 9.5 파이프라인 사전 초기화 테스트 결과
+
+| 테스트 항목 | 결과 |
+|------------|------|
+| 서버 시작 시 파이프라인 초기화 | ✅ PASS |
+| `/gpu-status`에 `pipelines_initialized` 표시 | ✅ PASS |
+| `/gpu-status`에 `has_pipeline` 표시 | ✅ PASS |
+| 첫 번째 요청에서 사전 초기화 파이프라인 사용 | ✅ PASS |
+| 두 번째 요청에서 파이프라인 재사용 | ✅ PASS |
+| 새 파이프라인 생성 로그 없음 확인 | ✅ PASS |
+
+**전체 결과:** 6/6 PASS (100%)
+
+### 9.6 성능 개선 효과
+
+| 항목 | 수정 전 | 수정 후 |
+|------|--------|--------|
+| 첫 요청 파이프라인 로드 | 3-5초 | 0초 (이미 로드됨) |
+| N번째 GPU 첫 사용 시 | 3-5초 | 0초 (사전 초기화) |
+| 모델 메모리 중복 로드 | 발생 가능 | 방지됨 |
+
+---
+
+## 10. 최종 테스트 요약
+
+| 카테고리 | 테스트 항목 | 결과 |
+|----------|------------|------|
+| API | /health | ✅ PASS |
+| API | /gpu-status | ✅ PASS |
+| API | /detect-furniture | ✅ PASS |
+| API | /analyze-furniture-base64 | ✅ PASS |
+| GPU | Pool Manager 초기화 | ✅ PASS |
+| GPU | 라운드로빈 할당 | ✅ PASS |
+| GPU | Subprocess 격리 | ✅ PASS |
+| GPU | 파이프라인 사전 초기화 | ✅ PASS |
+| GPU | 파이프라인 재사용 | ✅ PASS |
+| Pipeline | YOLO → CLIP → DB | ✅ PASS |
+
+**전체 결과:** 10/10 PASS (100%)
+
+---
+
+## 11. 최종 결론
+
+Multi-GPU 병렬 처리 인프라가 성공적으로 구현되었으며, 파이프라인 사전 초기화로 성능이 최적화되었습니다.
+
+**완료된 작업:**
+- GPU Pool Manager 구현 (라운드로빈 할당)
+- 프로세서별 device_id 지원
+- Subprocess GPU 격리 (`CUDA_VISIBLE_DEVICES`)
+- `/gpu-status` 모니터링 엔드포인트
+- **GPU별 파이프라인 사전 초기화** (신규)
+- **파이프라인 재사용으로 모델 로드 오버헤드 제거** (신규)
+
+**다음 단계 권장사항:**
+1. 가구 탐지 정확도 개선 (모델 fine-tuning 또는 교체)
+2. Multi-GPU 환경에서 실제 병렬 처리 성능 벤치마크
+3. SAM2 마스크 생성 및 SAM-3D 3D 변환 통합 테스트
+
+---
+
 *작성: Claude Code*
-*커밋: bc62ce3*
+*최종 업데이트: 2026-01-15*

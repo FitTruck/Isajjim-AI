@@ -146,11 +146,32 @@ async def startup_event():
 
     # GPU 풀 초기화
     try:
-        from ai.gpu import initialize_gpu_pool
+        from ai.gpu import initialize_gpu_pool, get_gpu_pool
         from ai.config import Config
         gpu_ids = Config.get_available_gpus()
-        initialize_gpu_pool(gpu_ids)
+        pool = initialize_gpu_pool(gpu_ids)
         print(f"✓ GPU pool initialized with {len(gpu_ids)} GPUs: {gpu_ids}")
+
+        # GPU별 FurniturePipeline 사전 초기화
+        try:
+            from ai.pipeline import FurniturePipeline
+
+            def create_pipeline(gpu_id: int) -> FurniturePipeline:
+                """GPU별 파이프라인 팩토리"""
+                return FurniturePipeline(
+                    sam2_api_url="http://localhost:8000",
+                    enable_3d_generation=True,
+                    device_id=gpu_id,
+                    gpu_pool=pool
+                )
+
+            await pool.initialize_pipelines(create_pipeline, skip_on_error=True)
+            print(f"✓ Furniture pipelines pre-initialized for {len(gpu_ids)} GPUs")
+        except Exception as e:
+            print(f"⚠ Pipeline pre-initialization failed (will create on-demand): {e}")
+            import traceback
+            traceback.print_exc()
+
     except Exception as e:
         print(f"⚠ GPU pool initialization failed (will use default): {e}")
 
@@ -175,8 +196,9 @@ async def gpu_status():
         {
             "total_gpus": int,
             "available_gpus": int,
+            "pipelines_initialized": int,
             "gpus": {
-                "0": {"available": bool, "task_id": str|null, "memory_used_mb": float, ...},
+                "0": {"available": bool, "task_id": str|null, "memory_used_mb": float, "has_pipeline": bool, ...},
                 ...
             }
         }
@@ -184,12 +206,20 @@ async def gpu_status():
     try:
         from ai.gpu import get_gpu_pool
         pool = get_gpu_pool()
-        return JSONResponse(pool.get_status())
+        status = pool.get_status()
+        # 파이프라인 상태 추가
+        pipelines_status = pool.get_pipelines_status()
+        status["pipelines_initialized"] = pipelines_status["initialized_pipelines"]
+        # GPU별 파이프라인 여부 추가
+        for gpu_id, gpu_info in status["gpus"].items():
+            gpu_info["has_pipeline"] = pipelines_status["gpus"].get(int(gpu_id), {}).get("has_pipeline", False)
+        return JSONResponse(status)
     except Exception as e:
         return JSONResponse({
             "error": str(e),
             "total_gpus": 1 if torch.cuda.is_available() else 0,
             "available_gpus": 1 if torch.cuda.is_available() else 0,
+            "pipelines_initialized": 0,
             "gpus": {}
         })
 
@@ -950,12 +980,33 @@ furniture_pipeline = None
 
 def get_furniture_pipeline(device_id: Optional[int] = None):
     """
-    Lazy initialization of furniture pipeline with GPU pool support.
+    Get furniture pipeline - uses pre-initialized pipeline from GPU pool if available.
 
     Args:
         device_id: GPU 디바이스 ID (None이면 기본값 또는 풀에서 할당)
+
+    Returns:
+        Pre-initialized FurniturePipeline from GPU pool, or creates new one if not available
     """
     global furniture_pipeline
+
+    # 먼저 GPU 풀에서 사전 초기화된 파이프라인 확인
+    try:
+        from ai.gpu import get_gpu_pool
+        gpu_pool = get_gpu_pool()
+
+        # device_id가 지정되지 않으면 기본 GPU (0) 사용
+        target_gpu = device_id if device_id is not None else 0
+
+        # 사전 초기화된 파이프라인이 있으면 사용
+        if gpu_pool.has_pipeline(target_gpu):
+            pre_initialized = gpu_pool.get_pipeline(target_gpu)
+            if pre_initialized is not None:
+                return pre_initialized
+    except Exception as e:
+        print(f"[get_furniture_pipeline] Could not get pre-initialized pipeline: {e}")
+
+    # 사전 초기화된 파이프라인이 없으면 새로 생성 (폴백)
     if furniture_pipeline is None:
         try:
             from ai.pipeline import FurniturePipeline
@@ -974,7 +1025,7 @@ def get_furniture_pipeline(device_id: Optional[int] = None):
                 device_id=device_id,
                 gpu_pool=gpu_pool
             )
-            print(f"✓ Furniture pipeline initialized (device_id={device_id})")
+            print(f"✓ Furniture pipeline initialized (device_id={device_id}) [fallback - not pre-initialized]")
         except Exception as e:
             print(f"⚠ Failed to initialize furniture pipeline: {e}")
             raise

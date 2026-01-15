@@ -8,12 +8,13 @@ Features:
 - Thread-safe 획득/반환
 - GPU 헬스체크
 - 자동 페일오버
+- GPU별 파이프라인 사전 초기화 및 재사용
 """
 
 import asyncio
 import time
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Any, Callable
+from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
 
 try:
@@ -33,6 +34,7 @@ class GPUInfo:
     memory_total_mb: float = 0.0
     last_health_check: float = 0.0
     error_count: int = 0
+    pipeline: Any = None  # 사전 초기화된 FurniturePipeline
 
 
 class GPUPoolManager:
@@ -247,6 +249,111 @@ class GPUPoolManager:
         if gpu_id not in self._gpus:
             return False
         return self._gpus[gpu_id].is_available
+
+    # =========================================================================
+    # 파이프라인 사전 초기화 기능
+    # =========================================================================
+
+    def register_pipeline(self, gpu_id: int, pipeline: Any):
+        """
+        GPU에 사전 초기화된 파이프라인을 등록합니다.
+
+        Args:
+            gpu_id: GPU ID
+            pipeline: 초기화된 FurniturePipeline 인스턴스
+        """
+        if gpu_id in self._gpus:
+            self._gpus[gpu_id].pipeline = pipeline
+            print(f"[GPUPoolManager] Registered pipeline for GPU {gpu_id}")
+
+    def get_pipeline(self, gpu_id: int) -> Optional[Any]:
+        """
+        GPU에 등록된 파이프라인을 가져옵니다.
+
+        Args:
+            gpu_id: GPU ID
+
+        Returns:
+            등록된 FurniturePipeline 또는 None
+        """
+        if gpu_id in self._gpus:
+            return self._gpus[gpu_id].pipeline
+        return None
+
+    def has_pipeline(self, gpu_id: int) -> bool:
+        """GPU에 파이프라인이 등록되어 있는지 확인합니다."""
+        if gpu_id not in self._gpus:
+            return False
+        return self._gpus[gpu_id].pipeline is not None
+
+    async def initialize_pipelines(
+        self,
+        pipeline_factory: Callable[[int], Any],
+        skip_on_error: bool = True
+    ):
+        """
+        모든 GPU에 파이프라인을 사전 초기화합니다.
+
+        Args:
+            pipeline_factory: GPU ID를 받아 파이프라인을 생성하는 팩토리 함수
+                              예: lambda gpu_id: FurniturePipeline(device_id=gpu_id)
+            skip_on_error: 에러 발생 시 해당 GPU 건너뛰기
+
+        Example:
+            await pool.initialize_pipelines(
+                lambda gpu_id: FurniturePipeline(device_id=gpu_id)
+            )
+        """
+        print(f"[GPUPoolManager] Initializing pipelines for {len(self.gpu_ids)} GPUs...")
+
+        for gpu_id in self.gpu_ids:
+            try:
+                print(f"[GPUPoolManager] Creating pipeline for GPU {gpu_id}...")
+                pipeline = pipeline_factory(gpu_id)
+                self.register_pipeline(gpu_id, pipeline)
+            except Exception as e:
+                print(f"[GPUPoolManager] Failed to initialize pipeline for GPU {gpu_id}: {e}")
+                if not skip_on_error:
+                    raise
+
+        initialized_count = sum(1 for g in self._gpus.values() if g.pipeline is not None)
+        print(f"[GPUPoolManager] Initialized {initialized_count}/{len(self.gpu_ids)} pipelines")
+
+    @asynccontextmanager
+    async def pipeline_context(self, task_id: Optional[str] = None):
+        """
+        사전 초기화된 파이프라인과 함께 GPU를 획득합니다.
+
+        Usage:
+            async with pool.pipeline_context(task_id="image_1") as (gpu_id, pipeline):
+                result = await pipeline.process_single_image(url)
+            # 자동으로 GPU 반환됨
+
+        Yields:
+            (gpu_id, pipeline) 튜플
+        """
+        gpu_id = await self.acquire(task_id)
+        try:
+            pipeline = self.get_pipeline(gpu_id)
+            if pipeline is None:
+                raise RuntimeError(f"No pipeline registered for GPU {gpu_id}")
+            yield gpu_id, pipeline
+        finally:
+            await self.release(gpu_id)
+
+    def get_pipelines_status(self) -> Dict:
+        """파이프라인 초기화 상태를 반환합니다."""
+        return {
+            "total_gpus": len(self.gpu_ids),
+            "initialized_pipelines": sum(1 for g in self._gpus.values() if g.pipeline is not None),
+            "gpus": {
+                gpu_id: {
+                    "has_pipeline": info.pipeline is not None,
+                    "available": info.is_available
+                }
+                for gpu_id, info in self._gpus.items()
+            }
+        }
 
 
 # Singleton 인스턴스

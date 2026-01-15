@@ -561,6 +561,7 @@ class FurniturePipeline:
         여러 이미지를 GPU에 분배하여 병렬 처리합니다.
 
         Multi-GPU 모드에서는 각 이미지를 다른 GPU에 라운드로빈 방식으로 분배합니다.
+        사전 초기화된 파이프라인이 있으면 재사용하여 모델 로드 오버헤드를 방지합니다.
         """
         # GPU 풀 가져오기
         pool = self.gpu_pool or get_gpu_pool()
@@ -572,25 +573,34 @@ class FurniturePipeline:
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def process_with_gpu(url: str) -> PipelineResult:
-            """GPU를 할당받아 이미지 처리"""
+            """GPU를 할당받아 이미지 처리 - 사전 초기화된 파이프라인 사용"""
             async with semaphore:
                 try:
-                    async with pool.gpu_context(task_id=url[:50]) as gpu_id:
-                        # 해당 GPU용 파이프라인 생성
-                        # Note: 이미 초기화된 self를 재사용하거나 새로 생성
-                        if self.device_id == gpu_id:
-                            # 같은 GPU면 self 재사용
-                            return await self.process_single_image(url, enable_mask, enable_3d)
-                        else:
-                            # 다른 GPU면 새 파이프라인 생성
-                            pipeline = FurniturePipeline(
-                                sam2_api_url=self.sam2_api_url,
-                                enable_3d_generation=self.enable_3d_generation,
-                                device_id=gpu_id,
-                                gpu_pool=pool
-                            )
+                    # 사전 초기화된 파이프라인이 있는지 확인
+                    if pool.has_pipeline(pool.gpu_ids[0] if pool.gpu_ids else 0):
+                        # 사전 초기화된 파이프라인 사용
+                        async with pool.pipeline_context(task_id=url[:50]) as (gpu_id, pipeline):
+                            print(f"[FurniturePipeline] Processing on GPU {gpu_id} (pre-initialized)")
                             return await pipeline.process_single_image(url, enable_mask, enable_3d)
+                    else:
+                        # 사전 초기화가 안 된 경우 기존 방식 사용
+                        async with pool.gpu_context(task_id=url[:50]) as gpu_id:
+                            if self.device_id == gpu_id:
+                                # 같은 GPU면 self 재사용
+                                return await self.process_single_image(url, enable_mask, enable_3d)
+                            else:
+                                # 다른 GPU면 새 파이프라인 생성 (비효율적이지만 폴백)
+                                print(f"[FurniturePipeline] Warning: Creating new pipeline for GPU {gpu_id} (not pre-initialized)")
+                                pipeline = FurniturePipeline(
+                                    sam2_api_url=self.sam2_api_url,
+                                    enable_3d_generation=self.enable_3d_generation,
+                                    device_id=gpu_id,
+                                    gpu_pool=pool
+                                )
+                                return await pipeline.process_single_image(url, enable_mask, enable_3d)
                 except Exception as e:
+                    import traceback
+                    traceback.print_exc()
                     return PipelineResult(
                         image_id=str(uuid.uuid4()),
                         image_url=url,
