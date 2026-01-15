@@ -27,7 +27,8 @@ sam-3d-objects/
 assets/
 
 # Output folders
-DeCl/outputs/
+ai/outputs/
+runs/
 
 # Environment
 .env

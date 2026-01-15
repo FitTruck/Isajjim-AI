@@ -16,8 +16,17 @@ import struct
 # ============================================================================
 os.environ["CUDA_HOME"] = os.environ.get("CONDA_PREFIX", "")
 os.environ["LIDRA_SKIP_INIT"] = "true"
+
+# Multi-GPU 지원:
+# CUDA_VISIBLE_DEVICES가 부모 프로세스에서 설정되면 그 값을 사용
+# CUDA_VISIBLE_DEVICES로 GPU를 제한하면 내부적으로 항상 device 0이 됨
+# 따라서 SPCONV_TUNE_DEVICE는 항상 "0"으로 설정
+cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+print(f"[Subprocess] CUDA_VISIBLE_DEVICES={cuda_visible}")
+
+# SPCONV_TUNE_DEVICE는 항상 0 (CUDA_VISIBLE_DEVICES로 remap되므로)
 os.environ["SPCONV_TUNE_DEVICE"] = "0"
-os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # Set to 100ms (was 0 = infinite tuning)
+os.environ["SPCONV_ALGO_TIME_LIMIT"] = os.environ.get("SPCONV_ALGO_TIME_LIMIT", "100")
 os.environ["TORCH_CUDA_ARCH_LIST"] = "all"
 
 # Prevent thread explosion - limit OpenMP threads
@@ -34,6 +43,12 @@ import torch
 torch.set_num_threads(4)
 torch.set_num_interop_threads(2)
 torch.set_default_dtype(torch.float32)
+
+# Multi-GPU: GPU 상태 로깅
+if torch.cuda.is_available():
+    print(f"[Subprocess] torch.cuda.device_count()={torch.cuda.device_count()}")
+    print(f"[Subprocess] torch.cuda.current_device()={torch.cuda.current_device()}")
+    print(f"[Subprocess] Using GPU: {torch.cuda.get_device_name(0)} (remapped as cuda:0)")
 
 from PIL import Image
 

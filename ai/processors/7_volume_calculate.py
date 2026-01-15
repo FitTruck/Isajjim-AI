@@ -351,7 +351,7 @@ def estimate_dimensions_from_aspect_ratio(
                 dims = subtype.get('dimensions', {})
                 if 'variants' in dims:
                     # variants가 있는 경우 비율로 가장 유사한 것 선택
-                    from DeCl.data.knowledge_base import estimate_size_variant
+                    from ai.data.knowledge_base import estimate_size_variant
                     _, ref_dims = estimate_size_variant(db_key, subtype_name, aspect_ratio)
                 else:
                     ref_dims = dims

@@ -141,8 +141,18 @@ def initialize_model():
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize models on API startup"""
+    """Initialize models and GPU pool on API startup"""
     initialize_model()
+
+    # GPU 풀 초기화
+    try:
+        from ai.gpu import initialize_gpu_pool
+        from ai.config import Config
+        gpu_ids = Config.get_available_gpus()
+        initialize_gpu_pool(gpu_ids)
+        print(f"✓ GPU pool initialized with {len(gpu_ids)} GPUs: {gpu_ids}")
+    except Exception as e:
+        print(f"⚠ GPU pool initialization failed (will use default): {e}")
 
 
 @app.get("/health")
@@ -154,6 +164,34 @@ async def health_check():
         "device": str(device),
         "model": "facebook/sam2.1-hiera-large",
     }
+
+
+@app.get("/gpu-status")
+async def gpu_status():
+    """
+    GPU 풀 상태를 반환합니다.
+
+    Returns:
+        {
+            "total_gpus": int,
+            "available_gpus": int,
+            "gpus": {
+                "0": {"available": bool, "task_id": str|null, "memory_used_mb": float, ...},
+                ...
+            }
+        }
+    """
+    try:
+        from ai.gpu import get_gpu_pool
+        pool = get_gpu_pool()
+        return JSONResponse(pool.get_status())
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e),
+            "total_gpus": 1 if torch.cuda.is_available() else 0,
+            "available_gpus": 1 if torch.cuda.is_available() else 0,
+            "gpus": {}
+        })
 
 
 class SegmentRequest(BaseModel):
@@ -478,7 +516,7 @@ def _generate_3d_background(
 
         # Get the directory of the current script
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        subprocess_script = os.path.join(script_dir, "generate_3d_subprocess.py")
+        subprocess_script = os.path.join(script_dir, "ai", "subprocess", "generate_3d_worker.py")
 
         print(f"[Task {task_id}] Running 3D generation in subprocess...")
 
@@ -898,30 +936,45 @@ async def list_assets():
 
 
 # ============================================================================
-# FURNITURE ANALYSIS ENDPOINTS (DeCl Integration)
+# FURNITURE ANALYSIS ENDPOINTS (AI Integration)
 # ============================================================================
 
-# Add DeCl to Python path
-decl_path = os.path.join(os.path.dirname(__file__), "DeCl")
-if decl_path not in sys.path:
-    sys.path.insert(0, decl_path)
+# Add AI module to Python path
+ai_path = os.path.join(os.path.dirname(__file__), "ai")
+if ai_path not in sys.path:
+    sys.path.insert(0, ai_path)
 
 # Lazy-load furniture pipeline to avoid startup delays
 furniture_pipeline = None
 
 
-def get_furniture_pipeline():
-    """Lazy initialization of furniture pipeline"""
+def get_furniture_pipeline(device_id: Optional[int] = None):
+    """
+    Lazy initialization of furniture pipeline with GPU pool support.
+
+    Args:
+        device_id: GPU 디바이스 ID (None이면 기본값 또는 풀에서 할당)
+    """
     global furniture_pipeline
     if furniture_pipeline is None:
         try:
-            from DeCl.services.furniture_pipeline import FurniturePipeline
+            from ai.pipeline import FurniturePipeline
+            from ai.gpu import get_gpu_pool
+
+            # GPU 풀 가져오기
+            try:
+                gpu_pool = get_gpu_pool()
+            except Exception:
+                gpu_pool = None
+
             furniture_pipeline = FurniturePipeline(
                 sam2_api_url="http://localhost:8000",
                 enable_3d_generation=True,
-                use_sahi=True
+                use_sahi=True,
+                device_id=device_id,
+                gpu_pool=gpu_pool
             )
-            print("✓ Furniture pipeline initialized")
+            print(f"✓ Furniture pipeline initialized (device_id={device_id})")
         except Exception as e:
             print(f"⚠ Failed to initialize furniture pipeline: {e}")
             raise

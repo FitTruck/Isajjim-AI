@@ -1,15 +1,20 @@
 """
-Furniture Analysis Pipeline Service
+Furniture Analysis Pipeline
 
-전체 AI 로직을 통합한 파이프라인 서비스:
+전체 AI 로직을 통합한 파이프라인 오케스트레이터:
+
+[DeCl Stages - 1~4]
 1. Firebase Storage URL에서 이미지 가져오기
 2. YOLO-World + SAHI로 객체 탐지
 3. CLIP으로 세부 유형 분류
-4. is_movable 결정
+4. DB 대조하여 is_movable 결정
+
+[External API - 5~9]
 5. SAM2로 마스크 생성
-6. SAM-3D로 3D 변환 및 부피 계산
-7. DB 규격 대조하여 절대 치수 계산
-8. 최종 JSON 응답 반환
+6. SAM-3D로 3D 변환
+7. 부피/치수 계산
+8. DB 규격 대조하여 절대 치수 계산
+9. 최종 JSON 응답 반환
 """
 
 import os
@@ -19,46 +24,44 @@ import base64
 import tempfile
 import uuid
 import asyncio
-import aiohttp
 from typing import List, Dict, Optional, Tuple
 from PIL import Image
 import numpy as np
 from dataclasses import dataclass, field
-from datetime import datetime
 
-# DeCl 경로 추가
-decl_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if decl_path not in sys.path:
-    sys.path.insert(0, decl_path)
-
-# DeCl 모듈 임포트
-from config import Config
-from data.knowledge_base import (
-    FURNITURE_DB,
-    get_dimensions_for_subtype,
-    estimate_size_variant
+# AI processors import
+from ai.processors import (
+    ImageFetcher,
+    YoloWorldDetector,
+    ClipClassifier,
+    ACRefiner,
+    MovabilityChecker,
+    VolumeCalculator,
+    SAM3DConverter
 )
-from utils.image_ops import ImageUtils
-from utils.volume_calculator import VolumeCalculator, estimate_dimensions_from_aspect_ratio
-from models.classifier import ClipClassifier
-from models.refiners.ac_refiner import ACRefiner
 
-# SAHI 탐지기 (없으면 표준 탐지기 사용)
+# GPU pool manager import
+from ai.gpu import GPUPoolManager, get_gpu_pool
+
+# Config import
+from ai.config import Config
+
+# Knowledge base import
+from ai.data.knowledge_base import FURNITURE_DB
+
 try:
-    from models.sahi_detector import EnhancedDetector
-    HAS_ENHANCED_DETECTOR = True
+    import aiohttp
+    HAS_AIOHTTP = True
 except ImportError:
-    from models.detector import YoloDetector as EnhancedDetector
-    HAS_ENHANCED_DETECTOR = False
-    print("[FurniturePipeline] Using standard YOLO detector (SAHI not available)")
+    HAS_AIOHTTP = False
 
 
 @dataclass
 class DetectedObject:
     """탐지된 객체 정보"""
     id: int
-    label: str  # 한글 라벨
-    db_key: str  # FURNITURE_DB 키
+    label: str                              # 한글 라벨
+    db_key: str                             # FURNITURE_DB 키
     subtype_name: Optional[str] = None
     bbox: List[int] = field(default_factory=list)
     center_point: List[float] = field(default_factory=list)
@@ -94,99 +97,104 @@ class FurniturePipeline:
     """
     가구 분석 통합 파이프라인
 
-    Firebase Storage URL → YOLO + SAHI → CLIP → SAM2 → SAM-3D → Volume
+    AI Logic Stages:
+        Stage 1: ImageFetcher - Firebase URL → PIL Image
+        Stage 2: YoloWorldDetector - 객체 탐지 (바운딩 박스, 1차 클래스)
+        Stage 3: ClipClassifier - 세부 유형 분류
+        Stage 4: MovabilityChecker - DB 대조 → is_movable 결정
+
+    External API:
+        SAM2 API - 마스크 생성
+        SAM-3D API - 3D 모델 생성 및 부피 계산
     """
 
     def __init__(
         self,
         sam2_api_url: str = "http://localhost:8000",
         enable_3d_generation: bool = True,
-        use_sahi: bool = True
+        use_sahi: bool = True,
+        device_id: Optional[int] = None,
+        gpu_pool: Optional[GPUPoolManager] = None
     ):
         """
         Args:
-            sam2_api_url: SAM2 API 서버 URL
+            sam2_api_url: SAM2/SAM-3D API 서버 URL
             enable_3d_generation: 3D 생성 활성화 여부
             use_sahi: SAHI 슬라이싱 탐지 사용 여부
+            device_id: GPU 디바이스 ID (None이면 기본값 사용)
+            gpu_pool: GPU 풀 매니저 (Multi-GPU 처리용)
         """
         self.sam2_api_url = sam2_api_url.rstrip('/')
         self.enable_3d_generation = enable_3d_generation
-        self.use_sahi = use_sahi
 
-        print("[FurniturePipeline] Initializing components...")
+        # Multi-GPU 지원
+        self.device_id = device_id
+        self._device = Config.get_device(device_id)
+        self.gpu_pool = gpu_pool
 
-        # 컴포넌트 초기화
-        self.detector = EnhancedDetector(use_sahi=use_sahi) if HAS_ENHANCED_DETECTOR else EnhancedDetector()
-        self.classifier = ClipClassifier()
+        print(f"[FurniturePipeline] Initializing on device: {self._device}")
+
+        # Stage 1: 이미지 가져오기
+        self.fetcher = ImageFetcher()
+
+        # Stage 2: YOLO-World 탐지 - device_id 전달
+        self.detector = YoloWorldDetector(use_sahi=use_sahi, device_id=device_id)
+
+        # Stage 3: CLIP 분류 - device_id 전달
+        self.classifier = ClipClassifier(device_id=device_id)
         self.ac_refiner = ACRefiner(self.classifier)
+
+        # Stage 4: is_movable 판단
+        self.movability_checker = MovabilityChecker()
+
+        # Volume 계산기
         self.volume_calculator = VolumeCalculator()
 
-        # 검색 클래스 및 매핑 설정
-        self.search_classes = []
-        self.class_map = {}
-        for key, info in FURNITURE_DB.items():
-            for syn in info['synonyms']:
-                self.search_classes.append(syn)
-                self.class_map[syn] = key
+        # SAM-3D 변환기 - device_id 전달
+        self.sam3d_converter = SAM3DConverter(device_id=device_id)
 
-        self.detector.set_classes(self.search_classes)
+        # 검색 클래스 설정
+        search_classes = self.movability_checker.get_search_classes()
+        self.detector.set_classes(search_classes)
 
-        print(f"[FurniturePipeline] Initialized with {len(self.search_classes)} search classes")
+        # 클래스 매핑 (동의어 → DB 키)
+        self.class_map = self.movability_checker.class_map
+
+        print(f"[FurniturePipeline] Initialized with {len(search_classes)} search classes on {self._device}")
+
+    # =========================================================================
+    # Stage 1: 이미지 가져오기
+    # =========================================================================
 
     async def fetch_image_from_url(self, url: str) -> Optional[Image.Image]:
-        """
-        URL에서 이미지를 가져옵니다.
-
-        Args:
-            url: 이미지 URL (Firebase Storage 또는 일반 URL)
-
-        Returns:
-            PIL 이미지
-        """
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
-                    if response.status != 200:
-                        print(f"[FurniturePipeline] Failed to fetch image: HTTP {response.status}")
-                        return None
-
-                    image_data = await response.read()
-                    image = Image.open(io.BytesIO(image_data)).convert("RGB")
-                    return image
-
-        except Exception as e:
-            print(f"[FurniturePipeline] Error fetching image from {url}: {e}")
-            return None
+        """Stage 1: Firebase URL에서 이미지 가져오기"""
+        return await self.fetcher.fetch_async(url)
 
     def fetch_image_from_url_sync(self, url: str) -> Optional[Image.Image]:
-        """동기 버전의 이미지 가져오기"""
-        import requests
-        try:
-            response = requests.get(url, timeout=30)
-            if response.status_code != 200:
-                return None
-            return Image.open(io.BytesIO(response.content)).convert("RGB")
-        except Exception as e:
-            print(f"[FurniturePipeline] Error: {e}")
-            return None
+        """Stage 1 (동기): Firebase URL에서 이미지 가져오기"""
+        return self.fetcher.fetch_sync(url)
+
+    # =========================================================================
+    # Stage 2-4: 객체 탐지 → 분류 → is_movable 결정
+    # =========================================================================
 
     def detect_objects(self, image: Image.Image) -> List[DetectedObject]:
         """
-        이미지에서 객체를 탐지합니다.
+        Stage 2-4 통합: 이미지에서 객체를 탐지하고 분류합니다.
 
         Args:
             image: PIL 이미지
 
         Returns:
-            탐지된 객체 리스트
+            DetectedObject 리스트
         """
         img_w, img_h = image.size
         detected_objects = []
 
-        # YOLO + SAHI 탐지
+        # Stage 2: YOLO-World 탐지
         results = self.detector.detect_smart(image)
 
-        if results is None:
+        if results is None or len(results["boxes"]) == 0:
             return detected_objects
 
         boxes = results["boxes"]
@@ -200,40 +208,38 @@ class FurniturePipeline:
             if (x2 - x1) < 20 or (y2 - y1) < 20:
                 continue
 
-            # YOLO 라벨 → DB 키 매핑
+            # 클래스 라벨 가져오기
             cls_int = int(cls_idx)
-            if cls_int not in self.detector.model.names:
-                continue  # Skip unknown class indices
-            detected_label = self.detector.model.names[cls_int]
-            db_key = self.class_map.get(detected_label)
-
-            if not db_key:
+            detected_label = self.detector.get_label_for_class(cls_int)
+            if not detected_label:
                 continue
 
-            db_info = FURNITURE_DB[db_key]
+            # DB 키 매핑
+            db_key = self.class_map.get(detected_label.lower())
+            if not db_key:
+                continue
 
             # 객체 크롭
             crop = image.crop((x1, y1, x2, y2))
 
-            # 중심점 계산 (SAM2 prompt용)
+            # 중심점 계산
             center_x = (x1 + x2) / 2
             center_y = (y1 + y2) / 2
 
-            # 세부 분류 (CLIP 또는 AC Refiner)
-            final_info = self._classify_object(
-                db_info, db_key, crop,
-                [x1, y1, x2, y2], (img_w, img_h)
+            # Stage 3-4: 분류 및 is_movable 결정
+            final_info = self._classify_and_check_movability(
+                db_key, crop, [x1, y1, x2, y2], (img_w, img_h), float(score)
             )
 
             obj = DetectedObject(
                 id=idx,
-                label=final_info['name'],
+                label=final_info['label'],
                 db_key=db_key,
-                subtype_name=final_info.get('name'),
+                subtype_name=final_info.get('subtype_name'),
                 bbox=[x1, y1, x2, y2],
                 center_point=[center_x, center_y],
-                confidence=float(final_info.get('score', score)),
-                is_movable=final_info.get('is_movable', True),
+                confidence=final_info['confidence'],
+                is_movable=final_info['is_movable'],
                 crop_image=crop
             )
 
@@ -241,28 +247,63 @@ class FurniturePipeline:
 
         return detected_objects
 
-    def _classify_object(
+    def _classify_and_check_movability(
         self,
-        db_info: Dict,
         db_key: str,
         crop: Image.Image,
         bbox: List[int],
-        image_size: Tuple[int, int]
+        image_size: Tuple[int, int],
+        detection_score: float
     ) -> Dict:
-        """객체 세부 분류"""
-        if 'subtypes' in db_info and db_info['subtypes']:
+        """
+        Stage 3-4: 객체 분류 및 is_movable 판단
+
+        Args:
+            db_key: DB 키
+            crop: 크롭 이미지
+            bbox: 바운딩 박스
+            image_size: 원본 이미지 크기
+            detection_score: 탐지 신뢰도
+
+        Returns:
+            {
+                "label": str,
+                "subtype_name": str,
+                "is_movable": bool,
+                "confidence": float
+            }
+        """
+        db_info = FURNITURE_DB.get(db_key, {})
+        subtypes = db_info.get('subtypes', [])
+
+        # Stage 3: CLIP 분류
+        classification_result = None
+        if subtypes:
             if db_info.get('check_strategy') == "AC_STRATEGY":
-                return self.ac_refiner.refine(
-                    bbox, image_size, crop, db_info['subtypes']
+                classification_result = self.ac_refiner.refine(
+                    bbox, image_size, crop, subtypes
                 )
             else:
-                return self.classifier.classify(crop, db_info['subtypes'])
+                classification_result = self.classifier.classify(crop, subtypes)
+
+        # Stage 4: is_movable 판단
+        if classification_result:
+            movability = self.movability_checker.check_with_classification(
+                db_key, classification_result
+            )
         else:
-            return {
-                "name": db_info.get('base_name', db_key),
-                "score": 1.0,
-                "is_movable": db_info.get('is_movable', True)
-            }
+            movability = self.movability_checker.check(db_key)
+
+        return {
+            "label": movability.label,
+            "subtype_name": movability.subtype_name,
+            "is_movable": movability.is_movable,
+            "confidence": classification_result.get('score', detection_score) if classification_result else detection_score
+        }
+
+    # =========================================================================
+    # External API: SAM2 마스크 생성
+    # =========================================================================
 
     async def generate_mask(self, image: Image.Image, point: List[float]) -> Optional[str]:
         """
@@ -275,13 +316,14 @@ class FurniturePipeline:
         Returns:
             Base64 인코딩된 마스크
         """
+        if not HAS_AIOHTTP:
+            return None
+
         try:
-            # 이미지를 base64로 인코딩
             buffer = io.BytesIO()
             image.save(buffer, format="PNG")
             image_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-            # SAM2 API 호출
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"{self.sam2_api_url}/segment",
@@ -294,13 +336,11 @@ class FurniturePipeline:
                     timeout=aiohttp.ClientTimeout(total=60)
                 ) as response:
                     if response.status != 200:
-                        print(f"[FurniturePipeline] SAM2 API error: {response.status}")
                         return None
 
                     result = await response.json()
 
                     if result.get("success") and result.get("masks"):
-                        # 가장 높은 점수의 마스크 선택
                         masks = result["masks"]
                         best_mask = max(masks, key=lambda m: m.get("score", 0))
                         return best_mask.get("mask")
@@ -308,8 +348,12 @@ class FurniturePipeline:
                     return None
 
         except Exception as e:
-            print(f"[FurniturePipeline] Error generating mask: {e}")
+            print(f"[FurniturePipeline] Mask generation error: {e}")
             return None
+
+    # =========================================================================
+    # External API: SAM-3D 3D 생성
+    # =========================================================================
 
     async def generate_3d(
         self,
@@ -325,18 +369,12 @@ class FurniturePipeline:
             mask_b64: Base64 인코딩된 마스크
 
         Returns:
-            {
-                "task_id": str,
-                "ply_url": str,
-                "glb_url": str,
-                "gif_url": str
-            }
+            {"task_id": str, "ply_b64": str, "glb_b64": str, ...}
         """
-        if not self.enable_3d_generation:
+        if not self.enable_3d_generation or not HAS_AIOHTTP:
             return None
 
         try:
-            # 이미지를 base64로 인코딩
             buffer = io.BytesIO()
             image.save(buffer, format="PNG")
             image_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
@@ -345,11 +383,7 @@ class FurniturePipeline:
                 # 3D 생성 요청
                 async with session.post(
                     f"{self.sam2_api_url}/generate-3d",
-                    json={
-                        "image": image_b64,
-                        "mask": mask_b64,
-                        "seed": seed
-                    },
+                    json={"image": image_b64, "mask": mask_b64, "seed": seed},
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status != 200:
@@ -357,12 +391,11 @@ class FurniturePipeline:
 
                     result = await response.json()
                     task_id = result.get("task_id")
-
                     if not task_id:
                         return None
 
-                # 결과 폴링 (최대 10분)
-                for _ in range(120):  # 5초 * 120 = 10분
+                # 결과 폴링
+                for _ in range(120):
                     await asyncio.sleep(5)
 
                     async with session.get(
@@ -383,14 +416,17 @@ class FurniturePipeline:
                                 "mesh_url": status.get("mesh_url")
                             }
                         elif status.get("status") == "failed":
-                            print(f"[FurniturePipeline] 3D generation failed: {status.get('error')}")
                             return None
 
                 return None
 
         except Exception as e:
-            print(f"[FurniturePipeline] Error in 3D generation: {e}")
+            print(f"[FurniturePipeline] 3D generation error: {e}")
             return None
+
+    # =========================================================================
+    # 치수 계산
+    # =========================================================================
 
     def calculate_dimensions(
         self,
@@ -406,7 +442,6 @@ class FurniturePipeline:
         """
         relative_dims = None
 
-        # PLY 또는 GLB에서 상대 치수 계산
         if ply_path and os.path.exists(ply_path):
             relative_dims = self.volume_calculator.calculate_from_ply(ply_path)
         elif glb_path and os.path.exists(glb_path):
@@ -416,24 +451,23 @@ class FurniturePipeline:
             return None, None
 
         # DB에서 참조 치수 가져오기
-        ref_dims = get_dimensions_for_subtype(obj.db_key, obj.subtype_name)
+        ref_dims = self.movability_checker.get_reference_dimensions(
+            obj.db_key,
+            obj.subtype_name,
+            relative_dims.get("ratio")
+        )
 
         if ref_dims is None:
             return relative_dims, None
-
-        # 비율로 사이즈 변형 추정 (variants가 있는 경우)
-        aspect_ratio = relative_dims.get("ratio", {})
-        variant_name, matched_dims = estimate_size_variant(
-            obj.db_key, obj.subtype_name, aspect_ratio
-        )
-
-        if matched_dims:
-            ref_dims = matched_dims
 
         # 절대 치수 계산
         absolute_dims = self.volume_calculator.scale_to_absolute(relative_dims, ref_dims)
 
         return relative_dims, absolute_dims
+
+    # =========================================================================
+    # 통합 처리
+    # =========================================================================
 
     async def process_single_image(
         self,
@@ -462,31 +496,28 @@ class FurniturePipeline:
         )
 
         try:
-            # 1. 이미지 가져오기
+            # Stage 1: 이미지 가져오기
             image = await self.fetch_image_from_url(image_url)
             if image is None:
                 result.status = "failed"
                 result.error = "Failed to fetch image"
                 return result
 
-            # 2. 객체 탐지
+            # Stage 2-4: 객체 탐지 및 분류
             detected_objects = self.detect_objects(image)
 
-            # 3. 각 객체에 대해 마스크 및 3D 생성
+            # Stage 5-8: 각 객체에 대해 마스크 및 3D 생성
             for obj in detected_objects:
-                # 3a. SAM2 마스크 생성
                 if enable_mask:
                     mask_b64 = await self.generate_mask(image, obj.center_point)
                     obj.mask_base64 = mask_b64
 
-                # 3b. SAM-3D 3D 생성
                 if enable_3d and self.enable_3d_generation and obj.mask_base64:
                     gen_result = await self.generate_3d(image, obj.mask_base64)
 
                     if gen_result:
                         obj.glb_url = gen_result.get("mesh_url")
 
-                        # 임시 파일로 저장하여 부피 계산
                         if gen_result.get("ply_b64"):
                             with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as tmp:
                                 tmp.write(base64.b64decode(gen_result["ply_b64"]))
@@ -498,17 +529,15 @@ class FurniturePipeline:
 
                             os.unlink(ply_path)
 
-            # 4. 결과 집계
+            # 결과 집계
             result.objects = detected_objects
             result.total_volume_liters = sum(
                 o.absolute_dimensions.get("volume_liters", 0)
-                for o in detected_objects
-                if o.absolute_dimensions
+                for o in detected_objects if o.absolute_dimensions
             )
             result.movable_volume_liters = sum(
                 o.absolute_dimensions.get("volume_liters", 0)
-                for o in detected_objects
-                if o.absolute_dimensions and o.is_movable
+                for o in detected_objects if o.absolute_dimensions and o.is_movable
             )
             result.status = "completed"
 
@@ -526,30 +555,52 @@ class FurniturePipeline:
         image_urls: List[str],
         enable_mask: bool = True,
         enable_3d: bool = True,
-        max_concurrent: int = 3
+        max_concurrent: Optional[int] = None
     ) -> List[PipelineResult]:
         """
-        여러 이미지를 동시에 처리합니다.
+        여러 이미지를 GPU에 분배하여 병렬 처리합니다.
 
-        Args:
-            image_urls: Firebase Storage 이미지 URL 리스트 (5~10개)
-            enable_mask: SAM2 마스크 생성 활성화
-            enable_3d: SAM-3D 3D 생성 활성화
-            max_concurrent: 최대 동시 처리 수
-
-        Returns:
-            PipelineResult 리스트
+        Multi-GPU 모드에서는 각 이미지를 다른 GPU에 라운드로빈 방식으로 분배합니다.
         """
+        # GPU 풀 가져오기
+        pool = self.gpu_pool or get_gpu_pool()
+
+        # max_concurrent가 None이면 GPU 수만큼 설정
+        if max_concurrent is None:
+            max_concurrent = len(pool.gpu_ids) if pool.gpu_ids else 3
+
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def process_with_semaphore(url: str):
+        async def process_with_gpu(url: str) -> PipelineResult:
+            """GPU를 할당받아 이미지 처리"""
             async with semaphore:
-                return await self.process_single_image(url, enable_mask, enable_3d)
+                try:
+                    async with pool.gpu_context(task_id=url[:50]) as gpu_id:
+                        # 해당 GPU용 파이프라인 생성
+                        # Note: 이미 초기화된 self를 재사용하거나 새로 생성
+                        if self.device_id == gpu_id:
+                            # 같은 GPU면 self 재사용
+                            return await self.process_single_image(url, enable_mask, enable_3d)
+                        else:
+                            # 다른 GPU면 새 파이프라인 생성
+                            pipeline = FurniturePipeline(
+                                sam2_api_url=self.sam2_api_url,
+                                enable_3d_generation=self.enable_3d_generation,
+                                device_id=gpu_id,
+                                gpu_pool=pool
+                            )
+                            return await pipeline.process_single_image(url, enable_mask, enable_3d)
+                except Exception as e:
+                    return PipelineResult(
+                        image_id=str(uuid.uuid4()),
+                        image_url=url,
+                        status="failed",
+                        error=str(e)
+                    )
 
-        tasks = [process_with_semaphore(url) for url in image_urls]
+        tasks = [process_with_gpu(url) for url in image_urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # 예외를 PipelineResult로 변환
         processed_results = []
         for i, r in enumerate(results):
             if isinstance(r, Exception):
@@ -565,15 +616,7 @@ class FurniturePipeline:
         return processed_results
 
     def to_json_response(self, results: List[PipelineResult]) -> Dict:
-        """
-        결과를 JSON 응답 형식으로 변환합니다.
-
-        Returns:
-            {
-                "objects": [...],
-                "summary": {...}
-            }
-        """
+        """결과를 JSON 응답 형식으로 변환합니다."""
         all_objects = []
 
         for result in results:
@@ -601,14 +644,10 @@ class FurniturePipeline:
 
                 all_objects.append(obj_data)
 
-        # 요약 정보
         total_volume = sum(r.total_volume_liters for r in results)
         movable_volume = sum(r.movable_volume_liters for r in results)
         total_objects = sum(len(r.objects) for r in results)
-        movable_objects = sum(
-            len([o for o in r.objects if o.is_movable])
-            for r in results
-        )
+        movable_objects = sum(len([o for o in r.objects if o.is_movable]) for r in results)
 
         return {
             "objects": all_objects,
