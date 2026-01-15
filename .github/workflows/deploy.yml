@@ -53,6 +53,29 @@ jobs:
       image_digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      # Free up disk space (ubuntu-latest has ~14GB, we need ~30GB for build)
+      - name: Free disk space
+        run: |
+          echo "=== Disk space before cleanup ==="
+          df -h /
+
+          # Remove unnecessary large packages
+          sudo rm -rf /usr/share/dotnet          # ~2GB
+          sudo rm -rf /usr/local/lib/android     # ~12GB
+          sudo rm -rf /opt/ghc                   # ~5GB
+          sudo rm -rf /opt/hostedtoolcache/CodeQL # ~3GB
+          sudo rm -rf /usr/local/share/boost     # ~1GB
+          sudo rm -rf /usr/share/swift           # ~1GB
+
+          # Clean apt cache
+          sudo apt-get clean
+
+          # Clean Docker images
+          docker system prune -af || true
+
+          echo "=== Disk space after cleanup ==="
+          df -h /
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
