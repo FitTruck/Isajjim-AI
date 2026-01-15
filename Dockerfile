@@ -36,15 +36,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CONDA_DIR=/opt/conda
 RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh \
     && bash /tmp/miniconda.sh -b -p $CONDA_DIR \
-    && rm /tmp/miniconda.sh \
-    && $CONDA_DIR/bin/conda init bash \
-    && $CONDA_DIR/bin/conda config --set always_yes yes \
-    && $CONDA_DIR/bin/conda update -n base -c defaults conda
+    && rm /tmp/miniconda.sh
 ENV PATH="$CONDA_DIR/bin:$PATH"
 
 # Create conda environment with Python 3.11
-RUN conda create -n sam3d python=3.11 -y \
-    && conda clean -afy
+RUN $CONDA_DIR/bin/conda create -n sam3d python=3.11 -y \
+    && $CONDA_DIR/bin/conda clean -afy
 
 # Set shell to use conda environment
 SHELL ["conda", "run", "-n", "sam3d", "/bin/bash", "-c"]
