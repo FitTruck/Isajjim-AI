@@ -17,7 +17,8 @@ import os
 # CRITICAL: Set environment variables BEFORE importing torch/spconv
 # These must be set BEFORE any imports that use spconv
 # ============================================================================
-os.environ["CUDA_HOME"] = os.environ.get("CONDA_PREFIX", "")
+# Use existing CUDA_HOME, or fallback to CONDA_PREFIX (local conda), or default path
+os.environ["CUDA_HOME"] = os.environ.get("CUDA_HOME") or os.environ.get("CONDA_PREFIX") or "/usr/local/cuda"
 os.environ["LIDRA_SKIP_INIT"] = "true"
 
 # Set spconv environment variables early (before any imports)

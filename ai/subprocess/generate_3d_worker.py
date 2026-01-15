@@ -14,7 +14,8 @@ import struct
 # ============================================================================
 # CRITICAL: Set environment variables BEFORE importing torch/spconv
 # ============================================================================
-os.environ["CUDA_HOME"] = os.environ.get("CONDA_PREFIX", "")
+# Use existing CUDA_HOME, or fallback to CONDA_PREFIX (local conda), or default path
+os.environ["CUDA_HOME"] = os.environ.get("CUDA_HOME") or os.environ.get("CONDA_PREFIX") or "/usr/local/cuda"
 os.environ["LIDRA_SKIP_INIT"] = "true"
 
 # Multi-GPU 지원:

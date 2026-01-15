@@ -68,8 +68,7 @@ services:
       - NUMEXPR_NUM_THREADS=4
 
       # --- CUDA settings ---
-      - CUDA_HOME=/opt/conda/envs/sam3d
-      - CONDA_PREFIX=/opt/conda/envs/sam3d
+      - CUDA_HOME=/usr/local/cuda
 
       # --- HuggingFace configuration ---
       - HF_HOME=/data/sam3d/huggingface
