@@ -53,9 +53,11 @@ ENV PATH="${CUDA_HOME}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
 ENV TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0"
 
-# Install PyTorch with CUDA 12.1
-RUN pip install --no-cache-dir \
+# Install PyTorch with CUDA 12.1 (with retry and timeout)
+RUN pip install --no-cache-dir --timeout 300 \
     torch==2.3.1 \
+    --index-url https://download.pytorch.org/whl/cu121 \
+    && pip install --no-cache-dir --timeout 300 \
     torchvision==0.18.1 \
     --index-url https://download.pytorch.org/whl/cu121
 
