@@ -1,0 +1,267 @@
+# =============================================================================
+# SAM3D API CI/CD Pipeline
+#
+# Triggers on push to main branch
+# Builds Docker image, pushes to GCP Artifact Registry, deploys to VM via SSH
+#
+# Required GitHub Secrets:
+#   - GCP_PROJECT_ID: GCP project ID
+#   - GCP_SA_KEY: Service account JSON key (base64 encoded or raw JSON)
+#   - VM_HOST: GCP VM external IP address
+#   - VM_SSH_KEY: SSH private key for VM access
+#   - VM_USER: VM username
+#   - HF_TOKEN: HuggingFace API token (optional)
+# =============================================================================
+
+name: Build and Deploy SAM3D API
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'scripts/**'
+      - '.github/workflows/test.yml'
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  GCP_REGION: us-central1
+  IMAGE_NAME: sam3d-api
+  REGISTRY: us-central1-docker.pkg.dev
+
+jobs:
+  # ===========================================================================
+  # Job 1: Build and Push Docker Image
+  # ===========================================================================
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate to GCP
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # Setup gcloud CLI
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Configure Docker for GCP Artifact Registry
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      # Generate image metadata (tags, labels)
+      - name: Generate Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/sam3d/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+
+      # Build and push Docker image
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Print build info
+        run: |
+          echo "Image tags: ${{ steps.meta.outputs.tags }}"
+          echo "Image digest: ${{ steps.build.outputs.digest }}"
+
+  # ===========================================================================
+  # Job 2: Deploy to GCP VM
+  # ===========================================================================
+  deploy:
+    name: Deploy to GCP VM
+    runs-on: ubuntu-latest
+    needs: build
+
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+      url: http://${{ secrets.VM_HOST }}:8000
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Setup SSH key
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Add VM host to known hosts (skip host key verification)
+          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      # Authenticate to GCP (for gcloud commands)
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Copy docker-compose.yml to VM
+      - name: Copy docker-compose.yml to VM
+        run: |
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            docker-compose.yml \
+            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:~/sam3d-api/
+
+      # Deploy via SSH
+      - name: Deploy to VM
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'DEPLOY_SCRIPT'
+
+          set -e
+
+          echo "=== SAM3D API Deployment ==="
+          echo "Time: $(date)"
+          echo "Commit: ${{ github.sha }}"
+
+          # Navigate to project directory
+          cd ~/sam3d-api
+
+          # Set environment variables for docker-compose
+          export GCP_PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+          export GCP_REGION="${{ env.GCP_REGION }}"
+          export IMAGE_TAG="${{ github.sha }}"
+          export HF_TOKEN="${{ secrets.HF_TOKEN }}"
+
+          # Login to Artifact Registry
+          gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+          # Pull latest image
+          IMAGE="${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/sam3d/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "Pulling image: $IMAGE"
+          docker pull $IMAGE
+
+          # Stop existing container (if any)
+          echo "Stopping existing container..."
+          docker compose down --remove-orphans 2>/dev/null || true
+
+          # Start new container
+          echo "Starting new container..."
+          docker compose up -d
+
+          # Wait for container to start
+          echo "Waiting for container to start..."
+          sleep 10
+
+          # Check container status
+          docker compose ps
+
+          # Wait for health check
+          echo "Waiting for health check..."
+          for i in {1..20}; do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Health check passed!"
+              curl -s http://localhost:8000/health | head -c 200
+              echo ""
+              exit 0
+            fi
+            echo "Attempt $i/20: Waiting for API to be ready..."
+            sleep 10
+          done
+
+          echo "ERROR: Health check failed after 200 seconds"
+          echo "Container logs:"
+          docker compose logs --tail=50
+          exit 1
+
+          DEPLOY_SCRIPT
+
+      # Verify deployment from GitHub Actions runner
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment from external..."
+          sleep 5
+          curl -sf http://${{ secrets.VM_HOST }}:8000/health || echo "Note: External access may require firewall configuration"
+
+  # ===========================================================================
+  # Job 3: Cleanup old images (optional)
+  # ===========================================================================
+  cleanup:
+    name: Cleanup Old Images
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Cleanup old images (keep last 5)
+        run: |
+          echo "Listing images..."
+          IMAGES=$(gcloud artifacts docker images list \
+            ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/sam3d/${{ env.IMAGE_NAME }} \
+            --sort-by=~CREATE_TIME \
+            --format="get(DIGEST)" \
+            --limit=100 2>/dev/null || echo "")
+
+          if [ -z "$IMAGES" ]; then
+            echo "No images found or unable to list"
+            exit 0
+          fi
+
+          # Keep first 5, delete the rest
+          echo "$IMAGES" | tail -n +6 | while read digest; do
+            if [ -n "$digest" ]; then
+              echo "Deleting old image: $digest"
+              gcloud artifacts docker images delete \
+                ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/sam3d/${{ env.IMAGE_NAME }}@$digest \
+                --quiet --delete-tags 2>/dev/null || true
+            fi
+          done
+
+          echo "Cleanup complete"

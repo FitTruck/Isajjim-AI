@@ -1,0 +1,96 @@
+# =============================================================================
+# Docker Build Context Exclusions
+# Excludes large files and unnecessary content from Docker build context
+# =============================================================================
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv/
+venv/
+ENV/
+
+# External repositories (volume-mounted, ~13GB)
+sam-3d-objects/
+
+# Model files (volume-mounted)
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# Generated assets (volume-mounted)
+assets/
+runs/
+ai/outputs/
+ai/imgs/
+
+# Test files
+test_*.py
+test_*.png
+*.test.py
+
+# Documentation (not needed in container)
+*.md
+!README.md
+
+# Docker files (don't need to be in context)
+docker-compose.yml
+docker-compose.*.yml
+
+# Logs
+*.log
+nohup.out
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Claude/AI config
+.claude/
+
+# Scripts (not needed in container)
+scripts/
+setup.sh
+
+# QA reports
+QA_*.md

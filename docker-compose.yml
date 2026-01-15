@@ -1,0 +1,112 @@
+# =============================================================================
+# SAM3D API Docker Compose Configuration
+#
+# Usage:
+#   docker compose up -d          # Start in background
+#   docker compose logs -f        # View logs
+#   docker compose down           # Stop and remove
+#
+# Prerequisites:
+#   1. Docker + NVIDIA Container Toolkit installed
+#   2. Data directory setup: /data/sam3d/
+#   3. Environment variables set (or use .env file)
+# =============================================================================
+
+services:
+  sam3d-api:
+    # Image from GCP Artifact Registry (set via environment variable)
+    image: ${GCP_REGION:-us-central1}-docker.pkg.dev/${GCP_PROJECT_ID}/sam3d/sam3d-api:${IMAGE_TAG:-latest}
+    container_name: sam3d-api
+
+    # =========================================================================
+    # GPU Configuration
+    # =========================================================================
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    # =========================================================================
+    # Network
+    # =========================================================================
+    ports:
+      - "8000:8000"
+
+    # =========================================================================
+    # Volume Mounts
+    # =========================================================================
+    volumes:
+      # Model checkpoints and sam-3d-objects (read-only)
+      - /data/sam3d/sam-3d-objects:/data/sam3d/sam-3d-objects:ro
+      - /data/sam3d/models:/data/sam3d/models:ro
+
+      # HuggingFace cache (read-write, persisted between restarts)
+      - /data/sam3d/huggingface:/data/sam3d/huggingface
+      - /data/sam3d/torch:/data/sam3d/torch
+
+      # Generated assets (read-write, persisted)
+      - /data/sam3d/assets:/app/assets
+
+    # =========================================================================
+    # Environment Variables
+    # =========================================================================
+    environment:
+      # --- CRITICAL: spconv configuration (must be set before torch import) ---
+      - SPCONV_TUNE_DEVICE=0
+      - SPCONV_ALGO_TIME_LIMIT=100
+      - TORCH_CUDA_ARCH_LIST=all
+      - LIDRA_SKIP_INIT=true
+
+      # --- Thread limits (prevents thread explosion) ---
+      - OMP_NUM_THREADS=4
+      - OPENBLAS_NUM_THREADS=4
+      - MKL_NUM_THREADS=4
+      - VECLIB_MAXIMUM_THREADS=4
+      - NUMEXPR_NUM_THREADS=4
+
+      # --- CUDA settings ---
+      - CUDA_HOME=/opt/conda/envs/sam3d
+      - CONDA_PREFIX=/opt/conda/envs/sam3d
+
+      # --- HuggingFace configuration ---
+      - HF_HOME=/data/sam3d/huggingface
+      - TRANSFORMERS_CACHE=/data/sam3d/huggingface/transformers
+      - TORCH_HOME=/data/sam3d/torch
+      - HF_TOKEN=${HF_TOKEN:-}
+
+      # --- PyTorch ---
+      - PYTORCH_ENABLE_MPS_FALLBACK=1
+
+    # =========================================================================
+    # Restart Policy
+    # =========================================================================
+    restart: unless-stopped
+
+    # =========================================================================
+    # Health Check
+    # =========================================================================
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Allow time for model loading
+
+    # =========================================================================
+    # Logging
+    # =========================================================================
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+# =============================================================================
+# Networks (optional, for multi-container setups)
+# =============================================================================
+networks:
+  default:
+    name: sam3d-network
