@@ -897,5 +897,367 @@ async def list_assets():
     )
 
 
+# ============================================================================
+# FURNITURE ANALYSIS ENDPOINTS (DeCl Integration)
+# ============================================================================
+
+# Add DeCl to Python path
+decl_path = os.path.join(os.path.dirname(__file__), "DeCl")
+if decl_path not in sys.path:
+    sys.path.insert(0, decl_path)
+
+# Lazy-load furniture pipeline to avoid startup delays
+furniture_pipeline = None
+
+
+def get_furniture_pipeline():
+    """Lazy initialization of furniture pipeline"""
+    global furniture_pipeline
+    if furniture_pipeline is None:
+        try:
+            from DeCl.services.furniture_pipeline import FurniturePipeline
+            furniture_pipeline = FurniturePipeline(
+                sam2_api_url="http://localhost:8000",
+                enable_3d_generation=True,
+                use_sahi=True
+            )
+            print("✓ Furniture pipeline initialized")
+        except Exception as e:
+            print(f"⚠ Failed to initialize furniture pipeline: {e}")
+            raise
+    return furniture_pipeline
+
+
+class AnalyzeFurnitureRequest(BaseModel):
+    """가구 분석 요청 모델"""
+    image_urls: List[str]  # Firebase Storage URLs (5~10개)
+    enable_mask: bool = True  # SAM2 마스크 생성
+    enable_3d: bool = True  # SAM-3D 3D 생성
+    max_concurrent: int = 3  # 최대 동시 처리 수
+
+
+class AnalyzeFurnitureSingleRequest(BaseModel):
+    """단일 이미지 가구 분석 요청 모델"""
+    image_url: str  # Firebase Storage URL
+    enable_mask: bool = True
+    enable_3d: bool = True
+
+
+@app.post("/analyze-furniture")
+async def analyze_furniture(
+    request: AnalyzeFurnitureRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Firebase Storage 이미지 URL들을 받아 가구를 분석합니다.
+
+    AI Logic Pipeline:
+    1. Firebase Storage에서 이미지 다운로드 (5~10장)
+    2. YOLO-World + SAHI로 객체 탐지 (작은 객체도 검출)
+    3. CLIP으로 세부 유형 분류
+    4. DB 대조하여 is_movable 결정
+    5. SAM2로 마스크 생성
+    6. SAM-3D로 3D 모델 생성
+    7. trimesh로 부피/치수 계산
+    8. DB 규격 대조하여 절대 치수 계산
+
+    Args:
+        request: AnalyzeFurnitureRequest with image_urls
+
+    Returns:
+        {
+            "objects": [
+                {
+                    "label": "퀸 사이즈 침대",
+                    "width": 1500.0 (mm),
+                    "depth": 2000.0,
+                    "height": 450.0,
+                    "volume": 1.35 (liters),
+                    "ratio": {"w": 0.75, "h": 1.0, "d": 0.225},
+                    "is_movable": true
+                },
+                ...
+            ],
+            "summary": {
+                "total_objects": 10,
+                "movable_objects": 8,
+                "total_volume_liters": 15.5,
+                "movable_volume_liters": 12.3
+            }
+        }
+    """
+    try:
+        pipeline = get_furniture_pipeline()
+
+        # 이미지 URL 수 검증
+        if len(request.image_urls) < 1:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "At least 1 image URL required"}
+            )
+
+        if len(request.image_urls) > 20:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Maximum 20 image URLs allowed"}
+            )
+
+        # 파이프라인 실행
+        import asyncio
+        results = await pipeline.process_multiple_images(
+            request.image_urls,
+            enable_mask=request.enable_mask,
+            enable_3d=request.enable_3d,
+            max_concurrent=request.max_concurrent
+        )
+
+        # JSON 응답 생성
+        response = pipeline.to_json_response(results)
+        response["success"] = True
+
+        return JSONResponse(response)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Furniture analysis failed: {str(e)}"}
+        )
+
+
+@app.post("/analyze-furniture-single")
+async def analyze_furniture_single(request: AnalyzeFurnitureSingleRequest):
+    """
+    단일 이미지 가구 분석 (빠른 테스트용)
+
+    Args:
+        request: AnalyzeFurnitureSingleRequest with image_url
+
+    Returns:
+        Same format as /analyze-furniture
+    """
+    try:
+        pipeline = get_furniture_pipeline()
+
+        result = await pipeline.process_single_image(
+            request.image_url,
+            enable_mask=request.enable_mask,
+            enable_3d=request.enable_3d
+        )
+
+        response = pipeline.to_json_response([result])
+        response["success"] = True
+        response["processing_time_seconds"] = result.processing_time_seconds
+
+        return JSONResponse(response)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Furniture analysis failed: {str(e)}"}
+        )
+
+
+class AnalyzeFurnitureBase64Request(BaseModel):
+    """Base64 이미지 가구 분석 요청 모델"""
+    image: str  # Base64 encoded image
+    enable_mask: bool = True
+    enable_3d: bool = True
+
+
+@app.post("/analyze-furniture-base64")
+async def analyze_furniture_base64(request: AnalyzeFurnitureBase64Request):
+    """
+    Base64 이미지를 받아 가구를 분석합니다.
+    Firebase URL 없이 직접 이미지를 전송할 때 사용합니다.
+
+    Args:
+        request: Base64 encoded image
+
+    Returns:
+        {
+            "objects": [...],
+            "summary": {...}
+        }
+    """
+    try:
+        pipeline = get_furniture_pipeline()
+
+        # Base64 디코딩
+        try:
+            image_data = base64.b64decode(request.image)
+            image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        except Exception as e:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Invalid base64 image: {str(e)}"}
+            )
+
+        import time
+        start_time = time.time()
+
+        # 객체 탐지
+        detected_objects = pipeline.detect_objects(image)
+
+        objects_data = []
+        for obj in detected_objects:
+            # SAM2 마스크 생성
+            if request.enable_mask:
+                mask_b64 = await pipeline.generate_mask(image, obj.center_point)
+                obj.mask_base64 = mask_b64
+
+            # SAM-3D 3D 생성 (선택적)
+            if request.enable_3d and obj.mask_base64:
+                gen_result = await pipeline.generate_3d(image, obj.mask_base64)
+                if gen_result:
+                    obj.glb_url = gen_result.get("mesh_url")
+
+                    # 부피 계산
+                    if gen_result.get("ply_b64"):
+                        with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as tmp:
+                            tmp.write(base64.b64decode(gen_result["ply_b64"]))
+                            ply_path = tmp.name
+
+                        rel_dims, abs_dims = pipeline.calculate_dimensions(obj, ply_path=ply_path)
+                        obj.relative_dimensions = rel_dims
+                        obj.absolute_dimensions = abs_dims
+
+                        os.unlink(ply_path)
+
+            # 객체 데이터 구성
+            obj_data = {
+                "label": obj.label,
+                "is_movable": obj.is_movable,
+                "confidence": round(obj.confidence, 3),
+                "bbox": obj.bbox,
+                "center_point": obj.center_point
+            }
+
+            if obj.absolute_dimensions:
+                dims = obj.absolute_dimensions
+                obj_data.update({
+                    "width": dims.get("width", 0),
+                    "depth": dims.get("depth", 0),
+                    "height": dims.get("height", 0),
+                    "volume": dims.get("volume_liters", 0),
+                    "ratio": dims.get("ratio", {"w": 1, "h": 1, "d": 1})
+                })
+
+            if obj.mask_base64:
+                obj_data["mask"] = obj.mask_base64
+
+            if obj.glb_url:
+                obj_data["mesh_url"] = obj.glb_url
+
+            objects_data.append(obj_data)
+
+        processing_time = time.time() - start_time
+
+        # 요약 계산
+        total_volume = sum(
+            o.get("volume", 0) for o in objects_data
+        )
+        movable_volume = sum(
+            o.get("volume", 0) for o in objects_data if o.get("is_movable", True)
+        )
+
+        return JSONResponse({
+            "success": True,
+            "objects": objects_data,
+            "summary": {
+                "total_objects": len(objects_data),
+                "movable_objects": sum(1 for o in objects_data if o.get("is_movable", True)),
+                "fixed_objects": sum(1 for o in objects_data if not o.get("is_movable", True)),
+                "total_volume_liters": round(total_volume, 2),
+                "movable_volume_liters": round(movable_volume, 2)
+            },
+            "processing_time_seconds": round(processing_time, 2)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Furniture analysis failed: {str(e)}"}
+        )
+
+
+@app.post("/detect-furniture")
+async def detect_furniture_only(request: AnalyzeFurnitureBase64Request):
+    """
+    가구 탐지만 수행합니다 (3D 생성 없음, 빠른 응답용)
+
+    YOLO-World + SAHI + CLIP 분류만 수행하고
+    SAM2/SAM-3D는 건너뜁니다.
+
+    Returns:
+        {
+            "objects": [
+                {
+                    "label": "소파",
+                    "bbox": [x1, y1, x2, y2],
+                    "center_point": [cx, cy],
+                    "is_movable": true,
+                    "confidence": 0.95
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        pipeline = get_furniture_pipeline()
+
+        # Base64 디코딩
+        try:
+            image_data = base64.b64decode(request.image)
+            image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        except Exception as e:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Invalid base64 image: {str(e)}"}
+            )
+
+        import time
+        start_time = time.time()
+
+        # 객체 탐지만 수행
+        detected_objects = pipeline.detect_objects(image)
+
+        objects_data = []
+        for obj in detected_objects:
+            objects_data.append({
+                "id": obj.id,
+                "label": obj.label,
+                "db_key": obj.db_key,
+                "subtype": obj.subtype_name,
+                "bbox": obj.bbox,
+                "center_point": obj.center_point,
+                "is_movable": obj.is_movable,
+                "confidence": round(obj.confidence, 3)
+            })
+
+        processing_time = time.time() - start_time
+
+        return JSONResponse({
+            "success": True,
+            "objects": objects_data,
+            "total_objects": len(objects_data),
+            "movable_objects": sum(1 for o in objects_data if o.get("is_movable", True)),
+            "processing_time_seconds": round(processing_time, 3)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Detection failed: {str(e)}"}
+        )
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
