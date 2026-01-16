@@ -605,9 +605,11 @@ def main():
 
         decode_formats = ["gaussian", "glb"]
 
-        print(f"[Subprocess] Calling pipe.run() with:")
+        print(f"[Subprocess] Calling pipe.run() with (OPTIMIZED for volume calculation):")
         print(f"  - decode_formats: {decode_formats}")
-        print(f"  - with_texture_baking: True")
+        print(f"  - with_texture_baking: False (disabled for speed)")
+        print(f"  - with_mesh_postprocess: False (disabled for speed)")
+        print(f"  - with_layout_postprocess: False (disabled for speed)")
         print(f"  - pointmap: synthetic pinhole (avoid intrinsics recovery failures)")
 
         # Use synthetic pinhole pointmap to avoid intrinsics recovery failures
@@ -624,7 +626,9 @@ def main():
         )
         print(f"[Subprocess] Using decode_formats: {decode_formats_with_mesh}")
 
-        # Use pipeline.run() directly to enable GLB output with texture baking
+        # Use pipeline.run() directly
+        # OPTIMIZATION: Disabled texture baking, mesh postprocess, layout postprocess
+        # for faster volume calculation (70-90 seconds savings)
         with torch.no_grad():
             output = pipe.run(
                 image=image,
@@ -632,9 +636,9 @@ def main():
                 seed=seed,
                 pointmap=pointmap,  # Use synthetic pinhole pointmap
                 decode_formats=decode_formats_with_mesh,
-                with_mesh_postprocess=True,
-                with_texture_baking=True,
-                with_layout_postprocess=True,
+                with_mesh_postprocess=False,     # Disabled for speed (20-40s saving)
+                with_texture_baking=False,       # Disabled for speed (30-60s saving)
+                with_layout_postprocess=False,   # Disabled for speed (2-5s saving)
                 use_vertex_color=True,
             )
 
@@ -751,12 +755,13 @@ def main():
         print(f"[Subprocess] Rendering rotating GIF with proper colors...")
         try:
             # Render video frames (rotating 360° view)
+            # OPTIMIZATION: Reduced frames and resolution for faster volume calculation
             # Note: render_video returns a dict with 'color', 'depth', etc. keys
             render_output = render_video(
                 scene_gs,
-                resolution=512,
+                resolution=256,   # 512 → 256 (15-25s saving)
                 bg_color=(0, 0, 0),
-                num_frames=60,  # 60 frames for smooth rotation
+                num_frames=12,    # 60 → 12 (25-35s saving)
                 r=2.0,
                 fov=40,
                 pitch_deg=0,

@@ -75,9 +75,11 @@ class Config:
         }
 
     # --- Models ---
-    # 성능과 속도 균형을 위해 L 버전을 유지하되, 필요시 M이나 X로 변경 가능
-    YOLO_MODEL_PATH = 'yolov8l-world.pt' 
-    CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
+    # YOLOE-seg 모델 사용 (Open-Vocabulary Detection, 세그멘테이션 지원)
+    # YOLOv8 26L backbone 기반 고정밀 모델 사용
+    YOLO_MODEL_PATH = 'yoloe-26l-seg.pt'
+
+    # CLIP 제거됨 - YOLO 클래스로 직접 DB 매칭
     
     # --- Visualization ---
     # 한글 폰트 경로 (시스템에 맞게 수정 필요)

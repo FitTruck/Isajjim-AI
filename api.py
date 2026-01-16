@@ -1022,7 +1022,6 @@ def get_furniture_pipeline(device_id: Optional[int] = None):
             furniture_pipeline = FurniturePipeline(
                 sam2_api_url="http://localhost:8000",
                 enable_3d_generation=True,
-                use_sahi=True,
                 device_id=device_id,
                 gpu_pool=gpu_pool
             )
@@ -1056,15 +1055,14 @@ async def analyze_furniture(
     """
     Firebase Storage 이미지 URL들을 받아 가구를 분석합니다.
 
-    AI Logic Pipeline:
+    AI Logic Pipeline (새로운 파이프라인):
     1. Firebase Storage에서 이미지 다운로드 (5~10장)
-    2. YOLO-World + SAHI로 객체 탐지 (작은 객체도 검출)
-    3. CLIP으로 세부 유형 분류
-    4. DB 대조하여 is_movable 결정
-    5. SAM2로 마스크 생성
-    6. SAM-3D로 3D 모델 생성
-    7. trimesh로 부피/치수 계산
-    8. DB 규격 대조하여 절대 치수 계산
+    2. YOLOE-seg로 객체 탐지 (bbox + class + segmentation)
+    3. DB 대조하여 is_movable 결정 (YOLO 클래스로 직접 매칭)
+    4. SAM2로 마스크 생성
+    5. SAM-3D로 3D 모델 생성
+    6. trimesh로 부피/치수 계산
+    7. DB 규격 대조하여 절대 치수 계산
 
     Args:
         request: AnalyzeFurnitureRequest with image_urls
@@ -1296,7 +1294,7 @@ async def detect_furniture_only(request: AnalyzeFurnitureBase64Request):
     """
     가구 탐지만 수행합니다 (3D 생성 없음, 빠른 응답용)
 
-    YOLO-World + SAHI + CLIP 분류만 수행하고
+    YOLOE-seg 탐지 + DB 매칭만 수행하고
     SAM2/SAM-3D는 건너뜁니다.
 
     Returns:

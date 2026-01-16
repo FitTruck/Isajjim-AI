@@ -1,18 +1,22 @@
 """
 Stage 4: DB 대조 및 이동 가능 여부 판단
 
-CLIP에서 도출된 세부 유형을 Knowledge Base(DB)와 대조하여
+YOLO 탐지 결과를 Knowledge Base(DB)와 대조하여
 is_movable(이사 시 이동 가능 여부)을 결정합니다.
+
+CLIP 제거 - YOLO 클래스로 직접 DB 매칭
 """
 
-import os
-import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 # AI module import
 from ai.data.knowledge_base import (
     FURNITURE_DB,
+    get_db_key_from_label,
+    get_dimensions,
+    get_base_name,
+    is_movable as db_is_movable,
     get_dimensions_for_subtype,
     estimate_size_variant
 )
@@ -22,10 +26,10 @@ from ai.data.knowledge_base import (
 class MovabilityResult:
     """이동 가능 여부 판단 결과"""
     db_key: str                    # DB 키 (예: "bed", "sofa")
-    label: str                     # 한글 라벨 (예: "퀸 사이즈 침대")
-    subtype_name: Optional[str]    # 세부 유형명
+    label: str                     # 한글 라벨 (예: "침대", "소파")
+    subtype_name: Optional[str]    # 세부 유형명 (CLIP 제거로 항상 None)
     is_movable: bool               # 이동 가능 여부
-    confidence: float              # 판단 신뢰도
+    confidence: float              # 탐지 신뢰도
     dimensions: Optional[Dict]     # DB 참조 치수 (mm)
     reason: str                    # 판단 사유
 
@@ -38,6 +42,8 @@ class MovabilityChecker:
 
     Knowledge Base에서 가구 정보를 조회하여
     이사 시 이동 가능한 물품인지 판단합니다.
+
+    CLIP 제거 - YOLO 클래스로 직접 DB 매칭
     """
 
     def __init__(self):
@@ -51,7 +57,7 @@ class MovabilityChecker:
         동의어 → DB 키 매핑 생성
 
         Returns:
-            {"소파": "sofa", "쇼파": "sofa", "couch": "sofa", ...}
+            {"bed": "bed", "sofa": "sofa", "couch": "sofa", ...}
         """
         class_map = {}
         for key, info in self.db.items():
@@ -61,10 +67,11 @@ class MovabilityChecker:
 
     def get_search_classes(self) -> List[str]:
         """
-        YOLO-World에 설정할 검색 클래스 목록 반환
+        YOLO 탐지 대상 클래스 목록 반환
+        (참고용 - YOLOE는 고정 클래스 사용)
 
         Returns:
-            ["소파", "침대", "책상", ...] 동의어 포함 리스트
+            동의어 리스트
         """
         classes = []
         for key, info in self.db.items():
@@ -86,7 +93,6 @@ class MovabilityChecker:
     def check(
         self,
         db_key: str,
-        subtype_name: Optional[str] = None,
         confidence: float = 1.0
     ) -> MovabilityResult:
         """
@@ -94,8 +100,7 @@ class MovabilityChecker:
 
         Args:
             db_key: DB 키 (예: "bed", "sofa")
-            subtype_name: 세부 유형명 (예: "퀸 사이즈 침대")
-            confidence: CLIP 분류 신뢰도
+            confidence: YOLO 탐지 신뢰도
 
         Returns:
             MovabilityResult
@@ -104,7 +109,7 @@ class MovabilityChecker:
             return MovabilityResult(
                 db_key=db_key,
                 label=db_key,
-                subtype_name=subtype_name,
+                subtype_name=None,
                 is_movable=True,  # 기본값: 이동 가능
                 confidence=confidence,
                 dimensions=None,
@@ -112,78 +117,49 @@ class MovabilityChecker:
             )
 
         db_info = self.db[db_key]
-        base_is_movable = db_info.get('is_movable', True)
+        is_mov = db_info.get('is_movable', True)
         base_name = db_info.get('base_name', db_key)
-
-        # 서브타입별 is_movable 확인
-        final_is_movable = base_is_movable
-        final_label = base_name
-        dimensions = None
-        reason = "DB 기본값"
-
-        if subtype_name and 'subtypes' in db_info:
-            for subtype in db_info['subtypes']:
-                if subtype.get('name') == subtype_name:
-                    # 서브타입에 is_movable이 명시되어 있으면 사용
-                    if 'is_movable' in subtype:
-                        final_is_movable = subtype['is_movable']
-                        reason = f"서브타입 '{subtype_name}' 설정"
-                    final_label = subtype_name
-                    dimensions = subtype.get('dimensions')
-                    break
-
-        # dimensions가 없으면 기본값에서 가져오기
-        if dimensions is None:
-            dimensions = db_info.get('default_dimensions')
+        dimensions = db_info.get('dimensions')
 
         return MovabilityResult(
             db_key=db_key,
-            label=final_label,
-            subtype_name=subtype_name,
-            is_movable=final_is_movable,
+            label=base_name,
+            subtype_name=None,  # CLIP 제거로 서브타입 없음
+            is_movable=is_mov,
             confidence=confidence,
             dimensions=dimensions,
-            reason=reason
+            reason="DB 기본값"
         )
 
-    def check_with_classification(
+    def check_from_label(
         self,
-        db_key: str,
-        classification_result: Dict
+        detected_label: str,
+        confidence: float = 1.0
     ) -> MovabilityResult:
         """
-        CLIP 분류 결과를 사용하여 이동 가능 여부를 판단합니다.
+        YOLO 탐지 라벨로 이동 가능 여부를 판단합니다.
 
         Args:
-            db_key: DB 키
-            classification_result: CLIP 분류 결과
-                {"name": "...", "score": 0.85, "is_movable": True, ...}
+            detected_label: YOLO가 탐지한 라벨 (예: "Bed", "Sofa")
+            confidence: YOLO 탐지 신뢰도
 
         Returns:
             MovabilityResult
         """
-        subtype_name = classification_result.get('name')
-        confidence = classification_result.get('score', 1.0)
+        db_key = self.get_db_key(detected_label)
 
-        # 분류 결과에 is_movable이 이미 있으면 사용
-        if 'is_movable' in classification_result:
-            db_info = self.db.get(db_key, {})
-            dimensions = classification_result.get('dimensions')
-
-            if dimensions is None:
-                dimensions = get_dimensions_for_subtype(db_key, subtype_name)
-
+        if db_key is None:
             return MovabilityResult(
-                db_key=db_key,
-                label=subtype_name or db_info.get('base_name', db_key),
-                subtype_name=subtype_name,
-                is_movable=classification_result['is_movable'],
+                db_key=detected_label.lower(),
+                label=detected_label,
+                subtype_name=None,
+                is_movable=True,
                 confidence=confidence,
-                dimensions=dimensions,
-                reason="CLIP 분류 결과"
+                dimensions=None,
+                reason="DB에 없는 클래스 - 기본값 적용"
             )
 
-        return self.check(db_key, subtype_name, confidence)
+        return self.check(db_key, confidence)
 
     def get_reference_dimensions(
         self,
@@ -199,24 +175,13 @@ class MovabilityChecker:
 
         Args:
             db_key: DB 키
-            subtype_name: 세부 유형명
-            aspect_ratio: SAM-3D에서 계산된 비율 {"w": 1.0, "h": 0.5, "d": 0.66}
+            subtype_name: 무시됨 (하위 호환성용)
+            aspect_ratio: SAM-3D에서 계산된 비율 (무시됨)
 
         Returns:
             {"width": 1500, "depth": 2000, "height": 450} (mm)
         """
-        # 기본 치수 가져오기
-        dimensions = get_dimensions_for_subtype(db_key, subtype_name)
-
-        # 비율로 사이즈 변형 추정
-        if aspect_ratio and dimensions:
-            variant_name, matched_dims = estimate_size_variant(
-                db_key, subtype_name, aspect_ratio
-            )
-            if matched_dims:
-                dimensions = matched_dims
-
-        return dimensions
+        return get_dimensions(db_key)
 
     def get_furniture_info(self, db_key: str) -> Optional[Dict]:
         """
@@ -233,14 +198,39 @@ class MovabilityChecker:
     def get_subtypes(self, db_key: str) -> List[Dict]:
         """
         특정 가구의 서브타입 목록을 가져옵니다.
-
-        CLIP 분류 시 후보로 사용합니다.
+        (CLIP 제거로 항상 빈 리스트 반환)
 
         Args:
             db_key: DB 키
 
         Returns:
-            서브타입 딕셔너리 리스트
+            빈 리스트
         """
-        info = self.db.get(db_key, {})
-        return info.get('subtypes', [])
+        return []  # CLIP 제거로 서브타입 분류 없음
+
+    # =========================================================================
+    # 하위 호환성 메서드 (CLIP 제거 후)
+    # =========================================================================
+
+    def check_with_classification(
+        self,
+        db_key: str,
+        classification_result: Dict = None
+    ) -> MovabilityResult:
+        """
+        CLIP 분류 결과를 사용하여 이동 가능 여부를 판단합니다.
+        (CLIP 제거로 classification_result 무시)
+
+        Args:
+            db_key: DB 키
+            classification_result: 무시됨 (하위 호환성용)
+
+        Returns:
+            MovabilityResult
+        """
+        # CLIP 제거로 분류 결과 무시, DB 기본값만 사용
+        confidence = 1.0
+        if classification_result:
+            confidence = classification_result.get('score', 1.0)
+
+        return self.check(db_key, confidence)

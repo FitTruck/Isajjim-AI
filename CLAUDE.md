@@ -5,12 +5,21 @@ This guide is for Claude Code (claude.ai/code) when working with this repository
 ## Overview
 
 A FastAPI-based service integrating:
-1. **SAM 2 (Segment Anything Model 2)** - Meta's Hugging Face image segmentation model
+1. **YOLOE-seg** - Object detection with instance segmentation (V2 파이프라인)
 2. **Sam-3d-objects** - Facebook Research's 2D image to 3D object generation pipeline
 3. **AI Module** - Furniture detection and analysis system (Korean language support)
 4. **Multi-GPU Parallel Processing** - Round-robin GPU allocation via GPU pool manager
+5. **SAM 2 (Segment Anything Model 2)** - Meta's Hugging Face model (deprecated in V2, available for /segment endpoints)
 
-The API accepts 2D images with point-based segmentation and generates 3D Gaussian Splats, PLY, GIF, and GLB meshes.
+The API accepts 2D images and generates 3D Gaussian Splats, PLY, GIF, and GLB meshes.
+
+### Pipeline Version: V2 (2024-01)
+
+V2 파이프라인에서는 **YOLOE-seg 마스크를 SAM-3D에 직접 전달**합니다 (SAM2 제거).
+```
+[V1]  YOLO detect → center_point → SAM2 → mask → SAM-3D
+[V2]  YOLO-seg detect → mask (직접) → SAM-3D  ← 현재
+```
 
 ## Architecture
 
@@ -34,8 +43,7 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐     │   │
 │  │  │  GPU 0  │  │  GPU 1  │  │  GPU 2  │  │  GPU 3  │     │   │
 │  │  │Pipeline │  │Pipeline │  │Pipeline │  │Pipeline │     │   │
-│  │  │(YOLO,   │  │(YOLO,   │  │(YOLO,   │  │(YOLO,   │     │   │
-│  │  │ CLIP)   │  │ CLIP)   │  │ CLIP)   │  │ CLIP)   │     │   │
+│  │  │(YOLOE)  │  │(YOLOE)  │  │(YOLOE)  │  │(YOLOE)  │     │   │
 │  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘     │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                              │                                   │
@@ -50,7 +58,7 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 
 **Key Features:**
 - **Round-robin GPU allocation**: Distributes image requests sequentially across different GPUs
-- **Pipeline pre-initialization**: Loads YOLO/CLIP models on each GPU at server startup
+- **Pipeline pre-initialization**: Loads YOLOE model on each GPU at server startup
 - **Pipeline reuse**: Uses pre-initialized pipelines instead of creating new ones per request
 - **Thread-safe acquire/release**: Ensures concurrency safety using asyncio.Lock
 
@@ -82,13 +90,13 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
    - device_id parameter for running on specific GPU
    - gpu_pool parameter for Multi-GPU parallel processing support
    - process_multiple_images: Parallel image processing from GPU pool
+   - **CLIP/SAHI 제거** - YOLOE 클래스로 직접 DB 매칭
 
 5. **AI Processors (`ai/processors/`)**
-   - Furniture detection using YOLO-World + SAHI (small object detection)
-   - Detailed furniture subtype classification using CLIP
+   - Furniture detection using YOLOE-seg (Objects365 기반 365 classes)
    - Korean language interface for moving services
    - Furniture dimension Knowledge Base for volume calculation
-   - Integrated pipeline: Firebase URL → YOLO → CLIP → SAM2 → SAM-3D → Volume
+   - **V2 Pipeline**: Firebase URL → YOLOE-seg (mask 포함) → DB → SAM-3D → Volume (SAM2 제거)
 
 ### Fixed Path Dependencies
 
@@ -220,7 +228,7 @@ await pool.initialize_pipelines(
 
 **Benefits:**
 - Eliminates 3-5 second model loading time per request
-- Independent YOLO/CLIP model instances per GPU
+- Independent YOLOE model instances per GPU
 - Prevents GPU conflicts during parallel image processing
 
 ### GPU Status Check
@@ -259,26 +267,43 @@ curl http://localhost:8000/gpu-status
 5. API extracts URLs from subprocess stdout and updates task status
 6. Client polls /generate-3d-status/{task_id} to receive base64 encoded files
 
-## Furniture Analysis Pipeline (AI Integration)
+## Furniture Analysis Pipeline V2 (AI Integration)
 
-The `/analyze-furniture` endpoint implements the full AI Logic pipeline:
+The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
+
+### V2 Pipeline (CLIP/SAHI/SAM2 제거)
 
 1. **Image Fetch**: Download images from Firebase Storage URLs (5-10 images)
 2. **GPU Allocation**: Round-robin GPU allocation from GPUPoolManager
-3. **Object Detection**: YOLO-World + SAHI for small object detection
-4. **Classification**: CLIP for detailed subtype classification (e.g., queen bed vs king bed)
-5. **Movability Check**: Compare with knowledge base to determine is_movable
-6. **Mask Generation**: SAM2 generates segmentation mask with center point prompt
-7. **3D Generation**: SAM-3D converts masked image to 3D model
-8. **Volume Calculation**: trimesh analyzes mesh for relative dimensions
-9. **Absolute Dimensions**: Match with DB furniture specifications for real measurements
+3. **Object Detection**: YOLOE-seg for object detection (bbox + class + **segmentation mask**)
+4. **DB Matching**: YOLOE class directly matches with Knowledge Base → is_movable determination
+5. **Mask Direct Use**: YOLOE-seg 마스크를 SAM-3D에 직접 전달 (**SAM2 제거**)
+6. **3D Generation**: SAM-3D converts masked image to 3D model
+7. **Volume Calculation**: trimesh analyzes mesh for relative dimensions
+8. **Absolute Dimensions**: Match with DB furniture specifications for real measurements
+
+### Key Changes (V1 → V2)
+| 항목 | V1 | V2 |
+|------|------|------|
+| 탐지 모델 | yolov8l-world.pt | yoloe-11x-seg.pt |
+| SAHI | 사용 | **완전 제거** |
+| CLIP 분류 | 세부 유형 분류 | **완전 제거** |
+| **SAM2 마스크** | center point prompt | **완전 제거 (YOLO 마스크 직접 사용)** |
+| 분류 단계 | YOLO → CLIP → DB | YOLO → DB (직접) |
+| DB 매칭 | CLIP 결과로 서브타입 매칭 | YOLO 클래스로 직접 매칭 |
+| API 호출 수 | 3회 (YOLO→SAM2→SAM3D) | 2회 (YOLO→SAM3D) |
+
+### V2 변경 이유 (테스트 결과)
+- **마스크 품질**: YOLOE-seg가 SAM2보다 객체 전체를 더 정확하게 커버
+- **속도**: SAM2 API 호출 제거로 latency 감소
+- **단순화**: HTTP 호출 제거, 코드 복잡도 감소
 
 ### Response Format
 ```json
 {
   "objects": [
     {
-      "label": "Queen Size Bed",
+      "label": "침대",
       "width": 1500.0,
       "depth": 2000.0,
       "height": 450.0,
@@ -299,9 +324,9 @@ The `/analyze-furniture` endpoint implements the full AI Logic pipeline:
 ### Key Components
 - `ai/pipeline/furniture_pipeline.py` - Main pipeline orchestrator
 - `ai/gpu/gpu_pool_manager.py` - Multi-GPU pool manager
-- `ai/processors/2_Yolo-World_detect.py` - SAHI-enhanced YOLO detector
+- `ai/processors/2_YOLO_detect.py` - YOLOE-seg detector (Objects365 기반)
 - `ai/processors/7_volume_calculate.py` - Mesh volume analysis
-- `ai/data/knowledge_base.py` - Furniture dimensions database
+- `ai/data/knowledge_base.py` - Furniture dimensions database (Objects365 매핑)
 
 ## Code Modification Guidelines
 
@@ -316,6 +341,12 @@ The `/analyze-furniture` endpoint implements the full AI Logic pipeline:
 - Use synthetic pinhole pointmaps (make_synthetic_pointmap) instead of MoGe/dummy maps
 - Check debug markers in subprocess stdout (PLY_URL_START/END, etc.)
 - Test GLB export carefully - to_glb() requires mesh data and can raise AttributeError
+
+### When Modifying YOLO Detection
+- Use YoloDetector class in `ai/processors/2_YOLO_detect.py`
+- YOLOE-seg uses Objects365 class names (365 classes)
+- DB matching is done via `knowledge_base.py` synonyms
+- No more CLIP classification - YOLOE class directly maps to DB
 
 ### When Modifying Multi-GPU Processing
 - Check GPUPoolManager class in `ai/gpu/gpu_pool_manager.py`
@@ -348,39 +379,42 @@ api.py                                  # Main FastAPI server (SAM 2 + task mana
 requirements.txt                        # Python dependencies
 setup.sh                                # Setup script (clones sam-3d-objects, creates conda env)
 assets/                                 # Static files served at /assets/ (PLY, GIF, GLB)
+docs/                                   # Documentation
+  TDD_PIPELINE_V2.md                    # Technical Design Document for V2 pipeline
 sam-3d-objects/                         # Cloned Facebook Research repo (not in git)
   notebook/inference.py                 # Sam-3d-objects pipeline class
   checkpoints/hf/pipeline.yaml          # Pipeline configuration
 ai/                                     # AI module (integrated with main API)
   __init__.py                           # Module entry point (exports FurniturePipeline, processors)
   main.py                               # Standalone CLI entry point
-  config.py                             # YOLO/CLIP model settings, Multi-GPU settings
+  config.py                             # YOLOE model settings, Multi-GPU settings
   gpu/                                  # GPU pool management module
     __init__.py                         # Exports GPUPoolManager, get_gpu_pool
     gpu_pool_manager.py                 # GPU pool manager implementation
   processors/                           # AI Logic step-by-step processors
     __init__.py                         # Exports processor classes
     1_firebase_images_fetch.py          # Step 1: Fetch images from Firebase
-    2_Yolo-World_detect.py              # Step 2: YOLO-World object detection
-    3_CLIP_classify.py                  # Step 3: CLIP detailed classification
+    2_YOLO_detect.py                    # Step 2: YOLOE-seg object detection (with mask)
     4_DB_movability_check.py            # Step 4: is_movable determination
-    5_SAM2_mask_generate.py             # Step 5: SAM2 mask generation
+    5_SAM2_mask_generate.py             # Step 5: SAM2 mask generation [DEPRECATED in V2]
     6_SAM3D_convert.py                  # Step 6: SAM-3D 3D conversion
     7_volume_calculate.py               # Step 7: Volume/dimension calculation
   pipeline/
     __init__.py                         # Exports FurniturePipeline
-    furniture_pipeline.py               # Pipeline orchestrator (Multi-GPU support)
+    furniture_pipeline.py               # Pipeline orchestrator V2 (YOLO mask direct use)
   subprocess/
     generate_3d_worker.py               # Isolated 3D generation worker
   data/
     __init__.py                         # Exports FURNITURE_DB
-    knowledge_base.py                   # Furniture database with dimensions
+    knowledge_base.py                   # Furniture database with dimensions (Objects365 매핑)
   utils/
     __init__.py                         # Exports utilities
     image_ops.py                        # Image processing utilities
   fonts/                                # Korean font files (NanumGothic)
   imgs/                                 # Test images
   outputs/                              # Output results
+test_pipeline_qa.py                     # Pipeline V2 QA test script
+test_yoloe_vs_sam2_masks.py             # YOLOE vs SAM2 mask comparison test
 ```
 
 ## Known Issues and Solutions

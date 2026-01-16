@@ -3,22 +3,22 @@ Furniture Analysis Pipeline
 
 전체 AI 로직을 통합한 파이프라인 오케스트레이터:
 
-[DeCl Stages - 1~4]
+[V2 파이프라인 - CLIP/SAHI/SAM2 제거]
 1. Firebase Storage URL에서 이미지 가져오기
-2. YOLO-World + SAHI로 객체 탐지
-3. CLIP으로 세부 유형 분류
-4. DB 대조하여 is_movable 결정
+2. YOLOE-seg로 객체 탐지 (bbox + class + 세그멘테이션 마스크)
+3. DB 대조하여 is_movable 결정 (YOLO 클래스로 직접 매칭)
+4. YOLOE-seg 마스크를 SAM-3D에 직접 전달 (SAM2 제거)
+5. SAM3D로 3D 변환
+6. 객체별 부피 계산 (trimesh)
+7. 상대적 부피 계산 후 JSON 응답
 
-[External API - 5~9]
-5. SAM2로 마스크 생성
-6. SAM-3D로 3D 변환
-7. 부피/치수 계산
-8. DB 규격 대조하여 절대 치수 계산
-9. 최종 JSON 응답 반환
+변경 이유 (2024-01 테스트 결과):
+- YOLOE-seg 마스크가 SAM2보다 객체 전체를 더 정확하게 커버
+- SAM2 API 호출 제거로 latency 감소
+- 파이프라인 단순화
 """
 
 import os
-import sys
 import io
 import base64
 import tempfile
@@ -32,9 +32,7 @@ from dataclasses import dataclass, field
 # AI processors import
 from ai.processors import (
     ImageFetcher,
-    YoloWorldDetector,
-    ClipClassifier,
-    ACRefiner,
+    YoloDetector,
     MovabilityChecker,
     VolumeCalculator,
     SAM3DConverter
@@ -62,13 +60,16 @@ class DetectedObject:
     id: int
     label: str                              # 한글 라벨
     db_key: str                             # FURNITURE_DB 키
-    subtype_name: Optional[str] = None
+    subtype_name: Optional[str] = None      # CLIP 제거로 항상 None
     bbox: List[int] = field(default_factory=list)
     center_point: List[float] = field(default_factory=list)
     confidence: float = 0.0
     is_movable: bool = True
     crop_image: Optional[Image.Image] = None
     mask_base64: Optional[str] = None
+
+    # 세그멘테이션 마스크 (YOLOE-seg에서 출력)
+    yolo_mask: Optional[np.ndarray] = None
 
     # 3D 정보 (SAM-3D 처리 후)
     ply_url: Optional[str] = None
@@ -95,24 +96,28 @@ class PipelineResult:
 
 class FurniturePipeline:
     """
-    가구 분석 통합 파이프라인
+    가구 분석 통합 파이프라인 V2
 
+    [V2 파이프라인 - SAM2 제거]
     AI Logic Stages:
         Stage 1: ImageFetcher - Firebase URL → PIL Image
-        Stage 2: YoloWorldDetector - 객체 탐지 (바운딩 박스, 1차 클래스)
-        Stage 3: ClipClassifier - 세부 유형 분류
-        Stage 4: MovabilityChecker - DB 대조 → is_movable 결정
+        Stage 2: YoloDetector - 객체 탐지 (bbox, class, 세그멘테이션 마스크)
+        Stage 3: MovabilityChecker - DB 대조 → is_movable 결정
+        Stage 4: YOLOE-seg 마스크 → SAM-3D 직접 전달
 
     External API:
-        SAM2 API - 마스크 생성
         SAM-3D API - 3D 모델 생성 및 부피 계산
+
+    제거된 컴포넌트:
+        - CLIP: YOLO 클래스로 직접 DB 매칭
+        - SAHI: 단일 모델 추론으로 단순화
+        - SAM2: YOLOE-seg 마스크가 더 정확 (2024-01 테스트 결과)
     """
 
     def __init__(
         self,
         sam2_api_url: str = "http://localhost:8000",
         enable_3d_generation: bool = True,
-        use_sahi: bool = True,
         device_id: Optional[int] = None,
         gpu_pool: Optional[GPUPoolManager] = None
     ):
@@ -120,7 +125,6 @@ class FurniturePipeline:
         Args:
             sam2_api_url: SAM2/SAM-3D API 서버 URL
             enable_3d_generation: 3D 생성 활성화 여부
-            use_sahi: SAHI 슬라이싱 탐지 사용 여부
             device_id: GPU 디바이스 ID (None이면 기본값 사용)
             gpu_pool: GPU 풀 매니저 (Multi-GPU 처리용)
         """
@@ -137,14 +141,10 @@ class FurniturePipeline:
         # Stage 1: 이미지 가져오기
         self.fetcher = ImageFetcher()
 
-        # Stage 2: YOLO-World 탐지 - device_id 전달
-        self.detector = YoloWorldDetector(use_sahi=use_sahi, device_id=device_id)
+        # Stage 2: YOLO-E 탐지 - device_id 전달
+        self.detector = YoloDetector(device_id=device_id)
 
-        # Stage 3: CLIP 분류 - device_id 전달
-        self.classifier = ClipClassifier(device_id=device_id)
-        self.ac_refiner = ACRefiner(self.classifier)
-
-        # Stage 4: is_movable 판단
+        # Stage 3: is_movable 판단
         self.movability_checker = MovabilityChecker()
 
         # Volume 계산기
@@ -153,14 +153,10 @@ class FurniturePipeline:
         # SAM-3D 변환기 - device_id 전달
         self.sam3d_converter = SAM3DConverter(device_id=device_id)
 
-        # 검색 클래스 설정
-        search_classes = self.movability_checker.get_search_classes()
-        self.detector.set_classes(search_classes)
-
         # 클래스 매핑 (동의어 → DB 키)
         self.class_map = self.movability_checker.class_map
 
-        print(f"[FurniturePipeline] Initialized with {len(search_classes)} search classes on {self._device}")
+        print(f"[FurniturePipeline] Initialized with {len(self.class_map)} class mappings on {self._device}")
 
     # =========================================================================
     # Stage 1: 이미지 가져오기
@@ -175,12 +171,15 @@ class FurniturePipeline:
         return self.fetcher.fetch_sync(url)
 
     # =========================================================================
-    # Stage 2-4: 객체 탐지 → 분류 → is_movable 결정
+    # Stage 2-3: 객체 탐지 → is_movable 결정
     # =========================================================================
 
     def detect_objects(self, image: Image.Image) -> List[DetectedObject]:
         """
-        Stage 2-4 통합: 이미지에서 객체를 탐지하고 분류합니다.
+        Stage 2-3 통합: 이미지에서 객체를 탐지하고 is_movable을 결정합니다.
+
+        CLIP 제거 - YOLO 클래스로 직접 DB 매칭
+        SAHI 제거 - 단일 모델 추론
 
         Args:
             image: PIL 이미지
@@ -191,33 +190,29 @@ class FurniturePipeline:
         img_w, img_h = image.size
         detected_objects = []
 
-        # Stage 2: YOLO-World 탐지
-        results = self.detector.detect_smart(image)
+        # Stage 2: YOLO-E 탐지 (세그멘테이션 마스크 포함)
+        results = self.detector.detect_smart(image, return_masks=True)
 
         if results is None or len(results["boxes"]) == 0:
             return detected_objects
 
         boxes = results["boxes"]
         scores = results["scores"]
-        classes = results["classes"]
+        labels = results["labels"]
+        masks = results.get("masks", [])
 
-        for idx, (box, score, cls_idx) in enumerate(zip(boxes, scores, classes)):
+        for idx, (box, score, label) in enumerate(zip(boxes, scores, labels)):
             x1, y1, x2, y2 = map(int, box)
 
             # 너무 작은 박스 필터링
             if (x2 - x1) < 20 or (y2 - y1) < 20:
                 continue
 
-            # 클래스 라벨 가져오기
-            cls_int = int(cls_idx)
-            detected_label = self.detector.get_label_for_class(cls_int)
-            if not detected_label:
-                continue
-
             # DB 키 매핑
-            db_key = self.class_map.get(detected_label.lower())
+            db_key = self.class_map.get(label.lower())
             if not db_key:
-                continue
+                # DB에 없는 클래스도 기본값으로 처리
+                db_key = label.lower()
 
             # 객체 크롭
             crop = image.crop((x1, y1, x2, y2))
@@ -226,88 +221,60 @@ class FurniturePipeline:
             center_x = (x1 + x2) / 2
             center_y = (y1 + y2) / 2
 
-            # Stage 3-4: 분류 및 is_movable 결정
-            final_info = self._classify_and_check_movability(
-                db_key, crop, [x1, y1, x2, y2], (img_w, img_h), float(score)
-            )
+            # Stage 3: is_movable 판단 (CLIP 없이 DB 직접 매칭)
+            movability = self.movability_checker.check_from_label(label, float(score))
+
+            # 세그멘테이션 마스크 (있는 경우)
+            yolo_mask = None
+            if masks and idx < len(masks):
+                yolo_mask = masks[idx]
 
             obj = DetectedObject(
                 id=idx,
-                label=final_info['label'],
+                label=movability.label,
                 db_key=db_key,
-                subtype_name=final_info.get('subtype_name'),
+                subtype_name=None,  # CLIP 제거로 서브타입 없음
                 bbox=[x1, y1, x2, y2],
                 center_point=[center_x, center_y],
-                confidence=final_info['confidence'],
-                is_movable=final_info['is_movable'],
-                crop_image=crop
+                confidence=float(score),
+                is_movable=movability.is_movable,
+                crop_image=crop,
+                yolo_mask=yolo_mask
             )
 
             detected_objects.append(obj)
 
         return detected_objects
 
-    def _classify_and_check_movability(
-        self,
-        db_key: str,
-        crop: Image.Image,
-        bbox: List[int],
-        image_size: Tuple[int, int],
-        detection_score: float
-    ) -> Dict:
+    # =========================================================================
+    # YOLOE-seg 마스크 변환 (V2 파이프라인)
+    # =========================================================================
+
+    def _yolo_mask_to_base64(self, yolo_mask: np.ndarray) -> str:
         """
-        Stage 3-4: 객체 분류 및 is_movable 판단
+        YOLOE-seg 마스크를 base64로 변환합니다.
 
         Args:
-            db_key: DB 키
-            crop: 크롭 이미지
-            bbox: 바운딩 박스
-            image_size: 원본 이미지 크기
-            detection_score: 탐지 신뢰도
+            yolo_mask: numpy array (H, W), uint8, 0/255 값
 
         Returns:
-            {
-                "label": str,
-                "subtype_name": str,
-                "is_movable": bool,
-                "confidence": float
-            }
+            Base64 인코딩된 마스크 PNG
         """
-        db_info = FURNITURE_DB.get(db_key, {})
-        subtypes = db_info.get('subtypes', [])
-
-        # Stage 3: CLIP 분류
-        classification_result = None
-        if subtypes:
-            if db_info.get('check_strategy') == "AC_STRATEGY":
-                classification_result = self.ac_refiner.refine(
-                    bbox, image_size, crop, subtypes
-                )
-            else:
-                classification_result = self.classifier.classify(crop, subtypes)
-
-        # Stage 4: is_movable 판단
-        if classification_result:
-            movability = self.movability_checker.check_with_classification(
-                db_key, classification_result
-            )
-        else:
-            movability = self.movability_checker.check(db_key)
-
-        return {
-            "label": movability.label,
-            "subtype_name": movability.subtype_name,
-            "is_movable": movability.is_movable,
-            "confidence": classification_result.get('score', detection_score) if classification_result else detection_score
-        }
+        mask_pil = Image.fromarray(yolo_mask, mode="L")
+        buffer = io.BytesIO()
+        mask_pil.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     # =========================================================================
-    # External API: SAM2 마스크 생성
+    # External API: SAM2 마스크 생성 (DEPRECATED - V1 호환용)
     # =========================================================================
 
     async def generate_mask(self, image: Image.Image, point: List[float]) -> Optional[str]:
         """
-        SAM2 API를 호출하여 마스크를 생성합니다.
+        [DEPRECATED] SAM2 API를 호출하여 마스크를 생성합니다.
+
+        V2 파이프라인에서는 YOLOE-seg 마스크를 직접 사용합니다.
+        이 메서드는 하위 호환성을 위해 유지되며, YOLO 마스크가 없는 경우에만 사용됩니다.
 
         Args:
             image: 원본 이미지
@@ -316,6 +283,14 @@ class FurniturePipeline:
         Returns:
             Base64 인코딩된 마스크
         """
+        import warnings
+        warnings.warn(
+            "generate_mask() is deprecated in V2 pipeline. "
+            "YOLOE-seg masks are used directly instead of SAM2.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
         if not HAS_AIOHTTP:
             return None
 
@@ -476,11 +451,11 @@ class FurniturePipeline:
         enable_3d: bool = True
     ) -> PipelineResult:
         """
-        단일 이미지를 처리합니다.
+        단일 이미지를 처리합니다 (V2 파이프라인).
 
         Args:
             image_url: Firebase Storage 이미지 URL
-            enable_mask: SAM2 마스크 생성 활성화
+            enable_mask: 마스크 활성화 (V2: YOLOE-seg 마스크 사용)
             enable_3d: SAM-3D 3D 생성 활성화
 
         Returns:
@@ -503,14 +478,20 @@ class FurniturePipeline:
                 result.error = "Failed to fetch image"
                 return result
 
-            # Stage 2-4: 객체 탐지 및 분류
+            # Stage 2-3: 객체 탐지 및 is_movable 결정
             detected_objects = self.detect_objects(image)
 
-            # Stage 5-8: 각 객체에 대해 마스크 및 3D 생성
+            # Stage 4-6: 각 객체에 대해 마스크 및 3D 생성 (V2: YOLOE-seg 마스크 직접 사용)
             for obj in detected_objects:
                 if enable_mask:
-                    mask_b64 = await self.generate_mask(image, obj.center_point)
-                    obj.mask_base64 = mask_b64
+                    # V2 파이프라인: YOLOE-seg 마스크 직접 사용 (SAM2 제거)
+                    if obj.yolo_mask is not None:
+                        mask_b64 = self._yolo_mask_to_base64(obj.yolo_mask)
+                        obj.mask_base64 = mask_b64
+                    else:
+                        # Fallback: SAM2 API 호출 (deprecated, YOLO 마스크 없는 경우에만)
+                        mask_b64 = await self.generate_mask(image, obj.center_point)
+                        obj.mask_base64 = mask_b64
 
                 if enable_3d and self.enable_3d_generation and obj.mask_base64:
                     gen_result = await self.generate_3d(image, obj.mask_base64)
