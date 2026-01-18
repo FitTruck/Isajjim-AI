@@ -79,7 +79,7 @@ Firebase URL → YOLOE-seg (마스크 포함) → DB 매칭 → SAM-3D → 부�
 
 | 항목 | V1 | V2 |
 |------|------|------|
-| 탐지 모델 | yolov8l-world.pt | yoloe-11x-seg.pt |
+| 탐지 모델 | yolov8l-world.pt | yoloe-26x-seg.pt |
 | SAHI | 사용 | **제거** |
 | CLIP 분류 | 세부 유형 분류 | **제거** |
 | **SAM2 마스크** | center point prompt | **제거 (YOLO 마스크 직접 사용)** |

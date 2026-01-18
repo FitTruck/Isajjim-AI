@@ -5,7 +5,7 @@
 | 항목 | 내용 |
 |------|------|
 | Version | 2.0 |
-| Last Updated | 2024-01-16 |
+| Last Updated | 2026-01-18 |
 | Author | AI Team |
 | Status | Implemented |
 
@@ -21,6 +21,7 @@
 
 | 항목 | V1 | V2 |
 |------|----|----|
+| 탐지 모델 | yolov8l-world.pt | yoloe-26x-seg.pt |
 | 마스크 생성 | SAM2 (center point prompt) | YOLOE-seg (직접 사용) |
 | 분류 | CLIP 분류 후 DB 매칭 | YOLO 클래스로 직접 DB 매칭 |
 | 탐지 | SAHI 타일링 + YOLO-World | YOLOE-seg 단일 추론 |
@@ -157,7 +158,7 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 
 **File:** `ai/processors/2_YOLO_detect.py`
 
-**Model:** `yoloe-11x-seg.pt` (Objects365 기반, 365 classes)
+**Model:** `yoloe-26x-seg.pt` (Objects365 기반, 365 classes)
 
 **Key Methods:**
 - `detect_smart(image, return_masks=True)`: 통합 탐지 (bbox + mask)
@@ -384,7 +385,7 @@ aiohttp                 # Async HTTP client
 
 ## 10. Changelog
 
-### V2.0 (2024-01-16)
+### V2.0 (2026-01-16)
 
 **Major Changes:**
 - Removed SAM2 from main pipeline

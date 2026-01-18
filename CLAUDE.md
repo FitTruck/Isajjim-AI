@@ -285,7 +285,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ### Key Changes (V1 → V2)
 | 항목 | V1 | V2 |
 |------|------|------|
-| 탐지 모델 | yolov8l-world.pt | yoloe-11x-seg.pt |
+| 탐지 모델 | yolov8l-world.pt | yoloe-26x-seg.pt |
 | SAHI | 사용 | **완전 제거** |
 | CLIP 분류 | 세부 유형 분류 | **완전 제거** |
 | **SAM2 마스크** | center point prompt | **완전 제거 (YOLO 마스크 직접 사용)** |
@@ -380,7 +380,11 @@ requirements.txt                        # Python dependencies
 setup.sh                                # Setup script (clones sam-3d-objects, creates conda env)
 assets/                                 # Static files served at /assets/ (PLY, GIF, GLB)
 docs/                                   # Documentation
-  TDD_PIPELINE_V2.md                    # Technical Design Document for V2 pipeline
+  qa/                                   # QA test reports
+    QA_MULTI_GPU_TEST_REPORT.md         # Multi-GPU parallel processing test report
+    QA_YOLOE_MIGRATION_REPORT.md        # YOLOE migration test report
+  tdd/                                  # Technical Design Documents
+    TDD_PIPELINE_V2.md                  # Technical Design Document for V2 pipeline
 sam-3d-objects/                         # Cloned Facebook Research repo (not in git)
   notebook/inference.py                 # Sam-3d-objects pipeline class
   checkpoints/hf/pipeline.yaml          # Pipeline configuration

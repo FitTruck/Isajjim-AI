@@ -77,7 +77,7 @@ class Config:
     # --- Models ---
     # YOLOE-seg 모델 사용 (Open-Vocabulary Detection, 세그멘테이션 지원)
     # YOLOv8 26L backbone 기반 고정밀 모델 사용
-    YOLO_MODEL_PATH = 'yoloe-26l-seg.pt'
+    YOLO_MODEL_PATH = 'yoloe-26x-seg.pt'
 
     # CLIP 제거됨 - YOLO 클래스로 직접 DB 매칭
     
