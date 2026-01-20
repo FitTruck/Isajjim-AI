@@ -635,20 +635,6 @@ class FurniturePipeline:
 
                 all_objects.append(obj_data)
 
-        total_volume = sum(r.total_volume_liters for r in results)
-        movable_volume = sum(r.movable_volume_liters for r in results)
-        total_objects = sum(len(r.objects) for r in results)
-        movable_objects = sum(len([o for o in r.objects if o.is_movable]) for r in results)
-
         return {
-            "objects": all_objects,
-            "summary": {
-                "total_objects": total_objects,
-                "movable_objects": movable_objects,
-                "fixed_objects": total_objects - movable_objects,
-                "total_volume_liters": round(total_volume, 2),
-                "movable_volume_liters": round(movable_volume, 2),
-                "images_processed": len(results),
-                "images_failed": sum(1 for r in results if r.status == "failed")
-            }
+            "objects": all_objects
         }

@@ -134,21 +134,33 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
       "is_movable": true,
       "confidence": 0.95,
       "bbox": [100, 200, 500, 600],
+      "center_point": [300, 400],
       "width": 1500.0,
       "depth": 2000.0,
       "height": 450.0,
       "volume": 1.35,
+      "ratio": {"w": 0.75, "h": 1.0, "d": 0.225},
       "mesh_url": "/assets/mesh_abc123.glb"
     }
-  ],
-  "summary": {
-    "total_objects": 10,
-    "movable_objects": 8,
-    "total_volume_liters": 15.5,
-    "movable_volume_liters": 12.3
-  }
+  ]
 }
 ```
+
+### 2.4 Output Field Description
+
+| Field | Type | Unit | Description |
+|-------|------|------|-------------|
+| label | string | - | 가구 한글 라벨 (예: "침대", "소파") |
+| is_movable | boolean | - | 이동 가능 여부 |
+| confidence | float | 0-1 | 탐지 신뢰도 |
+| bbox | array[4] | px | 바운딩 박스 [x1, y1, x2, y2] |
+| center_point | array[2] | px | 객체 중심점 [x, y] |
+| width | float | mm | 가구 너비 |
+| depth | float | mm | 가구 깊이 |
+| height | float | mm | 가구 높이 |
+| volume | float | liters | 부피 (리터) |
+| ratio | object | - | 정규화된 비율 {"w", "h", "d"} |
+| mesh_url | string | - | 3D 메쉬 파일 URL (GLB 형식) |
 
 ---
 
@@ -212,13 +224,43 @@ else:
 **Request:**
 ```json
 {
-  "image_urls": ["https://...", "https://..."],
+  "image_urls": ["https://firebase-storage-url-1.jpg", "https://firebase-storage-url-2.jpg"],
   "enable_mask": true,
-  "enable_3d": true
+  "enable_3d": true,
+  "max_concurrent": 4
 }
 ```
 
-**Response:** See Section 2.3
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| image_urls | array[string] | Yes | - | Firebase Storage URL 리스트 (1-20개) |
+| enable_mask | boolean | No | true | 마스크 생성 여부 |
+| enable_3d | boolean | No | true | 3D 모델 생성 여부 |
+| max_concurrent | integer | No | null | 최대 동시 처리 이미지 수 |
+
+**Response:**
+```json
+{
+  "success": true,
+  "objects": [
+    {
+      "label": "침대",
+      "is_movable": true,
+      "confidence": 0.95,
+      "bbox": [100, 200, 500, 600],
+      "center_point": [300, 400],
+      "width": 1500.0,
+      "depth": 2000.0,
+      "height": 450.0,
+      "volume": 1.35,
+      "ratio": {"w": 0.75, "h": 1.0, "d": 0.225},
+      "mesh_url": "/assets/mesh_abc123.glb"
+    }
+  ]
+}
+```
+
+> Response 필드 상세는 **Section 2.4** 참조
 
 ### 4.2 POST /analyze-furniture-single
 
@@ -227,17 +269,56 @@ else:
 **Request:**
 ```json
 {
-  "image_url": "https://..."
+  "image_url": "https://firebase-storage-url.jpg",
+  "enable_mask": true,
+  "enable_3d": true
 }
 ```
 
-### 4.3 POST /detect-furniture
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| image_url | string | Yes | - | Firebase Storage URL (단일) |
+| enable_mask | boolean | No | true | 마스크 생성 여부 |
+| enable_3d | boolean | No | true | 3D 모델 생성 여부 |
+
+**Response:** `/analyze-furniture`와 동일
+
+### 4.3 POST /analyze-furniture-base64
+
+**Description:** Base64 encoded image input (Firebase URL 없이 직접 이미지 전송)
+
+**Request:**
+```json
+{
+  "image": "data:image/png;base64,iVBORw0KGgo...",
+  "enable_mask": true,
+  "enable_3d": true
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| image | string | Yes | - | Base64 인코딩된 이미지 |
+| enable_mask | boolean | No | true | 마스크 생성 여부 |
+| enable_3d | boolean | No | true | 3D 모델 생성 여부 |
+
+**Response:** `/analyze-furniture`와 동일
+
+### 4.4 POST /detect-furniture
 
 **Description:** Detection only (no 3D, fast response)
+
+**Request:**
+```json
+{
+  "image_url": "https://firebase-storage-url.jpg"
+}
+```
 
 **Response:**
 ```json
 {
+  "success": true,
   "objects": [
     {
       "label": "침대",
@@ -248,6 +329,233 @@ else:
   ]
 }
 ```
+
+> 3D 변환 없이 탐지만 수행하므로 `width`, `depth`, `height`, `volume`, `mesh_url` 필드 없음
+
+### 4.5 GET /health
+
+**Description:** 서버 상태 및 모델 로드 여부 확인
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "model_loaded": true,
+  "device": "cuda:0",
+  "model": "facebook/sam2.1-hiera-large"
+}
+```
+
+### 4.6 GET /gpu-status
+
+**Description:** GPU 풀 상태 조회 (Multi-GPU 환경)
+
+**Response:**
+```json
+{
+  "total_gpus": 4,
+  "available_gpus": 3,
+  "pipelines_initialized": 4,
+  "gpus": {
+    "0": {
+      "available": true,
+      "task_id": null,
+      "memory_used_mb": 1024,
+      "has_pipeline": true
+    },
+    "1": {
+      "available": false,
+      "task_id": "image_processing",
+      "memory_used_mb": 2048,
+      "has_pipeline": true
+    }
+  }
+}
+```
+
+### 4.7 POST /segment
+
+**Description:** 단일 포인트 기반 세그멘테이션 (SAM2)
+
+**Request:**
+```json
+{
+  "image": "base64_encoded_image",
+  "x": 300.0,
+  "y": 400.0,
+  "multimask_output": true,
+  "mask_threshold": 0.0,
+  "invert_mask": false
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| image | string | Yes | - | Base64 인코딩된 이미지 |
+| x | float | Yes | - | 포인트 X 좌표 |
+| y | float | Yes | - | 포인트 Y 좌표 |
+| multimask_output | boolean | No | true | 다중 마스크 반환 여부 |
+| mask_threshold | float | No | 0.0 | 마스크 임계값 |
+| invert_mask | boolean | No | false | 마스크 반전 여부 |
+
+**Response:**
+```json
+{
+  "masks": [[[0, 0, 255, ...]]],
+  "scores": [0.95, 0.87, 0.72],
+  "input_point": [300.0, 400.0],
+  "image_shape": [1080, 1920]
+}
+```
+
+### 4.8 POST /segment-binary
+
+**Description:** 멀티 포인트 기반 세그멘테이션, 마스킹된 이미지 반환 (SAM2)
+
+**Request:**
+```json
+{
+  "image": "base64_encoded_image",
+  "points": [
+    {"x": 300.0, "y": 400.0},
+    {"x": 350.0, "y": 450.0}
+  ],
+  "previous_mask": "base64_encoded_mask_optional",
+  "mask_threshold": 0.0
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| image | string | Yes | - | Base64 인코딩된 이미지 |
+| points | array | Yes | - | 포인트 좌표 배열 [{x, y}, ...] |
+| previous_mask | string | No | null | 이전 마스크 (누적 마스킹용) |
+| mask_threshold | float | No | 0.0 | 마스크 임계값 |
+
+**Response:**
+```json
+{
+  "success": true,
+  "mask_b64": "base64_encoded_masked_image_png",
+  "score": 0.95
+}
+```
+
+### 4.9 POST /generate-3d
+
+**Description:** 3D Gaussian Splat 생성 (비동기, task_id 반환)
+
+**Request:**
+```json
+{
+  "image": "base64_encoded_rgb_image",
+  "mask": "base64_encoded_binary_mask",
+  "seed": 42
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| image | string | Yes | - | Base64 인코딩된 RGB 이미지 (PNG/JPEG) |
+| mask | string | Yes | - | Base64 인코딩된 바이너리 마스크 (0-1 grayscale) |
+| seed | integer | No | 42 | 랜덤 시드 (재현성) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "task_id": "uuid-task-id",
+  "status": "queued"
+}
+```
+
+### 4.10 GET /generate-3d-status/{task_id}
+
+**Description:** 3D 생성 작업 상태 조회 (폴링)
+
+**Path Parameter:**
+| Field | Type | Description |
+|-------|------|-------------|
+| task_id | string | /generate-3d에서 반환받은 task_id |
+
+**Response (Processing):**
+```json
+{
+  "task_id": "uuid-task-id",
+  "status": "processing",
+  "progress": 50
+}
+```
+
+**Response (Completed):**
+```json
+{
+  "task_id": "uuid-task-id",
+  "status": "completed",
+  "progress": 100,
+  "ply_b64": "base64_encoded_ply",
+  "ply_size_bytes": 1234567,
+  "gif_b64": "base64_encoded_gif",
+  "gif_size_bytes": 234567,
+  "mesh_url": "/assets/mesh_abc123.glb",
+  "mesh_b64": "base64_encoded_glb",
+  "mesh_size_bytes": 345678,
+  "mesh_format": "glb"
+}
+```
+
+**Response (Failed):**
+```json
+{
+  "task_id": "uuid-task-id",
+  "status": "failed",
+  "progress": 0,
+  "error": "Error message"
+}
+```
+
+| Status | Description |
+|--------|-------------|
+| queued | 대기 중 |
+| processing | 처리 중 |
+| completed | 완료 |
+| failed | 실패 |
+
+### 4.11 GET /assets-list
+
+**Description:** 저장된 에셋 파일 목록 조회 (최신순 정렬)
+
+**Response:**
+```json
+{
+  "files": [
+    {
+      "name": "mesh_abc123.glb",
+      "size_bytes": 345678,
+      "url": "/assets/mesh_abc123.glb",
+      "created_at": "2026-01-18T12:34:56"
+    }
+  ],
+  "total_files": 10,
+  "total_size_bytes": 12345678
+}
+```
+
+### 4.12 GET /assets/{filename}
+
+**Description:** 정적 에셋 파일 다운로드 (PLY, GLB, GIF)
+
+**Path Parameter:**
+| Field | Type | Description |
+|-------|------|-------------|
+| filename | string | 파일명 (예: mesh_abc123.glb) |
+
+**Response:** Binary file download
+
+**Supported Formats:**
+- `.ply` - Gaussian Splat Point Cloud
+- `.glb` - 3D Mesh (GLTF Binary)
+- `.gif` - 360° 회전 프리뷰
 
 ---
 
