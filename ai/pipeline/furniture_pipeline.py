@@ -613,11 +613,7 @@ class FurniturePipeline:
         for result in results:
             for obj in result.objects:
                 obj_data = {
-                    "label": obj.label,
-                    "is_movable": obj.is_movable,
-                    "confidence": round(obj.confidence, 3),
-                    "bbox": obj.bbox,
-                    "center_point": obj.center_point
+                    "label": obj.label
                 }
 
                 if obj.absolute_dimensions:
@@ -626,12 +622,9 @@ class FurniturePipeline:
                         "width": dims.get("width", 0),
                         "depth": dims.get("depth", 0),
                         "height": dims.get("height", 0),
-                        "volume": dims.get("volume_liters", 0),
+                        "volume": dims.get("volume_m3", 0),
                         "ratio": dims.get("ratio", {"w": 1, "h": 1, "d": 1})
                     })
-
-                if obj.glb_url:
-                    obj_data["mesh_url"] = obj.glb_url
 
                 all_objects.append(obj_data)
 

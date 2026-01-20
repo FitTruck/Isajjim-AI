@@ -300,10 +300,11 @@ class VolumeCalculator:
         depth = rel_ratio.get("d", 0) * scale_factor
         height = rel_ratio.get("h", 0) * scale_factor
 
-        # 부피 계산 (mm^3 -> cm^3로도 제공)
+        # 부피 계산 (mm^3 -> 다양한 단위로 제공)
         volume_mm3 = width * depth * height
         volume_cm3 = volume_mm3 / 1000  # mm^3 to cm^3
         volume_liters = volume_cm3 / 1000  # cm^3 to liters
+        volume_m3 = volume_mm3 / 1_000_000_000  # mm^3 to m^3
 
         return {
             "width": round(width, 1),
@@ -312,10 +313,11 @@ class VolumeCalculator:
             "volume_mm3": round(volume_mm3, 1),
             "volume_cm3": round(volume_cm3, 2),
             "volume_liters": round(volume_liters, 3),
+            "volume_m3": round(volume_m3, 5),
             "ratio": {
                 "w": round(rel_ratio.get("w", 0), 3),
-                "h": round(rel_ratio.get("h", 0), 3),
-                "d": round(rel_ratio.get("d", 0), 3)
+                "d": round(rel_ratio.get("d", 0), 3),
+                "h": round(rel_ratio.get("h", 0), 3)
             }
         }
 

@@ -130,17 +130,16 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 {
   "objects": [
     {
-      "label": "침대",
-      "is_movable": true,
-      "confidence": 0.95,
-      "bbox": [100, 200, 500, 600],
-      "center_point": [300, 400],
-      "width": 1500.0,
-      "depth": 2000.0,
-      "height": 450.0,
-      "volume": 1.35,
-      "ratio": {"w": 0.75, "h": 1.0, "d": 0.225},
-      "mesh_url": "/assets/mesh_abc123.glb"
+      "label": "box",
+      "width": 30.5,
+      "depth": 20.0,
+      "height": 15.2,
+      "volume": 0.00926,
+      "ratio": {
+        "w": 1.0,
+        "d": 0.66,
+        "h": 0.5
+      }
     }
   ]
 }
@@ -150,17 +149,12 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 
 | Field | Type | Unit | Description |
 |-------|------|------|-------------|
-| label | string | - | 가구 한글 라벨 (예: "침대", "소파") |
-| is_movable | boolean | - | 이동 가능 여부 |
-| confidence | float | 0-1 | 탐지 신뢰도 |
-| bbox | array[4] | px | 바운딩 박스 [x1, y1, x2, y2] |
-| center_point | array[2] | px | 객체 중심점 [x, y] |
-| width | float | mm | 가구 너비 |
-| depth | float | mm | 가구 깊이 |
-| height | float | mm | 가구 높이 |
-| volume | float | liters | 부피 (리터) |
-| ratio | object | - | 정규화된 비율 {"w", "h", "d"} |
-| mesh_url | string | - | 3D 메쉬 파일 URL (GLB 형식) |
+| label | string | - | 탐지된 객체 라벨 |
+| width | float | mm | 객체 너비 (가로) |
+| depth | float | mm | 객체 깊이 (세로) |
+| height | float | mm | 객체 높이 |
+| volume | float | m³ | 부피 (세제곱미터) |
+| ratio | object | - | 정규화된 비율 {"w", "d", "h"} |
 
 ---
 
@@ -224,37 +218,29 @@ else:
 **Request:**
 ```json
 {
-  "image_urls": ["https://firebase-storage-url-1.jpg", "https://firebase-storage-url-2.jpg"],
-  "enable_mask": true,
-  "enable_3d": true,
-  "max_concurrent": 4
+  "image_urls": ["https://firebase-storage-url-1.jpg", "https://firebase-storage-url-2.jpg"]
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| image_urls | array[string] | Yes | - | Firebase Storage URL 리스트 (1-20개) |
-| enable_mask | boolean | No | true | 마스크 생성 여부 |
-| enable_3d | boolean | No | true | 3D 모델 생성 여부 |
-| max_concurrent | integer | No | null | 최대 동시 처리 이미지 수 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| image_urls | array[string] | Yes | Firebase Storage URL 리스트 (1-20개) |
 
 **Response:**
 ```json
 {
-  "success": true,
   "objects": [
     {
-      "label": "침대",
-      "is_movable": true,
-      "confidence": 0.95,
-      "bbox": [100, 200, 500, 600],
-      "center_point": [300, 400],
-      "width": 1500.0,
-      "depth": 2000.0,
-      "height": 450.0,
-      "volume": 1.35,
-      "ratio": {"w": 0.75, "h": 1.0, "d": 0.225},
-      "mesh_url": "/assets/mesh_abc123.glb"
+      "label": "box",
+      "width": 30.5,
+      "depth": 20.0,
+      "height": 15.2,
+      "volume": 0.00926,
+      "ratio": {
+        "w": 1.0,
+        "d": 0.66,
+        "h": 0.5
+      }
     }
   ]
 }
@@ -269,17 +255,13 @@ else:
 **Request:**
 ```json
 {
-  "image_url": "https://firebase-storage-url.jpg",
-  "enable_mask": true,
-  "enable_3d": true
+  "image_url": "https://firebase-storage-url.jpg"
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| image_url | string | Yes | - | Firebase Storage URL (단일) |
-| enable_mask | boolean | No | true | 마스크 생성 여부 |
-| enable_3d | boolean | No | true | 3D 모델 생성 여부 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| image_url | string | Yes | Firebase Storage URL (단일) |
 
 **Response:** `/analyze-furniture`와 동일
 
@@ -290,17 +272,13 @@ else:
 **Request:**
 ```json
 {
-  "image": "data:image/png;base64,iVBORw0KGgo...",
-  "enable_mask": true,
-  "enable_3d": true
+  "image": "data:image/png;base64,iVBORw0KGgo..."
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| image | string | Yes | - | Base64 인코딩된 이미지 |
-| enable_mask | boolean | No | true | 마스크 생성 여부 |
-| enable_3d | boolean | No | true | 3D 모델 생성 여부 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| image | string | Yes | Base64 인코딩된 이미지 |
 
 **Response:** `/analyze-furniture`와 동일
 
@@ -318,11 +296,9 @@ else:
 **Response:**
 ```json
 {
-  "success": true,
   "objects": [
     {
-      "label": "침대",
-      "bbox": [100, 200, 500, 600],
+      "label": "box",
       "confidence": 0.95,
       "is_movable": true
     }
@@ -330,7 +306,7 @@ else:
 }
 ```
 
-> 3D 변환 없이 탐지만 수행하므로 `width`, `depth`, `height`, `volume`, `mesh_url` 필드 없음
+> 3D 변환 없이 탐지만 수행하므로 `width`, `depth`, `height`, `volume`, `ratio` 필드 없음
 
 ### 4.5 GET /health
 
