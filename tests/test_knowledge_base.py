@@ -7,7 +7,6 @@ Knowledge Base 모듈의 단위 테스트:
 - Deprecated 함수 하위 호환성 테스트
 """
 
-import pytest
 from ai.data.knowledge_base import (
     FURNITURE_DB,
     get_db_key_from_label,

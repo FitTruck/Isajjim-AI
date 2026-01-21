@@ -7,8 +7,7 @@ Config 모듈의 단위 테스트:
 - 환경 변수 생성 테스트
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestConfigBasics:
@@ -168,7 +167,6 @@ class TestCheckDependencies:
     def test_check_dependencies_with_missing_font(self):
         """폰트 파일이 없을 때 경고 출력"""
         from ai.config import Config
-        import os
 
         original_path = Config.FONT_PATH
         try:

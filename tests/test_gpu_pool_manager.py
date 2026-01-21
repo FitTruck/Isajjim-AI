@@ -10,7 +10,6 @@ GPUPoolManager 클래스의 단위 테스트:
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from ai.gpu.gpu_pool_manager import (
@@ -178,7 +177,7 @@ class TestGPUPoolManagerContext:
         pool._check_gpu_health = AsyncMock(return_value=True)
 
         with pytest.raises(ValueError):
-            async with pool.gpu_context(task_id="error_task") as gpu_id:
+            async with pool.gpu_context(task_id="error_task") as _:
                 assert pool._gpus[0].is_available is False
                 raise ValueError("Test error")
 

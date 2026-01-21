@@ -8,7 +8,6 @@ MovabilityChecker (라벨 매핑기) 단위 테스트:
 - 하위 호환성 메서드
 """
 
-import pytest
 from ai.processors import MovabilityChecker, LabelMappingResult, MovabilityResult
 # LabelMapper is defined in 4_DB_movability_check.py but not exported from __init__.py
 import importlib

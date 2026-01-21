@@ -184,7 +184,7 @@ class TestVolumeCalculatorPerformance:
         ply_file = ply_files[0]
 
         start = time.time()
-        result = volume_calculator.calculate_from_ply(str(ply_file))
+        volume_calculator.calculate_from_ply(str(ply_file))
         elapsed = time.time() - start
 
         print(f"PLY loading time: {elapsed:.3f}s for {ply_file.name}")
@@ -200,7 +200,7 @@ class TestVolumeCalculatorPerformance:
         glb_file = glb_files[0]
 
         start = time.time()
-        result = volume_calculator.calculate_from_glb(str(glb_file))
+        volume_calculator.calculate_from_glb(str(glb_file))
         elapsed = time.time() - start
 
         print(f"GLB loading time: {elapsed:.3f}s for {glb_file.name}")

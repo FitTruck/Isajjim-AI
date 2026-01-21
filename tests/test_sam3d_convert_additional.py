@@ -8,10 +8,7 @@ SAM3DConverter 추가 테스트:
 """
 
 import os
-import pytest
 import base64
-import tempfile
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 from PIL import Image
 
@@ -41,7 +38,7 @@ class TestSAM3DConverterConvert:
             # PLY 파일 생성 모킹
             with patch.object(converter, '_parse_result') as mock_parse:
                 mock_parse.return_value = SAM3DResult(success=True, ply_b64="test")
-                result = converter.convert(str(image_path), str(mask_path))
+                converter.convert(str(image_path), str(mask_path))
 
                 assert mock_parse.called
 
@@ -120,7 +117,7 @@ class TestSAM3DConverterConvertFromBase64:
         # convert 메서드 모킹
         with patch.object(converter, 'convert') as mock_convert:
             mock_convert.return_value = SAM3DResult(success=True, ply_b64="test")
-            result = converter.convert_from_base64(image_b64, mask_b64)
+            converter.convert_from_base64(image_b64, mask_b64)
 
             assert mock_convert.called
             # convert가 임시 파일 경로로 호출되었는지 확인
@@ -149,7 +146,7 @@ class TestSAM3DConverterConvertFromBase64:
             return SAM3DResult(success=True)
 
         with patch.object(converter, 'convert', side_effect=mock_convert):
-            result = converter.convert_from_base64(image_b64, mask_b64)
+            converter.convert_from_base64(image_b64, mask_b64)
 
         # 임시 파일이 정리되었는지 확인
         for path in created_files:
@@ -292,7 +289,7 @@ class TestSAM3DConverterEdgeCases:
         new_assets_dir = tmp_path / "new_assets"
         assert not new_assets_dir.exists()
 
-        converter = SAM3DConverter(assets_dir=str(new_assets_dir))
+        SAM3DConverter(assets_dir=str(new_assets_dir))
 
         assert new_assets_dir.exists()
 

@@ -11,9 +11,6 @@ FurniturePipeline 단위 테스트 (Mock 기반):
 import pytest
 import base64
 import io
-import os
-import tempfile
-from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from contextlib import asynccontextmanager
 from PIL import Image

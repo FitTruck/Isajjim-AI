@@ -11,7 +11,6 @@ import pytest
 import numpy as np
 from pathlib import Path
 from PIL import Image
-import asyncio
 import base64
 import io
 
@@ -23,7 +22,6 @@ from ai.pipeline.furniture_pipeline import (
     DetectedObject,
     PipelineResult
 )
-from ai.config import Config
 
 
 # Test images

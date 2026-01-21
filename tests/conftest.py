@@ -1,7 +1,6 @@
 """
 pytest configuration for async tests
 """
-import pytest
 
 
 # pytest-asyncio mode 설정

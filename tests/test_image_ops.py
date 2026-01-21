@@ -12,7 +12,6 @@ ImageUtils 클래스의 단위 테스트:
 import pytest
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from unittest.mock import patch, MagicMock
 import tempfile
 import os
 

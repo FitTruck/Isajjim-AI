@@ -18,7 +18,6 @@ from PIL import Image
 pytest.importorskip("ultralytics")
 
 from ai.processors import YoloDetector
-from ai.config import Config
 
 # 숫자로 시작하는 모듈 import
 _stage2 = importlib.import_module('.2_YOLO_detect', package='ai.processors')

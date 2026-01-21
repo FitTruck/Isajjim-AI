@@ -11,7 +11,7 @@ ImageFetcher 클래스의 단위 테스트:
 import pytest
 import io
 import importlib
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 from PIL import Image
 
 from ai.processors import ImageFetcher

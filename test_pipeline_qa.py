@@ -617,7 +617,7 @@ def main():
             print(f"      {s_status} {stage.stage_name}")
 
     # Save report
-    report_path = tester.save_report()
+    tester.save_report()
 
     print(f"\nOutputs saved to: {PROJECT_ROOT / 'test_outputs' / 'qa'}")
 

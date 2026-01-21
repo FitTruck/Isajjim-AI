@@ -13,7 +13,7 @@ import numpy as np
 import tempfile
 import os
 import importlib
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 from ai.processors import VolumeCalculator
 

@@ -48,7 +48,7 @@ async def startup_event():
 
     # Initialize GPU pool
     try:
-        from ai.gpu import initialize_gpu_pool, get_gpu_pool
+        from ai.gpu import initialize_gpu_pool
         from ai.config import Config
 
         gpu_ids = Config.get_available_gpus()
