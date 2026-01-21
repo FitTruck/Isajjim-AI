@@ -11,7 +11,7 @@ import sys
 import base64
 import tempfile
 import subprocess
-from typing import Dict, Optional, Any
+from typing import Optional
 from dataclasses import dataclass
 
 # Config for GPU settings
@@ -40,19 +40,32 @@ class SAM3DConverter:
     Usage:
         converter = SAM3DConverter(assets_dir="./assets", device_id=0)
         result = converter.convert(image_path, mask_path, seed=42)
+
+        # 부피 계산 최적화 (GIF 스킵)
+        converter = SAM3DConverter(assets_dir="./assets", skip_gif=True)
+        result = converter.convert(image_path, mask_path, seed=42)
     """
 
-    def __init__(self, assets_dir: str = "./assets", device_id: Optional[int] = None):
+    def __init__(
+        self,
+        assets_dir: str = "./assets",
+        device_id: Optional[int] = None,
+        skip_gif: bool = True
+    ):
         """
         Args:
             assets_dir: 생성된 에셋을 저장할 디렉토리
             device_id: GPU 디바이스 ID (None이면 기본값 사용)
+            skip_gif: GIF 렌더링 스킵 여부 (부피 계산 최적화, 기본값 True)
         """
         self.assets_dir = assets_dir
         os.makedirs(assets_dir, exist_ok=True)
 
         # Multi-GPU 지원: 디바이스 설정
         self.device_id = device_id if device_id is not None else Config.DEFAULT_GPU_ID
+
+        # GIF 렌더링 스킵 (부피 계산 시 15-30초 절약)
+        self.skip_gif = skip_gif
 
         # subprocess 스크립트 경로
         self.script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -96,18 +109,24 @@ class SAM3DConverter:
             env.update(spconv_env)
 
             print(f"[SAM3DConverter] Environment: CUDA_VISIBLE_DEVICES={spconv_env['CUDA_VISIBLE_DEVICES']}")
+            print(f"[SAM3DConverter] skip_gif={self.skip_gif}")
+
+            # subprocess 명령어 구성
+            cmd = [
+                sys.executable,
+                self.subprocess_script,
+                image_path,
+                mask_path,
+                str(seed),
+                ply_temp_path,
+                self.assets_dir
+            ]
+            if self.skip_gif:
+                cmd.append("--skip-gif")
 
             # subprocess 실행
             result = subprocess.run(
-                [
-                    sys.executable,
-                    self.subprocess_script,
-                    image_path,
-                    mask_path,
-                    str(seed),
-                    ply_temp_path,
-                    self.assets_dir
-                ],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -145,7 +164,7 @@ class SAM3DConverter:
             if ply_temp_path and os.path.exists(ply_temp_path):
                 try:
                     os.unlink(ply_temp_path)
-                except:
+                except Exception:
                     pass
 
     def convert_from_base64(
@@ -188,7 +207,7 @@ class SAM3DConverter:
                 if path and os.path.exists(path):
                     try:
                         os.unlink(path)
-                    except:
+                    except Exception:
                         pass
 
     def _parse_result(self, stdout: str, ply_temp_path: str) -> SAM3DResult:

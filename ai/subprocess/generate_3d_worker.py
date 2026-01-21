@@ -9,7 +9,6 @@ Usage:
 import sys
 import os
 import base64
-import struct
 
 # ============================================================================
 # CRITICAL: Set environment variables BEFORE importing torch/spconv
@@ -412,9 +411,9 @@ def add_rgb_to_ply(ply_path: str):
 
 
 def main():
-    if len(sys.argv) != 6:
+    if len(sys.argv) < 6:
         print(
-            "Usage: python generate_3d_subprocess.py <image_path> <mask_path> <seed> <output_ply_path> <assets_dir>"
+            "Usage: python generate_3d_subprocess.py <image_path> <mask_path> <seed> <output_ply_path> <assets_dir> [--skip-gif]"
         )
         sys.exit(1)
 
@@ -423,6 +422,9 @@ def main():
     seed = int(sys.argv[3])
     output_ply_path = sys.argv[4]
     assets_dir = sys.argv[5]
+
+    # GIF 렌더링 스킵 옵션 (부피 계산 최적화)
+    skip_gif = "--skip-gif" in sys.argv or os.environ.get("SAM3D_SKIP_GIF", "").lower() in ("1", "true", "yes")
 
     try:
         # Import sam3d_inference here (fresh import in subprocess)
@@ -656,7 +658,7 @@ def main():
                 elif hasattr(value, "__len__") and not isinstance(value, str):
                     try:
                         print(f"  - {key}: {value_type} (len: {len(value)})")
-                    except:
+                    except Exception:
                         print(f"  - {key}: {value_type}")
                 else:
                     print(f"  - {key}: {value_type}")
@@ -751,87 +753,92 @@ def main():
         if hasattr(scene_gs, "_features_dc") and scene_gs._features_dc is not None:
             print(f"    Shape: {scene_gs._features_dc.shape}")
 
-        # Render rotating GIF instead of exporting PLY
-        print(f"[Subprocess] Rendering rotating GIF with proper colors...")
-        try:
-            # Render video frames (rotating 360° view)
-            # OPTIMIZATION: Reduced frames and resolution for faster volume calculation
-            # Note: render_video returns a dict with 'color', 'depth', etc. keys
-            render_output = render_video(
-                scene_gs,
-                resolution=256,   # 512 → 256 (15-25s saving)
-                bg_color=(0, 0, 0),
-                num_frames=12,    # 60 → 12 (25-35s saving)
-                r=2.0,
-                fov=40,
-                pitch_deg=0,
-                yaw_start_deg=-90,
-            )
-
-            # Extract the color frames from the output dict
-            if isinstance(render_output, dict):
-                print(
-                    f"[Subprocess] render_video returned dict with keys: {list(render_output.keys())}"
-                )
-                video_frames = render_output.get("color", render_output)
-            else:
-                video_frames = render_output
-
-            print(
-                f"[Subprocess] Video frames shape/type: {type(video_frames)}, len: {len(video_frames) if hasattr(video_frames, '__len__') else 'N/A'}"
-            )
-
-            # Use imageio to save directly (mimics demo_single_object.ipynb approach)
-            import imageio
-
-            gif_path = output_ply_path.replace(".ply", ".gif")
-            print(f"[Subprocess] Saving GIF with imageio to {gif_path}...")
-
-            # imageio.mimsave handles numpy array video sequences directly
-            imageio.mimsave(
-                gif_path,
-                video_frames,
-                format="GIF",
-                duration=50,  # milliseconds per frame
-                loop=0,  # loop indefinitely
-            )
-
-            gif_size = os.path.getsize(gif_path)
-            print(f"[Subprocess] ✓ GIF saved: {gif_size} bytes")
-
-            # Read GIF and encode as base64 for export
-            with open(gif_path, "rb") as f:
-                gif_bytes = f.read()
-
-            print(f"[Subprocess] ✓ GIF encoded for base64 transport")
-
-            # Encode GIF as base64 and output for API to capture
-            gif_b64 = base64.b64encode(gif_bytes).decode("utf-8")
-            print(f"[Subprocess] ✓ GIF encoded: {len(gif_b64)} chars (base64)")
-
-            # Also save as PLY for compatibility (even if white)
-            print(f"[Subprocess] Exporting PLY as well (for compatibility)...")
+        # GIF 렌더링 (skip_gif=False일 때만)
+        if skip_gif:
+            print(f"[Subprocess] ⚡ GIF rendering SKIPPED (--skip-gif or SAM3D_SKIP_GIF=1)")
+            print(f"[Subprocess] Exporting PLY only for volume calculation...")
             scene_gs.save_ply(output_ply_path)
+        else:
+            print(f"[Subprocess] Rendering rotating GIF with proper colors...")
+            try:
+                # Render video frames (rotating 360° view)
+                # OPTIMIZATION: Reduced frames and resolution for faster volume calculation
+                # Note: render_video returns a dict with 'color', 'depth', etc. keys
+                render_output = render_video(
+                    scene_gs,
+                    resolution=256,   # 512 → 256 (15-25s saving)
+                    bg_color=(0, 0, 0),
+                    num_frames=12,    # 60 → 12 (25-35s saving)
+                    r=2.0,
+                    fov=40,
+                    pitch_deg=0,
+                    yaw_start_deg=-90,
+                )
 
-            # Output GIF data between markers for API to extract
-            print("GIF_DATA_START")
-            print(gif_b64)
-            print("GIF_DATA_END")
+                # Extract the color frames from the output dict
+                if isinstance(render_output, dict):
+                    print(
+                        f"[Subprocess] render_video returned dict with keys: {list(render_output.keys())}"
+                    )
+                    video_frames = render_output.get("color", render_output)
+                else:
+                    video_frames = render_output
 
-        except Exception as e:
-            print(
-                f"[Subprocess] ⚠ Warning: GIF rendering failed, falling back to PLY: {e}"
-            )
-            import traceback
+                print(
+                    f"[Subprocess] Video frames shape/type: {type(video_frames)}, len: {len(video_frames) if hasattr(video_frames, '__len__') else 'N/A'}"
+                )
 
-            traceback.print_exc()
+                # Use imageio to save directly (mimics demo_single_object.ipynb approach)
+                import imageio
 
-            # Fallback to PLY export
-            print(f"[Subprocess] Exporting PLY to {output_ply_path}...")
-            if hasattr(scene_gs, "save_ply"):
+                gif_path = output_ply_path.replace(".ply", ".gif")
+                print(f"[Subprocess] Saving GIF with imageio to {gif_path}...")
+
+                # imageio.mimsave handles numpy array video sequences directly
+                imageio.mimsave(
+                    gif_path,
+                    video_frames,
+                    format="GIF",
+                    duration=50,  # milliseconds per frame
+                    loop=0,  # loop indefinitely
+                )
+
+                gif_size = os.path.getsize(gif_path)
+                print(f"[Subprocess] ✓ GIF saved: {gif_size} bytes")
+
+                # Read GIF and encode as base64 for export
+                with open(gif_path, "rb") as f:
+                    gif_bytes = f.read()
+
+                print(f"[Subprocess] ✓ GIF encoded for base64 transport")
+
+                # Encode GIF as base64 and output for API to capture
+                gif_b64 = base64.b64encode(gif_bytes).decode("utf-8")
+                print(f"[Subprocess] ✓ GIF encoded: {len(gif_b64)} chars (base64)")
+
+                # Also save as PLY for compatibility (even if white)
+                print(f"[Subprocess] Exporting PLY as well (for compatibility)...")
                 scene_gs.save_ply(output_ply_path)
-            else:
-                raise ValueError("Could not find save_ply method on Gaussian scene")
+
+                # Output GIF data between markers for API to extract
+                print("GIF_DATA_START")
+                print(gif_b64)
+                print("GIF_DATA_END")
+
+            except Exception as e:
+                print(
+                    f"[Subprocess] ⚠ Warning: GIF rendering failed, falling back to PLY: {e}"
+                )
+                import traceback
+
+                traceback.print_exc()
+
+                # Fallback to PLY export
+                print(f"[Subprocess] Exporting PLY to {output_ply_path}...")
+                if hasattr(scene_gs, "save_ply"):
+                    scene_gs.save_ply(output_ply_path)
+                else:
+                    raise ValueError("Could not find save_ply method on Gaussian scene")
 
         file_size = os.path.getsize(output_ply_path)
         print(f"[Subprocess] ✓ PLY saved: {file_size} bytes")
@@ -1041,7 +1048,6 @@ def main():
                         )
 
                     mesh_url = f"/assets/{mesh_filename}"
-                    mesh_size = file_size
                     print("MESH_URL_START")
                     print(mesh_url)
                     print("MESH_URL_END")
