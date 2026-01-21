@@ -13,7 +13,7 @@ CLIP 제거 - YOLO 클래스로 직접 DB 매칭
 """
 
 import numpy as np
-from typing import List, Dict, Optional
+from typing import Dict, Optional
 from PIL import Image
 
 # AI module imports
@@ -42,66 +42,67 @@ except ImportError:
 
 # Objects365 기반 가구/가정용품 클래스 목록 (탐지 대상)
 # YOLOE-seg는 Objects365 클래스 인덱스를 사용
+# V2 파이프라인: is_movable 제거 - 모든 탐지 객체는 이동 대상
 FURNITURE_CLASSES = {
     # 가구 (고우선순위)
-    "Bed": {"is_movable": True, "base_name": "침대"},
-    "Sofa": {"is_movable": True, "base_name": "소파"},
-    "Chair": {"is_movable": True, "base_name": "의자"},
-    "Desk": {"is_movable": True, "base_name": "책상"},
-    "Dining Table": {"is_movable": True, "base_name": "식탁"},
-    "Coffee Table": {"is_movable": True, "base_name": "커피테이블"},
-    "Nightstand": {"is_movable": True, "base_name": "협탁"},
-    "Cabinet/shelf": {"is_movable": True, "base_name": "캐비닛/선반"},
-    "Refrigerator": {"is_movable": True, "base_name": "냉장고"},
-    "Washing Machine": {"is_movable": True, "base_name": "세탁기"},
-    "Microwave": {"is_movable": True, "base_name": "전자레인지"},
-    "Oven": {"is_movable": True, "base_name": "오븐"},
-    "Air Conditioner": {"is_movable": True, "base_name": "에어컨"},
-    "Monitor/TV": {"is_movable": True, "base_name": "TV/모니터"},
-    "Mirror": {"is_movable": True, "base_name": "거울"},
-    "Storage box": {"is_movable": True, "base_name": "박스/수납함"},
+    "Bed": {"base_name": "침대"},
+    "Sofa": {"base_name": "소파"},
+    "Chair": {"base_name": "의자"},
+    "Desk": {"base_name": "책상"},
+    "Dining Table": {"base_name": "식탁"},
+    "Coffee Table": {"base_name": "커피테이블"},
+    "Nightstand": {"base_name": "협탁"},
+    "Cabinet/shelf": {"base_name": "캐비닛/선반"},
+    "Refrigerator": {"base_name": "냉장고"},
+    "Washing Machine": {"base_name": "세탁기"},
+    "Microwave": {"base_name": "전자레인지"},
+    "Oven": {"base_name": "오븐"},
+    "Air Conditioner": {"base_name": "에어컨"},
+    "Monitor/TV": {"base_name": "TV/모니터"},
+    "Mirror": {"base_name": "거울"},
+    "Storage box": {"base_name": "박스/수납함"},
 
     # 가구 (중우선순위)
-    "Stool": {"is_movable": True, "base_name": "스툴"},
-    "Bench": {"is_movable": True, "base_name": "벤치"},
-    "Toilet": {"is_movable": False, "base_name": "변기"},
-    "Sink": {"is_movable": False, "base_name": "싱크대"},
-    "Bathtub": {"is_movable": False, "base_name": "욕조"},
-    "Luggage": {"is_movable": True, "base_name": "캐리어"},
-    "Bicycle": {"is_movable": True, "base_name": "자전거"},
-    "Ladder": {"is_movable": True, "base_name": "사다리"},
+    "Stool": {"base_name": "스툴"},
+    "Bench": {"base_name": "벤치"},
+    "Toilet": {"base_name": "변기"},
+    "Sink": {"base_name": "싱크대"},
+    "Bathtub": {"base_name": "욕조"},
+    "Luggage": {"base_name": "캐리어"},
+    "Bicycle": {"base_name": "자전거"},
+    "Ladder": {"base_name": "사다리"},
 
     # 추가 가정용품
-    "Bookshelf": {"is_movable": True, "base_name": "책장"},
-    "Wardrobe": {"is_movable": True, "base_name": "옷장"},
-    "Drawer": {"is_movable": True, "base_name": "서랍장"},
-    "Television": {"is_movable": True, "base_name": "TV"},
-    "Computer": {"is_movable": True, "base_name": "컴퓨터"},
-    "Laptop": {"is_movable": True, "base_name": "노트북"},
-    "Printer": {"is_movable": True, "base_name": "프린터"},
-    "Fan": {"is_movable": True, "base_name": "선풍기"},
-    "Heater": {"is_movable": True, "base_name": "히터"},
-    "Lamp": {"is_movable": True, "base_name": "램프"},
-    "Clock": {"is_movable": True, "base_name": "시계"},
-    "Vase": {"is_movable": True, "base_name": "꽃병"},
-    "Pot/Pan": {"is_movable": True, "base_name": "냄비/팬"},
-    "Kettle": {"is_movable": True, "base_name": "주전자"},
-    "Toaster": {"is_movable": True, "base_name": "토스터"},
-    "Blender": {"is_movable": True, "base_name": "믹서기"},
-    "Rice Cooker": {"is_movable": True, "base_name": "밥솥"},
-    "Trash Can": {"is_movable": True, "base_name": "쓰레기통"},
-    "Plant": {"is_movable": True, "base_name": "화분"},
-    "Picture Frame": {"is_movable": True, "base_name": "액자"},
-    "Curtain": {"is_movable": True, "base_name": "커튼"},
-    "Rug": {"is_movable": True, "base_name": "러그"},
-    "Pillow": {"is_movable": True, "base_name": "베개"},
-    "Blanket": {"is_movable": True, "base_name": "담요"},
-    "Towel": {"is_movable": True, "base_name": "수건"},
-    "Basket": {"is_movable": True, "base_name": "바구니"},
-    "Suitcase": {"is_movable": True, "base_name": "여행가방"},
-    "Backpack": {"is_movable": True, "base_name": "배낭"},
-    "Box": {"is_movable": True, "base_name": "박스"},
-    "Bag": {"is_movable": True, "base_name": "가방"},
+    "Bookshelf": {"base_name": "책장"},
+    "Wardrobe": {"base_name": "옷장"},
+    "Drawer": {"base_name": "서랍장"},
+    "Television": {"base_name": "TV"},
+    "Computer": {"base_name": "컴퓨터"},
+    "Laptop": {"base_name": "노트북"},
+    "Printer": {"base_name": "프린터"},
+    "Fan": {"base_name": "선풍기"},
+    "Heater": {"base_name": "히터"},
+    "Lamp": {"base_name": "램프"},
+    "Clock": {"base_name": "시계"},
+    "Vase": {"base_name": "꽃병"},
+    "Pot/Pan": {"base_name": "냄비/팬"},
+    "Kettle": {"base_name": "주전자"},
+    "Toaster": {"base_name": "토스터"},
+    "Blender": {"base_name": "믹서기"},
+    "Rice Cooker": {"base_name": "밥솥"},
+    "Trash Can": {"base_name": "쓰레기통"},
+    "Plant": {"base_name": "화분"},
+    "Picture Frame": {"base_name": "액자"},
+    "Curtain": {"base_name": "커튼"},
+    "Rug": {"base_name": "러그"},
+    "Pillow": {"base_name": "베개"},
+    "Blanket": {"base_name": "담요"},
+    "Towel": {"base_name": "수건"},
+    "Basket": {"base_name": "바구니"},
+    "Suitcase": {"base_name": "여행가방"},
+    "Backpack": {"base_name": "배낭"},
+    "Box": {"base_name": "박스"},
+    "Bag": {"base_name": "가방"},
 }
 
 
@@ -358,7 +359,7 @@ class YoloDetector:
             label: YOLO 탐지 라벨
 
         Returns:
-            {"is_movable": bool, "base_name": str} 또는 None
+            {"base_name": str} 또는 None
         """
         # 대소문자 무시 매칭
         for class_name, info in FURNITURE_CLASSES.items():

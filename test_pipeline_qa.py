@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 
 # Environment setup BEFORE imports
 os.environ["CUDA_HOME"] = os.environ.get("CONDA_PREFIX", "")

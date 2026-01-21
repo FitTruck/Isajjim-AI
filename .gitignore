@@ -60,3 +60,4 @@ test_masked*.png
 # OS files
 .DS_Store
 Thumbs.db
+.coverage

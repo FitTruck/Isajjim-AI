@@ -9,11 +9,10 @@ A FastAPI-based service integrating:
 2. **Sam-3d-objects** - Facebook Research's 2D image to 3D object generation pipeline
 3. **AI Module** - Furniture detection and analysis system (Korean language support)
 4. **Multi-GPU Parallel Processing** - Round-robin GPU allocation via GPU pool manager
-5. **SAM 2 (Segment Anything Model 2)** - Meta's Hugging Face model (deprecated in V2, available for /segment endpoints)
 
 The API accepts 2D images and generates 3D Gaussian Splats, PLY, GIF, and GLB meshes.
 
-### Pipeline Version: V2 (2024-01)
+### Pipeline Version: V2 (2026-01)
 
 V2 파이프라인에서는 **YOLOE-seg 마스크를 SAM-3D에 직접 전달**합니다 (SAM2 제거).
 ```
@@ -26,7 +25,7 @@ V2 파이프라인에서는 **YOLOE-seg 마스크를 SAM-3D에 직접 전달**�
 ### Process Isolation Pattern
 
 Uses **subprocess isolation** to prevent GPU/spconv state conflicts:
-- `api.py` - Main FastAPI server handling SAM 2 segmentation
+- `api.py` - Main FastAPI server (YOLOE + GPU pool + 3D task management)
 - `ai/subprocess/generate_3d_worker.py` - Isolated subprocess for Sam-3d-objects 3D generation
 
 This isolation is **essential** because spconv maintains persistent GPU state, and loading models in the same process causes conflicts.
@@ -65,9 +64,8 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 ### Core Components
 
 1. **Main API (`api.py`)**
-   - FastAPI server loading SAM 2 model at startup
+   - FastAPI server with YOLOE-seg pipelines
    - Initializes GPU pool and pre-initializes pipelines at startup
-   - Handles segmentation requests (/segment, /segment-binary)
    - Manages async 3D generation tasks via background workers
    - Serves static assets (PLY, GIF, GLB) at /assets endpoint
 
@@ -177,8 +175,6 @@ python main.py  # Analyzes images in imgs/ directory
 ### Core Endpoints
 - `GET /health` - Health check with model status
 - `GET /gpu-status` - GPU pool status (available GPUs, pipeline initialization status)
-- `POST /segment` - Single point segmentation (returns multiple masks)
-- `POST /segment-binary` - Multi-point segmentation (returns masked PNG)
 - `POST /generate-3d` - Async 3D generation (returns task_id)
 - `GET /generate-3d-status/{task_id}` - Poll 3D generation results
 - `GET /assets-list` - List stored PLY/GIF/GLB files
@@ -271,16 +267,15 @@ curl http://localhost:8000/gpu-status
 
 The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 
-### V2 Pipeline (CLIP/SAHI/SAM2 제거)
+### V2 Pipeline (CLIP/SAHI/SAM2/is_movable/dimensions 제거)
 
 1. **Image Fetch**: Download images from Firebase Storage URLs (5-10 images)
 2. **GPU Allocation**: Round-robin GPU allocation from GPUPoolManager
 3. **Object Detection**: YOLOE-seg for object detection (bbox + class + **segmentation mask**)
-4. **DB Matching**: YOLOE class directly matches with Knowledge Base → is_movable determination
+4. **DB Matching**: YOLOE class directly matches with Knowledge Base → 한국어 라벨 반환
 5. **Mask Direct Use**: YOLOE-seg 마스크를 SAM-3D에 직접 전달 (**SAM2 제거**)
 6. **3D Generation**: SAM-3D converts masked image to 3D model
-7. **Volume Calculation**: trimesh analyzes mesh for relative dimensions
-8. **Absolute Dimensions**: Match with DB furniture specifications for real measurements
+7. **Volume Calculation**: trimesh analyzes mesh for **relative dimensions only** (절대 부피는 백엔드에서 계산)
 
 ### Key Changes (V1 → V2)
 | 항목 | V1 | V2 |
@@ -292,48 +287,73 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 | 분류 단계 | YOLO → CLIP → DB | YOLO → DB (직접) |
 | DB 매칭 | CLIP 결과로 서브타입 매칭 | YOLO 클래스로 직접 매칭 |
 | API 호출 수 | 3회 (YOLO→SAM2→SAM3D) | 2회 (YOLO→SAM3D) |
+| **부피 계산** | AI에서 절대 부피 계산 | **상대 부피만 반환 (절대 부피는 백엔드)** |
+| **is_movable** | DB에서 is_movable 결정 | **제거 (모든 탐지 객체는 이동 대상)** |
+| **dimensions** | DB에 치수 정보 저장 | **제거 (절대 부피는 백엔드 계산)** |
 
 ### V2 변경 이유 (테스트 결과)
 - **마스크 품질**: YOLOE-seg가 SAM2보다 객체 전체를 더 정확하게 커버
 - **속도**: SAM2 API 호출 제거로 latency 감소
 - **단순화**: HTTP 호출 제거, 코드 복잡도 감소
+- **is_movable/dimensions 제거**: 백엔드에서 계산하므로 AI API에서는 불필요
 
-### Response Format
+### Request Format (TDD 문서 Section 4.1)
 ```json
 {
-  "objects": [
-    {
-      "label": "침대",
-      "width": 1500.0,
-      "depth": 2000.0,
-      "height": 450.0,
-      "volume": 1.35,
-      "ratio": {"w": 0.75, "h": 1.0, "d": 0.225},
-      "is_movable": true
-    }
-  ],
-  "summary": {
-    "total_objects": 10,
-    "movable_objects": 8,
-    "total_volume_liters": 15.5,
-    "movable_volume_liters": 12.3
-  }
+  "image_urls": [
+    {"id": 101, "url": "https://firebase-storage-url-1.jpg/"},
+    {"id": 102, "url": "https://firebase-storage-url-2.jpg/"}
+  ]
 }
 ```
+
+**필드:**
+- `image_urls`: 이미지 URL 객체 배열 (1-20개)
+  - `id`: 사용자 지정 이미지 ID (정수)
+  - `url`: Firebase Storage URL (문자열)
+
+### Response Format (TDD 문서 Section 4.1)
+```json
+{
+  "results": [
+    {
+      "image_id": 101,
+      "objects": [
+        {
+          "label": "sofa",
+          "width": 200.0,
+          "depth": 90.0,
+          "height": 85.0,
+          "volume": 1.53
+        }
+      ]
+    },
+    {
+      "image_id": 102,
+      "objects": [...]
+    }
+  ]
+}
+```
+
+**단위:**
+- `width`, `depth`, `height`: **상대 길이** (3D 메시 bounding box 기준, 단위 없음)
+- `volume`: **상대 부피** (bounding box 부피, 단위 없음)
+
+> 절대 부피/치수 계산은 백엔드에서 Knowledge Base 실제 치수와 비율을 조합하여 계산
+
+**Note**: `is_movable`, `dimensions`, `ratio`는 V2 파이프라인에서 제거되었습니다.
+절대 부피 계산은 백엔드에서 Knowledge Base를 사용합니다.
 
 ### Key Components
 - `ai/pipeline/furniture_pipeline.py` - Main pipeline orchestrator
 - `ai/gpu/gpu_pool_manager.py` - Multi-GPU pool manager
 - `ai/processors/2_YOLO_detect.py` - YOLOE-seg detector (Objects365 기반)
-- `ai/processors/7_volume_calculate.py` - Mesh volume analysis
-- `ai/data/knowledge_base.py` - Furniture dimensions database (Objects365 매핑)
+- `ai/processors/4_DB_movability_check.py` - 한국어 라벨 매핑 (is_movable 제거됨)
+- `ai/processors/7_volume_calculate.py` - Mesh relative volume/dimensions (절대 부피는 백엔드 계산)
+- `ai/data/knowledge_base.py` - YOLO 클래스 매핑 + 한국어 라벨 + 프롬프트 저장용 정적 DB (dimensions/is_movable 제거됨)
 
 ## Code Modification Guidelines
-
-### When Modifying SAM 2 Integration
-- Check existing mask handling in api.py:segment_image and api.py:segment_binary
-- Maintain morphological smoothing for mask quality (cv2.morphologyEx)
-- Maintain SAM 2's 4D input format: [[[[x, y]]]]
 
 ### When Modifying 3D Generation
 - **Never** load Sam-3d-objects in the api.py main process - always use subprocess
@@ -375,7 +395,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ## File Structure
 
 ```
-api.py                                  # Main FastAPI server (SAM 2 + task management + AI integration)
+api.py                                  # Main FastAPI server (YOLOE + task management + AI integration)
 requirements.txt                        # Python dependencies
 setup.sh                                # Setup script (clones sam-3d-objects, creates conda env)
 assets/                                 # Static files served at /assets/ (PLY, GIF, GLB)
@@ -390,7 +410,6 @@ sam-3d-objects/                         # Cloned Facebook Research repo (not in 
   checkpoints/hf/pipeline.yaml          # Pipeline configuration
 ai/                                     # AI module (integrated with main API)
   __init__.py                           # Module entry point (exports FurniturePipeline, processors)
-  main.py                               # Standalone CLI entry point
   config.py                             # YOLOE model settings, Multi-GPU settings
   gpu/                                  # GPU pool management module
     __init__.py                         # Exports GPUPoolManager, get_gpu_pool
@@ -399,10 +418,9 @@ ai/                                     # AI module (integrated with main API)
     __init__.py                         # Exports processor classes
     1_firebase_images_fetch.py          # Step 1: Fetch images from Firebase
     2_YOLO_detect.py                    # Step 2: YOLOE-seg object detection (with mask)
-    4_DB_movability_check.py            # Step 4: is_movable determination
-    5_SAM2_mask_generate.py             # Step 5: SAM2 mask generation [DEPRECATED in V2]
-    6_SAM3D_convert.py                  # Step 6: SAM-3D 3D conversion
-    7_volume_calculate.py               # Step 7: Volume/dimension calculation
+    4_DB_movability_check.py            # Step 4: 한국어 라벨 매핑
+    6_SAM3D_convert.py                  # Step 6: SAM-3D 3D conversion (YOLOE-seg mask 직접 사용)
+    7_volume_calculate.py               # Step 7: Relative volume/dimension calculation
   pipeline/
     __init__.py                         # Exports FurniturePipeline
     furniture_pipeline.py               # Pipeline orchestrator V2 (YOLO mask direct use)
@@ -410,15 +428,15 @@ ai/                                     # AI module (integrated with main API)
     generate_3d_worker.py               # Isolated 3D generation worker
   data/
     __init__.py                         # Exports FURNITURE_DB
-    knowledge_base.py                   # Furniture database with dimensions (Objects365 매핑)
+    knowledge_base.py                   # YOLO 클래스 매핑 + 한국어 라벨 정적 DB
   utils/
     __init__.py                         # Exports utilities
     image_ops.py                        # Image processing utilities
   fonts/                                # Korean font files (NanumGothic)
   imgs/                                 # Test images
   outputs/                              # Output results
+tests/                                  # Test files
 test_pipeline_qa.py                     # Pipeline V2 QA test script
-test_yoloe_vs_sam2_masks.py             # YOLOE vs SAM2 mask comparison test
 ```
 
 ## Known Issues and Solutions

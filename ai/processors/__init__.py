@@ -1,14 +1,14 @@
 """
 AI Pipeline Processors
 
-AI Logic 단계별 모듈:
+AI Logic 단계별 모듈 (V2 Pipeline):
 1. Firebase Storage에서 이미지 가져오기
-2. YOLOE-seg로 객체 탐지 (SAHI 제거, CLIP 제거)
+2. YOLOE-seg로 객체 탐지 (마스크 포함)
 3. (CLIP 제거됨)
-4. DB 대조하여 is_movable 결정
-5. SAM2로 마스크 생성
+4. DB 대조하여 한국어 라벨 매핑
+5. (SAM2 제거됨 - YOLOE-seg 마스크 직접 사용)
 6. SAM-3D로 3D 변환
-7. 부피/치수 계산
+7. 상대 부피/치수 계산 (절대 부피는 백엔드)
 """
 
 import importlib
@@ -18,7 +18,7 @@ _stage1 = importlib.import_module('.1_firebase_images_fetch', package='ai.proces
 _stage2 = importlib.import_module('.2_YOLO_detect', package='ai.processors')
 # _stage3 = CLIP 제거됨
 _stage4 = importlib.import_module('.4_DB_movability_check', package='ai.processors')
-_stage5 = importlib.import_module('.5_SAM2_mask_generate', package='ai.processors')
+# _stage5 = SAM2 제거됨 (V2 파이프라인에서 YOLOE-seg 마스크 직접 사용)
 _stage6 = importlib.import_module('.6_SAM3D_convert', package='ai.processors')
 _stage7 = importlib.import_module('.7_volume_calculate', package='ai.processors')
 
@@ -28,11 +28,10 @@ YoloDetector = _stage2.YoloDetector
 YoloWorldDetector = _stage2.YoloWorldDetector  # 하위 호환성 별칭
 MovabilityChecker = _stage4.MovabilityChecker
 MovabilityResult = _stage4.MovabilityResult
-SAM2MaskGenerator = _stage5.SAM2MaskGenerator
+LabelMappingResult = _stage4.LabelMappingResult  # V2 별칭
 SAM3DConverter = _stage6.SAM3DConverter
 SAM3DResult = _stage6.SAM3DResult
 VolumeCalculator = _stage7.VolumeCalculator
-estimate_dimensions_from_aspect_ratio = _stage7.estimate_dimensions_from_aspect_ratio
 
 __all__ = [
     # Step 1-4: Detection
@@ -41,10 +40,9 @@ __all__ = [
     'YoloWorldDetector',  # 하위 호환성 별칭
     'MovabilityChecker',
     'MovabilityResult',
-    # Step 5-7: SAM2/SAM-3D
-    'SAM2MaskGenerator',
+    'LabelMappingResult',  # V2 별칭
+    # Step 6-7: SAM-3D (SAM2 removed in V2)
     'SAM3DConverter',
     'SAM3DResult',
-    'VolumeCalculator',
-    'estimate_dimensions_from_aspect_ratio'
+    'VolumeCalculator'
 ]

@@ -1,49 +1,48 @@
 """
-Stage 4: DB 대조 및 이동 가능 여부 판단
+Stage 4: DB 대조 및 한국어 라벨 매핑
 
 YOLO 탐지 결과를 Knowledge Base(DB)와 대조하여
-is_movable(이사 시 이동 가능 여부)을 결정합니다.
+한국어 라벨을 반환합니다.
 
-CLIP 제거 - YOLO 클래스로 직접 DB 매칭
+V2 파이프라인에서 단순화:
+- is_movable 제거 (모든 탐지 객체는 이동 대상)
+- dimensions 제거 (절대 부피는 백엔드에서 계산)
+- CLIP 제거 - YOLO 클래스로 직접 DB 매칭
 """
 
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 # AI module import
-from ai.data.knowledge_base import (
-    FURNITURE_DB,
-    get_db_key_from_label,
-    get_dimensions,
-    get_base_name,
-    is_movable as db_is_movable,
-    get_dimensions_for_subtype,
-    estimate_size_variant
-)
+from ai.data.knowledge_base import FURNITURE_DB
 
 
 @dataclass
-class MovabilityResult:
-    """이동 가능 여부 판단 결과"""
+class LabelMappingResult:
+    """라벨 매핑 결과"""
     db_key: str                    # DB 키 (예: "bed", "sofa")
     label: str                     # 한글 라벨 (예: "침대", "소파")
-    subtype_name: Optional[str]    # 세부 유형명 (CLIP 제거로 항상 None)
-    is_movable: bool               # 이동 가능 여부
     confidence: float              # 탐지 신뢰도
-    dimensions: Optional[Dict]     # DB 참조 치수 (mm)
     reason: str                    # 판단 사유
+
+
+# 하위 호환성을 위한 별칭
+MovabilityResult = LabelMappingResult
 
 
 class MovabilityChecker:
     """
-    이동 가능 여부 판단기
+    라벨 매핑기 (구 이동 가능 여부 판단기)
 
-    AI Logic Step 4: DB 대조 → is_movable 결정
+    AI Logic Step 4: DB 대조 → 한국어 라벨 반환
 
     Knowledge Base에서 가구 정보를 조회하여
-    이사 시 이동 가능한 물품인지 판단합니다.
+    한국어 라벨을 반환합니다.
 
-    CLIP 제거 - YOLO 클래스로 직접 DB 매칭
+    V2 파이프라인에서 단순화:
+    - is_movable 제거 (모든 탐지 객체는 이동 대상)
+    - dimensions 제거 (절대 부피는 백엔드에서 계산)
+    - CLIP 제거 - YOLO 클래스로 직접 DB 매칭
     """
 
     def __init__(self):
@@ -94,94 +93,61 @@ class MovabilityChecker:
         self,
         db_key: str,
         confidence: float = 1.0
-    ) -> MovabilityResult:
+    ) -> LabelMappingResult:
         """
-        이동 가능 여부를 판단합니다.
+        DB에서 한국어 라벨을 가져옵니다.
 
         Args:
             db_key: DB 키 (예: "bed", "sofa")
             confidence: YOLO 탐지 신뢰도
 
         Returns:
-            MovabilityResult
+            LabelMappingResult
         """
         if db_key not in self.db:
-            return MovabilityResult(
+            return LabelMappingResult(
                 db_key=db_key,
                 label=db_key,
-                subtype_name=None,
-                is_movable=True,  # 기본값: 이동 가능
                 confidence=confidence,
-                dimensions=None,
                 reason="DB에 정보 없음 - 기본값 적용"
             )
 
         db_info = self.db[db_key]
-        is_mov = db_info.get('is_movable', True)
         base_name = db_info.get('base_name', db_key)
-        dimensions = db_info.get('dimensions')
 
-        return MovabilityResult(
+        return LabelMappingResult(
             db_key=db_key,
             label=base_name,
-            subtype_name=None,  # CLIP 제거로 서브타입 없음
-            is_movable=is_mov,
             confidence=confidence,
-            dimensions=dimensions,
-            reason="DB 기본값"
+            reason="DB 매칭 성공"
         )
 
     def check_from_label(
         self,
         detected_label: str,
         confidence: float = 1.0
-    ) -> MovabilityResult:
+    ) -> LabelMappingResult:
         """
-        YOLO 탐지 라벨로 이동 가능 여부를 판단합니다.
+        YOLO 탐지 라벨로 한국어 라벨을 가져옵니다.
 
         Args:
             detected_label: YOLO가 탐지한 라벨 (예: "Bed", "Sofa")
             confidence: YOLO 탐지 신뢰도
 
         Returns:
-            MovabilityResult
+            LabelMappingResult
         """
         db_key = self.get_db_key(detected_label)
 
         if db_key is None:
-            return MovabilityResult(
+            return LabelMappingResult(
                 db_key=detected_label.lower(),
                 label=detected_label,
-                subtype_name=None,
-                is_movable=True,
                 confidence=confidence,
-                dimensions=None,
                 reason="DB에 없는 클래스 - 기본값 적용"
             )
 
         return self.check(db_key, confidence)
-
-    def get_reference_dimensions(
-        self,
-        db_key: str,
-        subtype_name: Optional[str] = None,
-        aspect_ratio: Optional[Dict] = None
-    ) -> Optional[Dict]:
-        """
-        DB에서 참조 치수를 가져옵니다.
-
-        SAM-3D로 계산된 상대적 비율과 대조하여
-        실제 치수를 추정할 때 사용합니다.
-
-        Args:
-            db_key: DB 키
-            subtype_name: 무시됨 (하위 호환성용)
-            aspect_ratio: SAM-3D에서 계산된 비율 (무시됨)
-
-        Returns:
-            {"width": 1500, "depth": 2000, "height": 450} (mm)
-        """
-        return get_dimensions(db_key)
 
     def get_furniture_info(self, db_key: str) -> Optional[Dict]:
         """
@@ -209,16 +175,16 @@ class MovabilityChecker:
         return []  # CLIP 제거로 서브타입 분류 없음
 
     # =========================================================================
-    # 하위 호환성 메서드 (CLIP 제거 후)
+    # 하위 호환성 메서드 (V2 파이프라인에서 단순화)
     # =========================================================================
 
     def check_with_classification(
         self,
         db_key: str,
         classification_result: Dict = None
-    ) -> MovabilityResult:
+    ) -> LabelMappingResult:
         """
-        CLIP 분류 결과를 사용하여 이동 가능 여부를 판단합니다.
+        [DEPRECATED] CLIP 분류 결과를 사용하여 라벨을 가져옵니다.
         (CLIP 제거로 classification_result 무시)
 
         Args:
@@ -226,7 +192,7 @@ class MovabilityChecker:
             classification_result: 무시됨 (하위 호환성용)
 
         Returns:
-            MovabilityResult
+            LabelMappingResult
         """
         # CLIP 제거로 분류 결과 무시, DB 기본값만 사용
         confidence = 1.0
@@ -234,3 +200,25 @@ class MovabilityChecker:
             confidence = classification_result.get('score', 1.0)
 
         return self.check(db_key, confidence)
+
+    def get_reference_dimensions(
+        self,
+        db_key: str,
+        subtype_name: Optional[str] = None,
+        aspect_ratio: Optional[Dict] = None
+    ) -> Optional[Dict]:
+        """
+        [DEPRECATED] DB에서 참조 치수를 가져옵니다.
+
+        V2 파이프라인에서 dimensions는 제거되었습니다.
+        절대 부피는 백엔드에서 계산합니다.
+
+        Returns:
+            항상 None
+        """
+        _ = db_key, subtype_name, aspect_ratio  # 하위 호환성 시그니처 유지
+        return None
+
+
+# 하위 호환성을 위한 별칭
+LabelMapper = MovabilityChecker

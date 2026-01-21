@@ -14,7 +14,7 @@ Features:
 import asyncio
 import time
 from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from contextlib import asynccontextmanager
 
 try:

@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |------|------|
-| Version | 2.0 |
-| Last Updated | 2026-01-18 |
+| Version | 2.1 |
+| Last Updated | 2026-01-21 |
 | Author | AI Team |
 | Status | Implemented |
 
@@ -49,7 +49,7 @@
 │                              ▼                    ▼                 │
 │                       ┌──────────────┐     ┌──────────────┐        │
 │                       │  DB Matching │     │   Volume     │        │
-│                       │  is_movable  │     │   Calculate  │        │
+│                       │  (한국어 라벨) │     │   Calculate  │        │
 │                       └──────────────┘     └──────────────┘        │
 │                                                   │                 │
 │                                                   ▼                 │
@@ -91,9 +91,8 @@ YoloDetector.detect_smart(image, return_masks=True) → {
 #### Stage 3: DB Matching
 ```python
 MovabilityChecker.check_from_label(label, score) → MovabilityResult {
-    label: str,       # Korean label
+    label: str,       # Korean label (한국어 라벨)
     db_key: str,      # FURNITURE_DB key
-    is_movable: bool,
     confidence: float
 }
 ```
@@ -119,8 +118,7 @@ SAM3DConverter.convert(image_path, mask_path) → SAM3DResult {
 VolumeCalculator.calculate_from_ply(ply_path) → {
     "relative_width": float,
     "relative_height": float,
-    "relative_depth": float,
-    "ratio": {"w": float, "h": float, "d": float}
+    "relative_depth": float
 }
 ```
 
@@ -128,18 +126,44 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 
 ```json
 {
-  "objects": [
+  "results": [
     {
-      "label": "box",
-      "width": 30.5,
-      "depth": 20.0,
-      "height": 15.2,
-      "volume": 0.00926,
-      "ratio": {
-        "w": 1.0,
-        "d": 0.66,
-        "h": 0.5
-      }
+      "image_id": 101,
+      "objects": [
+        {
+          "label": "sofa",
+          "width": 200.0,
+          "depth": 90.0,
+          "height": 85.0,
+          "volume": 1.53
+        },
+        {
+          "label": "table",
+          "width": 120.0,
+          "depth": 60.0,
+          "height": 45.0,
+          "volume": 0.324
+        },
+        {
+          "label": "lamp",
+          "width": 30.0,
+          "depth": 30.0,
+          "height": 150.0,
+          "volume": 0.135
+        }
+      ]
+    },
+    {
+      "image_id": 102,
+      "objects": [
+        {
+          "label": "chair",
+          "width": 45.0,
+          "depth": 50.0,
+          "height": 90.0,
+          "volume": 0.2025
+        }
+      ]
     }
   ]
 }
@@ -149,12 +173,14 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 
 | Field | Type | Unit | Description |
 |-------|------|------|-------------|
-| label | string | - | 탐지된 객체 라벨 |
-| width | float | mm | 객체 너비 (가로) |
-| depth | float | mm | 객체 깊이 (세로) |
-| height | float | mm | 객체 높이 |
-| volume | float | m³ | 부피 (세제곱미터) |
-| ratio | object | - | 정규화된 비율 {"w", "d", "h"} |
+| label | string | - | 탐지된 객체 라벨 (YOLO 클래스명) |
+| width | float | 상대 길이 | 3D 메시 bounding box 너비 (모델 좌표계) |
+| depth | float | 상대 길이 | 3D 메시 bounding box 깊이 (모델 좌표계) |
+| height | float | 상대 길이 | 3D 메시 bounding box 높이 (모델 좌표계) |
+| volume | float | 상대 부피 | bounding box 부피 (모델 좌표계, 절대 부피는 백엔드 계산) |
+
+> **Note**: SAM-3D가 생성하는 3D 모델은 실제 물리적 크기 정보가 없습니다.
+> 절대 부피/치수는 백엔드에서 Knowledge Base의 실제 치수와 비율을 조합하여 계산합니다.
 
 ---
 
@@ -202,9 +228,8 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 # V2: YOLOE-seg 마스크 직접 사용
 if obj.yolo_mask is not None:
     mask_b64 = self._yolo_mask_to_base64(obj.yolo_mask)
-else:
-    # Fallback: SAM2 (deprecated)
-    mask_b64 = await self.generate_mask(image, obj.center_point)
+    # SAM-3D에 직접 전달
+    result = await self.generate_3d(image, mask_b64)
 ```
 
 ---
@@ -218,8 +243,18 @@ else:
 **Request:**
 ```json
 {
-  "image_urls": ["https://firebase-storage-url-1.jpg", "https://firebase-storage-url-2.jpg"]
+  "image_urls": [
+    {
+      "id": 101,
+      "url": "https://firebase-storage-url-1.jpg/"
+    },
+    {
+      "id": 102,
+      "url": "https://firebase-storage-url-2.jpg/"
+    }
+  ]
 }
+
 ```
 
 | Field | Type | Required | Description |
@@ -229,18 +264,44 @@ else:
 **Response:**
 ```json
 {
-  "objects": [
+  "results": [
     {
-      "label": "box",
-      "width": 30.5,
-      "depth": 20.0,
-      "height": 15.2,
-      "volume": 0.00926,
-      "ratio": {
-        "w": 1.0,
-        "d": 0.66,
-        "h": 0.5
-      }
+      "image_id": 101,
+      "objects": [
+        {
+          "label": "sofa",
+          "width": 200.0,
+          "depth": 90.0,
+          "height": 85.0,
+          "volume": 1.53
+        },
+        {
+          "label": "table",
+          "width": 120.0,
+          "depth": 60.0,
+          "height": 45.0,
+          "volume": 0.324
+        },
+        {
+          "label": "lamp",
+          "width": 30.0,
+          "depth": 30.0,
+          "height": 150.0,
+          "volume": 0.135
+        }
+      ]
+    },
+    {
+      "image_id": 102,
+      "objects": [
+        {
+          "label": "chair",
+          "width": 45.0,
+          "depth": 50.0,
+          "height": 90.0,
+          "volume": 0.2025
+        }
+      ]
     }
   ]
 }
@@ -296,17 +357,21 @@ else:
 **Response:**
 ```json
 {
+  "success": true,
   "objects": [
     {
       "label": "box",
-      "confidence": 0.95,
-      "is_movable": true
+      "bbox": [100, 200, 300, 400],
+      "center_point": [200, 300],
+      "confidence": 0.95
     }
-  ]
+  ],
+  "total_objects": 1,
+  "processing_time_seconds": 0.5
 }
 ```
 
-> 3D 변환 없이 탐지만 수행하므로 `width`, `depth`, `height`, `volume`, `ratio` 필드 없음
+> 3D 변환 없이 탐지만 수행하므로 `width`, `depth`, `height`, `volume` 필드 없음
 
 ### 4.5 GET /health
 
@@ -349,75 +414,7 @@ else:
 }
 ```
 
-### 4.7 POST /segment
-
-**Description:** 단일 포인트 기반 세그멘테이션 (SAM2)
-
-**Request:**
-```json
-{
-  "image": "base64_encoded_image",
-  "x": 300.0,
-  "y": 400.0,
-  "multimask_output": true,
-  "mask_threshold": 0.0,
-  "invert_mask": false
-}
-```
-
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| image | string | Yes | - | Base64 인코딩된 이미지 |
-| x | float | Yes | - | 포인트 X 좌표 |
-| y | float | Yes | - | 포인트 Y 좌표 |
-| multimask_output | boolean | No | true | 다중 마스크 반환 여부 |
-| mask_threshold | float | No | 0.0 | 마스크 임계값 |
-| invert_mask | boolean | No | false | 마스크 반전 여부 |
-
-**Response:**
-```json
-{
-  "masks": [[[0, 0, 255, ...]]],
-  "scores": [0.95, 0.87, 0.72],
-  "input_point": [300.0, 400.0],
-  "image_shape": [1080, 1920]
-}
-```
-
-### 4.8 POST /segment-binary
-
-**Description:** 멀티 포인트 기반 세그멘테이션, 마스킹된 이미지 반환 (SAM2)
-
-**Request:**
-```json
-{
-  "image": "base64_encoded_image",
-  "points": [
-    {"x": 300.0, "y": 400.0},
-    {"x": 350.0, "y": 450.0}
-  ],
-  "previous_mask": "base64_encoded_mask_optional",
-  "mask_threshold": 0.0
-}
-```
-
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| image | string | Yes | - | Base64 인코딩된 이미지 |
-| points | array | Yes | - | 포인트 좌표 배열 [{x, y}, ...] |
-| previous_mask | string | No | null | 이전 마스크 (누적 마스킹용) |
-| mask_threshold | float | No | 0.0 | 마스크 임계값 |
-
-**Response:**
-```json
-{
-  "success": true,
-  "mask_b64": "base64_encoded_masked_image_png",
-  "score": 0.95
-}
-```
-
-### 4.9 POST /generate-3d
+### 4.7 POST /generate-3d
 
 **Description:** 3D Gaussian Splat 생성 (비동기, task_id 반환)
 
@@ -445,7 +442,7 @@ else:
 }
 ```
 
-### 4.10 GET /generate-3d-status/{task_id}
+### 4.8 GET /generate-3d-status/{task_id}
 
 **Description:** 3D 생성 작업 상태 조회 (폴링)
 
@@ -497,7 +494,7 @@ else:
 | completed | 완료 |
 | failed | 실패 |
 
-### 4.11 GET /assets-list
+### 4.9 GET /assets-list
 
 **Description:** 저장된 에셋 파일 목록 조회 (최신순 정렬)
 
@@ -517,7 +514,7 @@ else:
 }
 ```
 
-### 4.12 GET /assets/{filename}
+### 4.10 GET /assets/{filename}
 
 **Description:** 정적 에셋 파일 다운로드 (PLY, GLB, GIF)
 
@@ -654,7 +651,6 @@ curl -X POST http://localhost:8000/analyze-furniture-single \
 ```
 ultralytics>=8.0.0      # YOLOE-seg
 torch>=2.0.0            # PyTorch
-transformers            # SAM2 (deprecated in V2)
 trimesh                 # Volume calculation
 pillow                  # Image processing
 aiohttp                 # Async HTTP client
@@ -669,22 +665,22 @@ aiohttp                 # Async HTTP client
 
 ## 10. Changelog
 
-### V2.0 (2026-01-16)
+### V2.0 (2026-01-18)
 
 **Major Changes:**
-- Removed SAM2 from main pipeline
-- YOLOE-seg masks used directly for SAM-3D
-- Added `_yolo_mask_to_base64()` method
-- Deprecated `generate_mask()` method
+- YOLOE-seg 마스크를 SAM-3D에 직접 전달 (SAM2 제거)
+- CLIP/SAHI 완전 제거
+- is_movable/dimensions 필드 제거 (백엔드 계산)
+- `_yolo_mask_to_base64()` 메서드 추가
 
 **Rationale:**
-- YOLOE-seg masks provide better object coverage (테스트 결과)
-- Reduced API call overhead
-- Simplified pipeline architecture
+- YOLOE-seg 마스크가 객체 전체를 더 정확하게 커버 (테스트 결과)
+- API 호출 3회 → 2회로 감소
+- 파이프라인 아키텍처 단순화
 
 ### V1.0 (Initial)
 
-- YOLO-World + SAHI tiling
-- CLIP classification
-- SAM2 mask generation
-- SAM-3D conversion
+- YOLO-World + SAHI 타일링
+- CLIP 분류
+- SAM2 마스크 생성
+- SAM-3D 변환

@@ -1,441 +1,468 @@
 """
-가구 및 내부 물품 Knowledge Base
+Furniture Knowledge Base
 
-Objects365 데이터셋 기반 클래스 매핑
-- synonyms: YOLOE 모델이 탐지하는 Objects365 클래스명과 매핑 (입력용)
-- base_name: 사용자에게 보여줄 한글 이름 (출력용)
-- is_movable: 이사 시 이동 가능 여부
-- dimensions: 표준 규격 (mm 단위) - 절대 부피 계산용
+YOLO 클래스 매핑 + 한국어 라벨 + 프롬프트 저장용 정적 DB
 
-CLIP 제거 - prompt 필드 삭제
-SAHI 제거 - 단순화된 탐지
+V2 파이프라인에서 단순화:
+- is_movable 제거 (모든 탐지 객체는 이동 대상)
+- dimensions 제거 (절대 부피는 백엔드에서 계산)
+- check_strategy 제거
 """
 
 FURNITURE_DB = {
-    # ===========================================================================
-    # 침실 가구
-    # ===========================================================================
-    "bed": {
-        "synonyms": ["bed", "bed frame", "bunk bed"],
-        "base_name": "침대",
-        "is_movable": True,
-        "dimensions": {"width": 1500, "depth": 2000, "height": 450}  # 퀸 사이즈 기준
+    "air conditioner": {
+        "synonyms": ["air conditioner", "ac unit", "climate control unit"],
+        "base_name": "에어컨",
+        "subtypes": [
+            {
+                "name": "천장형 에어컨 (시스템)",
+                "prompt": "a ceiling mounted cassette air conditioner vent"
+            },
+            {
+                "name": "벽걸이 에어컨",
+                "prompt": "a split air conditioner unit mounted high on a wall"
+            },
+            {
+                "name": "스탠드 에어컨",
+                "prompt": "a tall floor standing tower air conditioner"
+            }
+        ]
     },
-    "wardrobe": {
-        "synonyms": ["wardrobe", "closet", "armoire", "clothes closet"],
-        "base_name": "옷장",
-        "is_movable": True,
-        "dimensions": {"width": 1200, "depth": 600, "height": 2000}
-    },
-    "drawer": {
-        "synonyms": ["drawer", "chest of drawers", "dresser", "drawer unit"],
-        "base_name": "서랍장",
-        "is_movable": True,
-        "dimensions": {"width": 800, "depth": 450, "height": 1000}
-    },
-    "nightstand": {
-        "synonyms": ["nightstand", "bedside table", "night table"],
-        "base_name": "협탁",
-        "is_movable": True,
-        "dimensions": {"width": 450, "depth": 400, "height": 550}
-    },
-    "mirror": {
-        "synonyms": ["mirror", "full length mirror", "wall mirror", "standing mirror"],
-        "base_name": "거울",
-        "is_movable": True,
-        "dimensions": {"width": 600, "depth": 50, "height": 1500}
-    },
-
-    # ===========================================================================
-    # 거실 가구
-    # ===========================================================================
-    "sofa": {
-        "synonyms": ["sofa", "couch", "settee"],
-        "base_name": "소파",
-        "is_movable": True,
-        "dimensions": {"width": 2100, "depth": 900, "height": 900}  # 3인용 기준
-    },
-    "coffee table": {
-        "synonyms": ["coffee table", "center table", "tea table"],
-        "base_name": "커피테이블",
-        "is_movable": True,
-        "dimensions": {"width": 1200, "depth": 600, "height": 450}
-    },
-    "tv": {
-        "synonyms": ["television", "tv", "flat screen tv", "monitor/tv"],
-        "base_name": "TV",
-        "is_movable": True,
-        "dimensions": {"width": 1230, "depth": 70, "height": 710}  # 55인치 기준
+    "kitchen cabinet": {
+        "synonyms": ["cupboard", "dish cupboard", "dish cabinet", "kitchen cupboard", "pantry cabinet", "wall cabinet", "overhead storage", "kitchen cabinet", "kitchen storage", "white cabinet", "black cabinet", "gray cabinet", "brown cabinet"],
+        "base_name": "찬장/수납장",
+        "content_labels": ["dish", "bowl", "plate", "cup", "wine glass", "coffee mug", "dish", "pot", "bottle"]
     },
     "bookshelf": {
         "synonyms": ["bookshelf", "bookcase", "library shelf"],
         "base_name": "책장",
-        "is_movable": True,
-        "dimensions": {"width": 800, "depth": 300, "height": 1800}
+        "content_labels": ["book", "magazine collection", "file binder"]
     },
-
-    # ===========================================================================
-    # 식당/주방 가구
-    # ===========================================================================
-    "dining table": {
-        "synonyms": ["dining table", "kitchen table"],
-        "base_name": "식탁",
-        "is_movable": True,
-        "dimensions": {"width": 1200, "depth": 800, "height": 750}  # 4인용 기준
+    "display shelf": {
+        "synonyms": ["display shelf", "open shelf", "minimalist rack", "metal frame shelf", "open display stand", "tiered display stand", "slim metal rack", "thin display rack", "floor shelf", "metal shelf", "minimalist shelf"],
+        "base_name": "전시대/선반",
+        "subtypes": [
+            {
+                "name": "전시대",
+                "prompt": "a minimalist open display shelf with thin frames and no back panel"
+            }
+        ]
     },
-    "chair": {
-        "synonyms": ["chair", "office chair", "dining chair", "armchair"],
-        "base_name": "의자",
-        "is_movable": True,
-        "dimensions": {"width": 500, "depth": 500, "height": 900}
-    },
-    "stool": {
-        "synonyms": ["stool", "bar stool"],
-        "base_name": "스툴",
-        "is_movable": True,
-        "dimensions": {"width": 400, "depth": 400, "height": 650}
-    },
-    "bench": {
-        "synonyms": ["bench"],
-        "base_name": "벤치",
-        "is_movable": True,
-        "dimensions": {"width": 1200, "depth": 400, "height": 450}
-    },
-    "kitchen cabinet": {
-        "synonyms": ["kitchen cupboard", "pantry cabinet", "wall cabinet", "overhead storage", "kitchen cabinet", "cabinet/shelf"],
-        "base_name": "찬장/수납장",
-        "is_movable": False,
-        "dimensions": {"width": 600, "depth": 350, "height": 800}
-    },
-
-    # ===========================================================================
-    # 가전제품
-    # ===========================================================================
     "refrigerator": {
         "synonyms": ["refrigerator", "fridge", "freezer"],
         "base_name": "냉장고",
-        "is_movable": True,
-        "dimensions": {"width": 600, "depth": 700, "height": 1700}
+        "subtypes": [
+            {
+                "name": "일반 냉장고",
+                "prompt": "a standard free-standing refrigerator"
+            },
+            {
+                "name": "빌트인 냉장고",
+                "prompt": "a built-in refrigerator flush with kitchen cabinets"
+            }
+        ]
+    },
+    "wardrobe": {
+        "synonyms": ["wardrobe", "closet", "armoire", "clothes closet"],
+        "base_name": "장롱/수납장",
+        "subtypes": [
+            {
+                "name": "붙박이장 (매립형)",
+                "prompt": "a built-in wardrobe integrated into the wall without gaps"
+            },
+            {
+                "name": "일반 옷장 (이동식)",
+                "prompt": "a free-standing wooden wardrobe furniture"
+            },
+            {
+                "name": "시스템 행거",
+                "prompt": "an open walk-in closet system hanger with metal poles"
+            }
+        ]
+    },
+    "sofa": {
+        "synonyms": ["sofa", "couch", "settee"],
+        "base_name": "소파",
+        "subtypes": [
+            {
+                "name": "1인용 소파",
+                "prompt": "a single seater armchair sofa"
+            },
+            {
+                "name": "2인용 소파",
+                "prompt": "a two seater loveseat sofa"
+            },
+            {
+                "name": "3인용 소파",
+                "prompt": "a three seater long sofa"
+            },
+            {
+                "name": "L자형 소파",
+                "prompt": "an L-shaped sectional corner sofa"
+            }
+        ]
+    },
+    "bed": {
+        "synonyms": ["bed", "bed frame", "bunk bed"],
+        "base_name": "침대",
+        "subtypes": [
+            {
+                "name": "싱글 침대",
+                "prompt": "a single bed with a narrow mattress"
+            },
+            {
+                "name": "슈퍼싱글 침대",
+                "prompt": "a super single bed slightly wider than single"
+            },
+            {
+                "name": "더블 침대",
+                "prompt": "a double bed with full size mattress"
+            },
+            {
+                "name": "퀸 사이즈 침대",
+                "prompt": "a queen size bed with wide mattress"
+            },
+            {
+                "name": "킹 사이즈 침대",
+                "prompt": "a king size bed with extra wide mattress"
+            },
+            {
+                "name": "2층 침대",
+                "prompt": "a bunk bed with two levels stacked"
+            }
+        ]
+    },
+    "dining table": {
+        "synonyms": ["dining table", "kitchen table"],
+        "base_name": "식탁",
+        "subtypes": [
+            {
+                "name": "2인용 식탁",
+                "prompt": "a small dining table for two people"
+            },
+            {
+                "name": "4인용 식탁",
+                "prompt": "a rectangular dining table for four people"
+            },
+            {
+                "name": "6인용 식탁",
+                "prompt": "a large dining table for six people"
+            }
+        ]
+    },
+    "tv": {
+        "synonyms": ["television", "tv", "flat screen tv"],
+        "base_name": "TV",
+        "subtypes": [
+            {
+                "name": "32인치 TV",
+                "prompt": "a small 32 inch flat screen television"
+            },
+            {
+                "name": "43인치 TV",
+                "prompt": "a medium 43 inch flat screen television"
+            },
+            {
+                "name": "55인치 TV",
+                "prompt": "a large 55 inch flat screen television"
+            },
+            {
+                "name": "65인치 TV",
+                "prompt": "an extra large 65 inch flat screen television"
+            },
+            {
+                "name": "75인치 TV",
+                "prompt": "a huge 75 inch flat screen television"
+            }
+        ]
+    },
+    "desk": {
+        "synonyms": ["desk", "office desk", "computer desk", "writing desk"],
+        "base_name": "책상",
+        "subtypes": [
+            {
+                "name": "일반 책상",
+                "prompt": "a standard writing desk"
+            },
+            {
+                "name": "L자형 책상",
+                "prompt": "an L-shaped corner desk"
+            },
+            {
+                "name": "컴퓨터 책상",
+                "prompt": "a computer desk with keyboard tray"
+            }
+        ]
+    },
+    "chair": {
+        "synonyms": ["chair", "office chair", "dining chair", "armchair", "stool", "round stool", "circular stool"],
+        "base_name": "의자/스툴",
+        "subtypes": [
+            {
+                "name": "일반 의자",
+                "prompt": "a standard dining or office chair with a backrest"
+            },
+            {
+                "name": "원형 의자",
+                "prompt": "a round stool with a circular seat and thin slim legs"
+            }
+        ]
     },
     "washing machine": {
         "synonyms": ["washing machine", "washer", "laundry machine"],
         "base_name": "세탁기",
-        "is_movable": True,
-        "dimensions": {"width": 600, "depth": 600, "height": 850}
+        "subtypes": [
+            {
+                "name": "드럼 세탁기",
+                "prompt": "a front loading drum washing machine"
+            },
+            {
+                "name": "통돌이 세탁기",
+                "prompt": "a top loading washing machine"
+            }
+        ]
     },
     "dryer": {
-        "synonyms": ["dryer", "clothes dryer", "tumble dryer", "drying machine"],
-        "base_name": "건조기",
-        "is_movable": True,
-        "dimensions": {"width": 600, "depth": 600, "height": 850}
+        "synonyms": ["dryer", "clothes dryer", "tumble dryer"],
+        "base_name": "건조기"
     },
-    "air conditioner": {
-        "synonyms": ["air conditioner", "ac unit", "climate control unit"],
-        "base_name": "에어컨",
-        "is_movable": True,  # 스탠드형 기준 (벽걸이/천장형은 False)
-        "dimensions": {"width": 400, "depth": 400, "height": 1800}  # 스탠드형 기준
+    "box": {
+        "synonyms": ["box", "cardboard box", "moving box", "carton"],
+        "base_name": "박스"
+    },
+    "drawer": {
+        "synonyms": ["drawer", "chest of drawers", "dresser", "drawer unit"],
+        "base_name": "서랍장"
+    },
+    "mirror": {
+        "synonyms": ["mirror", "full length mirror", "wall mirror", "standing mirror"],
+        "base_name": "거울"
     },
     "microwave": {
         "synonyms": ["microwave", "microwave oven"],
-        "base_name": "전자레인지",
-        "is_movable": True,
-        "dimensions": {"width": 500, "depth": 400, "height": 300}
-    },
-    "oven": {
-        "synonyms": ["oven", "gas oven", "electric oven"],
-        "base_name": "오븐",
-        "is_movable": True,
-        "dimensions": {"width": 600, "depth": 600, "height": 600}
-    },
-
-    # ===========================================================================
-    # 사무/학습 가구
-    # ===========================================================================
-    "desk": {
-        "synonyms": ["desk", "office desk", "computer desk", "writing desk"],
-        "base_name": "책상",
-        "is_movable": True,
-        "dimensions": {"width": 1200, "depth": 600, "height": 750}
-    },
-    "computer": {
-        "synonyms": ["computer", "desktop computer", "pc"],
-        "base_name": "컴퓨터",
-        "is_movable": True,
-        "dimensions": {"width": 200, "depth": 450, "height": 400}
-    },
-    "laptop": {
-        "synonyms": ["laptop", "notebook computer"],
-        "base_name": "노트북",
-        "is_movable": True,
-        "dimensions": {"width": 350, "depth": 250, "height": 25}
-    },
-    "printer": {
-        "synonyms": ["printer"],
-        "base_name": "프린터",
-        "is_movable": True,
-        "dimensions": {"width": 450, "depth": 350, "height": 200}
-    },
-
-    # ===========================================================================
-    # 욕실 (대부분 고정식)
-    # ===========================================================================
-    "toilet": {
-        "synonyms": ["toilet"],
-        "base_name": "변기",
-        "is_movable": False,
-        "dimensions": {"width": 400, "depth": 700, "height": 400}
-    },
-    "sink": {
-        "synonyms": ["sink", "bathroom sink", "washbasin"],
-        "base_name": "싱크대",
-        "is_movable": False,
-        "dimensions": {"width": 600, "depth": 500, "height": 850}
-    },
-    "bathtub": {
-        "synonyms": ["bathtub", "bath"],
-        "base_name": "욕조",
-        "is_movable": False,
-        "dimensions": {"width": 700, "depth": 1500, "height": 600}
-    },
-
-    # ===========================================================================
-    # 이동/수납
-    # ===========================================================================
-    "box": {
-        "synonyms": ["box", "cardboard box", "moving box", "carton", "storage box"],
-        "base_name": "박스",
-        "is_movable": True,
-        "dimensions": {"width": 400, "depth": 300, "height": 300}  # 중간 사이즈 기준
-    },
-    "luggage": {
-        "synonyms": ["luggage", "suitcase"],
-        "base_name": "캐리어",
-        "is_movable": True,
-        "dimensions": {"width": 450, "depth": 280, "height": 700}
-    },
-    "backpack": {
-        "synonyms": ["backpack", "bag"],
-        "base_name": "배낭",
-        "is_movable": True,
-        "dimensions": {"width": 350, "depth": 200, "height": 500}
-    },
-    "basket": {
-        "synonyms": ["basket"],
-        "base_name": "바구니",
-        "is_movable": True,
-        "dimensions": {"width": 400, "depth": 300, "height": 250}
-    },
-
-    # ===========================================================================
-    # 기타 가전/소품
-    # ===========================================================================
-    "fan": {
-        "synonyms": ["fan", "electric fan", "standing fan"],
-        "base_name": "선풍기",
-        "is_movable": True,
-        "dimensions": {"width": 400, "depth": 400, "height": 1200}
-    },
-    "heater": {
-        "synonyms": ["heater", "space heater"],
-        "base_name": "히터",
-        "is_movable": True,
-        "dimensions": {"width": 300, "depth": 200, "height": 600}
-    },
-    "lamp": {
-        "synonyms": ["lamp", "table lamp", "floor lamp", "desk lamp"],
-        "base_name": "램프",
-        "is_movable": True,
-        "dimensions": {"width": 300, "depth": 300, "height": 500}
-    },
-    "clock": {
-        "synonyms": ["clock", "wall clock"],
-        "base_name": "시계",
-        "is_movable": True,
-        "dimensions": {"width": 300, "depth": 50, "height": 300}
-    },
-    "vase": {
-        "synonyms": ["vase", "flower vase"],
-        "base_name": "꽃병",
-        "is_movable": True,
-        "dimensions": {"width": 150, "depth": 150, "height": 300}
-    },
-    "plant": {
-        "synonyms": ["plant", "potted plant", "houseplant"],
-        "base_name": "화분",
-        "is_movable": True,
-        "dimensions": {"width": 300, "depth": 300, "height": 500}
+        "base_name": "전자레인지"
     },
     "picture frame": {
-        "synonyms": ["picture frame", "photo frame", "painting"],
-        "base_name": "액자",
-        "is_movable": True,
-        "dimensions": {"width": 600, "depth": 30, "height": 800}
-    },
-    "curtain": {
-        "synonyms": ["curtain", "drape"],
-        "base_name": "커튼",
-        "is_movable": True,
-        "dimensions": {"width": 2000, "depth": 50, "height": 2500}
+        "synonyms": ["picture frame", "painting on the wall", "framed art", "walldecor", "artwork"],
+        "base_name": "그림/액자"
     },
     "rug": {
-        "synonyms": ["rug", "carpet", "mat"],
-        "base_name": "러그",
-        "is_movable": True,
-        "dimensions": {"width": 2000, "depth": 3000, "height": 20}
+        "synonyms": ["rug", "carpet", "floor mat", "fabric rug", "textile floor covering"],
+        "base_name": "카펫/러그"
+    },
+    "cushion": {
+        "synonyms": ["sofa cushion", "decorative cushion", "scatter cushion", "backrest cushion", "sofa pillow"],
+        "base_name": "쿠션",
+        "subtypes": [
+            {
+                "name": "소파 쿠션",
+                "prompt": "a square-shaped decorative cushion or pillow on a sofa or armchair"
+            }
+        ]
     },
     "pillow": {
-        "synonyms": ["pillow", "cushion"],
+        "synonyms": ["sleeping pillow", "bed pillow", "head pillow"],
         "base_name": "베개",
-        "is_movable": True,
-        "dimensions": {"width": 500, "depth": 400, "height": 150}
+        "subtypes": [
+            {
+                "name": "취침용 베개",
+                "prompt": "a rectangular sleeping pillow on a bed with a pillowcase"
+            }
+        ]
     },
-    "blanket": {
-        "synonyms": ["blanket", "comforter", "quilt"],
-        "base_name": "담요",
-        "is_movable": True,
-        "dimensions": {"width": 2000, "depth": 2000, "height": 100}
+    "floor": {
+        "synonyms": ["wood grain floor", "hardwood flooring with patterns", "tiled floor", "solid floor texture"],
+        "base_name": "바닥"
     },
-    "bicycle": {
-        "synonyms": ["bicycle", "bike"],
-        "base_name": "자전거",
-        "is_movable": True,
-        "dimensions": {"width": 600, "depth": 1800, "height": 1100}
+    "candlestick": {
+        "synonyms": ["candlestick", "candle holder", "candelabra"],
+        "base_name": "촛대"
     },
-    "ladder": {
-        "synonyms": ["ladder", "step ladder"],
-        "base_name": "사다리",
-        "is_movable": True,
-        "dimensions": {"width": 500, "depth": 100, "height": 2000}
+    "potted plant": {
+        "synonyms": ["potted plant", "flower pot", "houseplant", "indoor plant", "vase with flowers"],
+        "base_name": "화분/식물"
     },
-    "trash can": {
-        "synonyms": ["trash can", "garbage bin", "waste bin"],
-        "base_name": "쓰레기통",
-        "is_movable": True,
-        "dimensions": {"width": 300, "depth": 300, "height": 500}
+    "curtain": {
+        "synonyms": ["curtain", "drapes", "window blind", "window cover", "sheer fabric"],
+        "base_name": "커튼",
+        "subtypes": [
+            {
+                "name": "일반 커튼",
+                "prompt": "a standard fabric window curtain"
+            },
+            {
+                "name": "얇은 커튼",
+                "prompt": "a thin translucent sheer white curtain with light shining through"
+            },
+            {
+                "name": "무늬 있는 커튼",
+                "prompt": "a decorative window curtain with floral, stripes, or geometric patterns, colorful printed fabric drapes"
+            }
+        ]
     },
+    "seasoning container": {
+        "synonyms": ["seasoning container", "spice jar", "spice container", "condiment container", "seasoning jar", "spice rack container", "kitchen container", "food storage container", "airtight container", "clear container", "plastic container", "storage jar", "pantry container", "cereal container", "grain container", "dry food container"],
+        "base_name": "조미료통/반찬통"
+    },
+    "side dish container": {
+        "synonyms": ["side dish container", "banchan container", "food storage box", "rectangular food container", "meal prep container", "leftover container", "refrigerator container", "stackable container", "glass container", "plastic food box"],
+        "base_name": "반찬통"
+    },
+    "pot": {
+        "synonyms": ["pot", "cooking pot", "stock pot", "sauce pot", "stew pot", "soup pot", "dutch oven", "casserole pot", "ceramic pot", "enamel pot", "white pot", "kitchen pot", "two handle pot", "double handle pot", "lidded pot"],
+        "base_name": "냄비",
+        "subtypes": [
+            {
+                "name": "양수 냄비",
+                "prompt": "a cooking pot with two side handles and a lid"
+            },
+            {
+                "name": "편수 냄비",
+                "prompt": "a sauce pot with a single long handle"
+            },
+            {
+                "name": "압력솥",
+                "prompt": "a pressure cooker pot with locking lid"
+            }
+        ]
+    },
+    "frying pan": {
+        "synonyms": ["frying pan", "skillet", "saute pan", "wok", "griddle pan", "non-stick pan", "cast iron pan", "cooking pan"],
+        "base_name": "프라이팬"
+    },
+    "tissue box": {
+        "synonyms": ["tissue box", "tissue paper box", "kleenex box", "facial tissue box", "paper tissue holder", "tissue dispenser", "rectangular tissue box", "tissue container"],
+        "base_name": "휴지곽"
+    },
+    "toilet paper": {
+        "synonyms": ["toilet paper", "toilet roll", "bathroom tissue", "toilet tissue roll", "paper roll", "rolled paper"],
+        "base_name": "두루마리 휴지"
+    },
+    "paper towel": {
+        "synonyms": ["paper towel", "kitchen towel", "kitchen paper", "paper towel roll", "kitchen roll", "absorbent paper"],
+        "base_name": "키친타올"
+    },
+    "plate": {
+        "synonyms": ["plate", "dinner plate", "serving plate", "dish plate", "ceramic plate", "flat plate", "round plate", "white plate", "porcelain plate", "food plate", "meal plate"],
+        "base_name": "접시"
+    },
+    "bowl": {
+        "synonyms": ["bowl", "soup bowl", "rice bowl", "cereal bowl", "salad bowl", "mixing bowl", "serving bowl", "ceramic bowl", "deep bowl", "round bowl"],
+        "base_name": "그릇/볼"
+    },
+    "cup": {
+        "synonyms": ["cup", "mug", "coffee cup", "tea cup", "drinking cup", "ceramic cup", "glass cup", "tumbler"],
+        "base_name": "컵/머그"
+    }
 }
 
 
-def get_db_key_from_label(label: str) -> str:
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+def get_db_key_from_label(label: str) -> str | None:
     """
-    YOLO 탐지 라벨에서 DB 키를 찾습니다.
+    YOLO 라벨에서 DB 키를 찾습니다.
 
     Args:
-        label: YOLO가 탐지한 라벨 (예: "Bed", "Sofa")
+        label: YOLO 탐지 라벨 (예: "Bed", "Sofa")
 
     Returns:
-        DB 키 (예: "bed", "sofa") 또는 None
+        DB 키 또는 None
     """
     label_lower = label.lower()
-
-    for db_key, info in FURNITURE_DB.items():
-        for syn in info.get('synonyms', []):
-            if syn.lower() == label_lower:
-                return db_key
-
+    for key, info in FURNITURE_DB.items():
+        if label_lower in [s.lower() for s in info.get("synonyms", [])]:
+            return key
     return None
-
-
-def get_furniture_info(db_key: str) -> dict:
-    """
-    DB 키로 가구 정보를 가져옵니다.
-
-    Args:
-        db_key: FURNITURE_DB의 키 (예: "bed", "sofa")
-
-    Returns:
-        가구 정보 dict 또는 빈 dict
-    """
-    return FURNITURE_DB.get(db_key, {})
-
-
-def get_dimensions(db_key: str) -> dict:
-    """
-    DB 키로 치수 정보를 가져옵니다.
-
-    Args:
-        db_key: FURNITURE_DB의 키 (예: "bed", "sofa")
-
-    Returns:
-        dimensions dict with width, depth, height (mm) 또는 None
-    """
-    info = FURNITURE_DB.get(db_key)
-    if info is None:
-        return None
-
-    return info.get('dimensions')
-
-
-def is_movable(db_key: str) -> bool:
-    """
-    가구가 이동 가능한지 확인합니다.
-
-    Args:
-        db_key: FURNITURE_DB의 키
-
-    Returns:
-        is_movable 값 (기본값 True)
-    """
-    info = FURNITURE_DB.get(db_key, {})
-    return info.get('is_movable', True)
 
 
 def get_base_name(db_key: str) -> str:
     """
-    가구의 한글 이름을 가져옵니다.
+    DB 키에서 한국어 라벨을 가져옵니다.
 
     Args:
-        db_key: FURNITURE_DB의 키
+        db_key: DB 키 (예: "bed", "sofa")
 
     Returns:
-        한글 이름 (예: "침대", "소파") 또는 db_key
+        한국어 라벨 (예: "침대", "소파")
     """
-    info = FURNITURE_DB.get(db_key, {})
-    return info.get('base_name', db_key)
+    if db_key in FURNITURE_DB:
+        return FURNITURE_DB[db_key].get("base_name", db_key)
+    return db_key
 
 
-def get_all_synonyms() -> list:
+def get_subtypes(db_key: str) -> list:
     """
-    모든 동의어 목록을 반환합니다.
-    YOLO 검색 클래스로 사용할 수 있습니다.
-
-    Returns:
-        동의어 리스트
-    """
-    synonyms = []
-    for info in FURNITURE_DB.values():
-        synonyms.extend(info.get('synonyms', []))
-    return list(set(synonyms))
-
-
-# 하위 호환성을 위한 함수 (CLIP 제거 후)
-def get_dimensions_for_subtype(db_key: str, subtype_name: str = None) -> dict:
-    """
-    가구 유형으로 치수 정보를 가져옵니다.
-    (subtype_name은 무시됨 - CLIP 제거로 서브타입 분류 없음)
+    특정 가구의 서브타입 목록을 가져옵니다.
 
     Args:
-        db_key: FURNITURE_DB의 키 (예: "bed", "sofa")
-        subtype_name: 무시됨 (하위 호환성용)
+        db_key: DB 키
 
     Returns:
-        dimensions dict with width, depth, height (mm)
+        서브타입 리스트 [{"name": str, "prompt": str}, ...]
     """
-    return get_dimensions(db_key)
+    if db_key in FURNITURE_DB:
+        return FURNITURE_DB[db_key].get("subtypes", [])
+    return []
 
 
-def estimate_size_variant(db_key: str, subtype_name: str, aspect_ratio: dict) -> tuple:
+def get_content_labels(db_key: str) -> list:
     """
-    SAM-3D로 계산된 비율과 DB의 규격을 비교합니다.
-    (CLIP 제거로 단순화됨)
+    내용물 탐지용 라벨 목록을 가져옵니다.
 
     Args:
-        db_key: FURNITURE_DB의 키
-        subtype_name: 무시됨 (하위 호환성용)
-        aspect_ratio: SAM-3D에서 계산된 비율 {"w": float, "h": float, "d": float}
+        db_key: DB 키
 
     Returns:
-        (None, dimensions) 튜플
+        내용물 라벨 리스트
     """
-    dims = get_dimensions(db_key)
-    return None, dims
+    if db_key in FURNITURE_DB:
+        return FURNITURE_DB[db_key].get("content_labels", [])
+    return []
+
+
+# =============================================================================
+# Deprecated Functions (하위 호환성 유지)
+# =============================================================================
+
+def is_movable(db_key: str) -> bool:
+    """
+    [DEPRECATED] 모든 탐지 객체는 이동 대상으로 간주합니다.
+
+    V2 파이프라인에서 is_movable은 제거되었습니다.
+    이 함수는 하위 호환성을 위해 유지되며 항상 True를 반환합니다.
+    """
+    return True
+
+
+def get_dimensions(db_key: str) -> dict | None:
+    """
+    [DEPRECATED] dimensions는 V2 파이프라인에서 제거되었습니다.
+
+    절대 부피는 백엔드에서 계산합니다.
+    이 함수는 하위 호환성을 위해 유지되며 항상 None을 반환합니다.
+    """
+    return None
+
+
+def get_dimensions_for_subtype(db_key: str, subtype_name: str) -> dict | None:  # noqa: ARG001
+    """
+    [DEPRECATED] dimensions는 V2 파이프라인에서 제거되었습니다.
+
+    절대 부피는 백엔드에서 계산합니다.
+    이 함수는 하위 호환성을 위해 유지되며 항상 None을 반환합니다.
+    """
+    _ = db_key, subtype_name  # 하위 호환성 시그니처 유지
+    return None
+
+
+def estimate_size_variant(db_key: str, aspect_ratio: dict) -> str:  # noqa: ARG001
+    """
+    [DEPRECATED] variants는 V2 파이프라인에서 제거되었습니다.
+
+    이 함수는 하위 호환성을 위해 유지되며 항상 "medium"을 반환합니다.
+    """
+    _ = db_key, aspect_ratio  # 하위 호환성 시그니처 유지
+    return "medium"

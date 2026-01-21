@@ -44,9 +44,6 @@ from ai.gpu import GPUPoolManager, get_gpu_pool
 # Config import
 from ai.config import Config
 
-# Knowledge base import
-from ai.data.knowledge_base import FURNITURE_DB
-
 try:
     import aiohttp
     HAS_AIOHTTP = True
@@ -64,7 +61,6 @@ class DetectedObject:
     bbox: List[int] = field(default_factory=list)
     center_point: List[float] = field(default_factory=list)
     confidence: float = 0.0
-    is_movable: bool = True
     crop_image: Optional[Image.Image] = None
     mask_base64: Optional[str] = None
 
@@ -88,10 +84,10 @@ class PipelineResult:
     image_url: str
     objects: List[DetectedObject] = field(default_factory=list)
     total_volume_liters: float = 0.0
-    movable_volume_liters: float = 0.0
     processing_time_seconds: float = 0.0
     status: str = "pending"
     error: Optional[str] = None
+    user_image_id: Optional[int] = None  # 사용자 지정 이미지 ID (TDD Section 4.1)
 
 
 class FurniturePipeline:
@@ -116,19 +112,20 @@ class FurniturePipeline:
 
     def __init__(
         self,
-        sam2_api_url: str = "http://localhost:8000",
+        sam2_api_url: str = "http://localhost:8000",  # 하위 호환성 유지
         enable_3d_generation: bool = True,
         device_id: Optional[int] = None,
         gpu_pool: Optional[GPUPoolManager] = None
     ):
         """
         Args:
-            sam2_api_url: SAM2/SAM-3D API 서버 URL
+            sam2_api_url: SAM-3D API 서버 URL (SAM2 제거, 이름 유지는 하위 호환성)
             enable_3d_generation: 3D 생성 활성화 여부
             device_id: GPU 디바이스 ID (None이면 기본값 사용)
             gpu_pool: GPU 풀 매니저 (Multi-GPU 처리용)
         """
-        self.sam2_api_url = sam2_api_url.rstrip('/')
+        self.api_url = sam2_api_url.rstrip('/')
+        self.sam2_api_url = self.api_url  # 하위 호환성
         self.enable_3d_generation = enable_3d_generation
 
         # Multi-GPU 지원
@@ -237,7 +234,6 @@ class FurniturePipeline:
                 bbox=[x1, y1, x2, y2],
                 center_point=[center_x, center_y],
                 confidence=float(score),
-                is_movable=movability.is_movable,
                 crop_image=crop,
                 yolo_mask=yolo_mask
             )
@@ -264,67 +260,6 @@ class FurniturePipeline:
         buffer = io.BytesIO()
         mask_pil.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-    # =========================================================================
-    # External API: SAM2 마스크 생성 (DEPRECATED - V1 호환용)
-    # =========================================================================
-
-    async def generate_mask(self, image: Image.Image, point: List[float]) -> Optional[str]:
-        """
-        [DEPRECATED] SAM2 API를 호출하여 마스크를 생성합니다.
-
-        V2 파이프라인에서는 YOLOE-seg 마스크를 직접 사용합니다.
-        이 메서드는 하위 호환성을 위해 유지되며, YOLO 마스크가 없는 경우에만 사용됩니다.
-
-        Args:
-            image: 원본 이미지
-            point: [x, y] 중심점
-
-        Returns:
-            Base64 인코딩된 마스크
-        """
-        import warnings
-        warnings.warn(
-            "generate_mask() is deprecated in V2 pipeline. "
-            "YOLOE-seg masks are used directly instead of SAM2.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-
-        if not HAS_AIOHTTP:
-            return None
-
-        try:
-            buffer = io.BytesIO()
-            image.save(buffer, format="PNG")
-            image_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.sam2_api_url}/segment",
-                    json={
-                        "image": image_b64,
-                        "x": point[0],
-                        "y": point[1],
-                        "multimask_output": True
-                    },
-                    timeout=aiohttp.ClientTimeout(total=60)
-                ) as response:
-                    if response.status != 200:
-                        return None
-
-                    result = await response.json()
-
-                    if result.get("success") and result.get("masks"):
-                        masks = result["masks"]
-                        best_mask = max(masks, key=lambda m: m.get("score", 0))
-                        return best_mask.get("mask")
-
-                    return None
-
-        except Exception as e:
-            print(f"[FurniturePipeline] Mask generation error: {e}")
-            return None
 
     # =========================================================================
     # External API: SAM-3D 3D 생성
@@ -425,20 +360,8 @@ class FurniturePipeline:
         if relative_dims is None:
             return None, None
 
-        # DB에서 참조 치수 가져오기
-        ref_dims = self.movability_checker.get_reference_dimensions(
-            obj.db_key,
-            obj.subtype_name,
-            relative_dims.get("ratio")
-        )
-
-        if ref_dims is None:
-            return relative_dims, None
-
-        # 절대 치수 계산
-        absolute_dims = self.volume_calculator.scale_to_absolute(relative_dims, ref_dims)
-
-        return relative_dims, absolute_dims
+        # 절대 치수 계산은 백엔드에서 처리 - 상대 치수만 반환
+        return relative_dims, None
 
     # =========================================================================
     # 통합 처리
@@ -484,14 +407,14 @@ class FurniturePipeline:
             # Stage 4-6: 각 객체에 대해 마스크 및 3D 생성 (V2: YOLOE-seg 마스크 직접 사용)
             for obj in detected_objects:
                 if enable_mask:
-                    # V2 파이프라인: YOLOE-seg 마스크 직접 사용 (SAM2 제거)
+                    # V2 파이프라인: YOLOE-seg 마스크 직접 사용 (SAM2 완전 제거)
                     if obj.yolo_mask is not None:
                         mask_b64 = self._yolo_mask_to_base64(obj.yolo_mask)
                         obj.mask_base64 = mask_b64
                     else:
-                        # Fallback: SAM2 API 호출 (deprecated, YOLO 마스크 없는 경우에만)
-                        mask_b64 = await self.generate_mask(image, obj.center_point)
-                        obj.mask_base64 = mask_b64
+                        # YOLOE-seg 마스크 없으면 3D 생성 스킵
+                        print(f"[FurniturePipeline] No YOLOE-seg mask for {obj.label}, skipping 3D")
+                        obj.mask_base64 = None
 
                 if enable_3d and self.enable_3d_generation and obj.mask_base64:
                     gen_result = await self.generate_3d(image, obj.mask_base64)
@@ -510,15 +433,11 @@ class FurniturePipeline:
 
                             os.unlink(ply_path)
 
-            # 결과 집계
+            # 결과 집계 (상대 부피 사용 - 절대 부피는 백엔드에서 계산)
             result.objects = detected_objects
             result.total_volume_liters = sum(
-                o.absolute_dimensions.get("volume_liters", 0)
-                for o in detected_objects if o.absolute_dimensions
-            )
-            result.movable_volume_liters = sum(
-                o.absolute_dimensions.get("volume_liters", 0)
-                for o in detected_objects if o.absolute_dimensions and o.is_movable
+                o.relative_dimensions.get("volume", 0)
+                for o in detected_objects if o.relative_dimensions
             )
             result.status = "completed"
 
@@ -606,28 +525,174 @@ class FurniturePipeline:
 
         return processed_results
 
+    async def process_multiple_images_with_ids(
+        self,
+        image_items: List[Tuple[int, str]],
+        enable_mask: bool = True,
+        enable_3d: bool = True,
+        max_concurrent: Optional[int] = None
+    ) -> List[PipelineResult]:
+        """
+        여러 이미지를 사용자 지정 ID와 함께 GPU에 분배하여 병렬 처리합니다 (TDD Section 4.1).
+
+        Args:
+            image_items: [(user_image_id, url), ...] 형태의 이미지 목록
+            enable_mask: 마스크 활성화
+            enable_3d: 3D 생성 활성화
+            max_concurrent: 최대 동시 처리 수
+
+        Returns:
+            List[PipelineResult] - 각 결과에 user_image_id가 설정됨
+        """
+        # GPU 풀 가져오기
+        pool = self.gpu_pool or get_gpu_pool()
+
+        # max_concurrent가 None이면 GPU 수만큼 설정
+        if max_concurrent is None:
+            max_concurrent = len(pool.gpu_ids) if pool.gpu_ids else 3
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def process_with_gpu(user_image_id: int, url: str) -> PipelineResult:
+            """GPU를 할당받아 이미지 처리 - 사전 초기화된 파이프라인 사용"""
+            async with semaphore:
+                try:
+                    # 사전 초기화된 파이프라인이 있는지 확인
+                    if pool.has_pipeline(pool.gpu_ids[0] if pool.gpu_ids else 0):
+                        # 사전 초기화된 파이프라인 사용
+                        async with pool.pipeline_context(task_id=f"img_{user_image_id}") as (gpu_id, pipeline):
+                            print(f"[FurniturePipeline] Processing image {user_image_id} on GPU {gpu_id} (pre-initialized)")
+                            result = await pipeline.process_single_image(url, enable_mask, enable_3d)
+                            result.user_image_id = user_image_id
+                            return result
+                    else:
+                        # 사전 초기화가 안 된 경우 기존 방식 사용
+                        async with pool.gpu_context(task_id=f"img_{user_image_id}") as gpu_id:
+                            if self.device_id == gpu_id:
+                                result = await self.process_single_image(url, enable_mask, enable_3d)
+                            else:
+                                print(f"[FurniturePipeline] Warning: Creating new pipeline for GPU {gpu_id} (not pre-initialized)")
+                                pipeline = FurniturePipeline(
+                                    sam2_api_url=self.sam2_api_url,
+                                    enable_3d_generation=self.enable_3d_generation,
+                                    device_id=gpu_id,
+                                    gpu_pool=pool
+                                )
+                                result = await pipeline.process_single_image(url, enable_mask, enable_3d)
+                            result.user_image_id = user_image_id
+                            return result
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    return PipelineResult(
+                        image_id=str(uuid.uuid4()),
+                        image_url=url,
+                        status="failed",
+                        error=str(e),
+                        user_image_id=user_image_id
+                    )
+
+        tasks = [process_with_gpu(user_id, url) for user_id, url in image_items]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        processed_results = []
+        for i, r in enumerate(results):
+            if isinstance(r, Exception):
+                user_id, url = image_items[i]
+                processed_results.append(PipelineResult(
+                    image_id=str(uuid.uuid4()),
+                    image_url=url,
+                    status="failed",
+                    error=str(r),
+                    user_image_id=user_id
+                ))
+            else:
+                processed_results.append(r)
+
+        return processed_results
+
     def to_json_response(self, results: List[PipelineResult]) -> Dict:
-        """결과를 JSON 응답 형식으로 변환합니다."""
+        """
+        TDD 문서에 맞는 JSON 응답을 생성합니다 (단일 이미지용, 하위 호환성 유지).
+
+        Output format:
+        {
+            "objects": [
+                {
+                    "label": "box",
+                    "width": 30.5,      # mm
+                    "depth": 20.0,      # mm
+                    "height": 15.2,     # mm
+                    "volume": 0.00926   # m³
+                }
+            ]
+        }
+        """
         all_objects = []
 
         for result in results:
             for obj in result.objects:
-                obj_data = {
-                    "label": obj.label
-                }
+                if obj.relative_dimensions:
+                    dims = obj.relative_dimensions
+                    bbox = dims.get("bounding_box", {})
 
-                if obj.absolute_dimensions:
-                    dims = obj.absolute_dimensions
-                    obj_data.update({
-                        "width": dims.get("width", 0),
-                        "depth": dims.get("depth", 0),
-                        "height": dims.get("height", 0),
-                        "volume": dims.get("volume_m3", 0),
-                        "ratio": dims.get("ratio", {"w": 1, "h": 1, "d": 1})
+                    # VolumeCalculator returns normalized values (relative dimensions)
+                    # Absolute volume is calculated by backend using knowledge base
+                    volume = dims.get("volume", 0)
+
+                    all_objects.append({
+                        "label": obj.label,
+                        "width": round(bbox.get("width", 0), 2),
+                        "depth": round(bbox.get("depth", 0), 2),
+                        "height": round(bbox.get("height", 0), 2),
+                        "volume": round(volume, 6)
                     })
 
-                all_objects.append(obj_data)
+        return {"objects": all_objects}
 
-        return {
-            "objects": all_objects
+    def to_json_response_v2(self, results: List[PipelineResult]) -> Dict:
+        """
+        TDD 문서 Section 4.1에 맞는 JSON 응답을 생성합니다 (다중 이미지용).
+
+        Output format (TDD_PIPELINE_V2.md Section 4.1):
+        {
+            "results": [
+                {
+                    "image_id": 101,
+                    "objects": [
+                        {"label": "sofa", "width": 200.0, "depth": 90.0, "height": 85.0, "volume": 1.53},
+                        ...
+                    ]
+                },
+                ...
+            ]
         }
+        """
+        results_list = []
+
+        for result in results:
+            objects_list = []
+
+            for obj in result.objects:
+                if obj.relative_dimensions:
+                    dims = obj.relative_dimensions
+                    bbox = dims.get("bounding_box", {})
+
+                    # VolumeCalculator returns normalized values (relative dimensions)
+                    # Absolute volume is calculated by backend using knowledge base
+                    volume = dims.get("volume", 0)
+
+                    objects_list.append({
+                        "label": obj.label,
+                        "width": round(bbox.get("width", 0), 2),
+                        "depth": round(bbox.get("depth", 0), 2),
+                        "height": round(bbox.get("height", 0), 2),
+                        "volume": round(volume, 6)
+                    })
+
+            results_list.append({
+                "image_id": result.user_image_id,
+                "objects": objects_list
+            })
+
+        return {"results": results_list}
