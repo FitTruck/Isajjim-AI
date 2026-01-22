@@ -48,12 +48,10 @@ class TestVolumeCalculatorWithRealPly:
             assert result is not None, f"Failed to calculate volume for {ply_file.name}"
             assert "volume" in result
             assert "bounding_box" in result
-            assert "ratio" in result
             assert "centroid" in result
 
             print(f"  Volume: {result['volume']:.6f}")
             print(f"  Bounding box: {result['bounding_box']}")
-            print(f"  Ratio: {result['ratio']}")
             print(f"  Centroid: {result['centroid']}")
 
     def test_ply_dimensions_are_positive(self, volume_calculator):
@@ -69,20 +67,6 @@ class TestVolumeCalculatorWithRealPly:
         assert result["bounding_box"]["width"] >= 0
         assert result["bounding_box"]["depth"] >= 0
         assert result["bounding_box"]["height"] >= 0
-
-    def test_ply_ratio_normalized(self, volume_calculator):
-        """PLY 비율이 정규화되었는지 확인 (최대값 1)"""
-        ply_files = list(QA_ASSETS_DIR.glob("*.ply"))
-        if not ply_files:
-            pytest.skip("No PLY files found")
-
-        ply_file = ply_files[0]
-        result = volume_calculator.calculate_from_ply(str(ply_file))
-
-        assert result is not None
-        ratio = result["ratio"]
-        max_ratio = max(ratio["w"], ratio["h"], ratio["d"])
-        assert max_ratio == pytest.approx(1.0, abs=0.01), f"Max ratio should be ~1.0, got {max_ratio}"
 
 
 class TestVolumeCalculatorWithRealGlb:
@@ -108,11 +92,9 @@ class TestVolumeCalculatorWithRealGlb:
             assert result is not None, f"Failed to calculate volume for {glb_file.name}"
             assert "volume" in result
             assert "bounding_box" in result
-            assert "ratio" in result
 
             print(f"  Volume: {result['volume']:.6f}")
             print(f"  Bounding box: {result['bounding_box']}")
-            print(f"  Ratio: {result['ratio']}")
 
     def test_glb_has_surface_area(self, volume_calculator):
         """GLB 표면적 계산"""

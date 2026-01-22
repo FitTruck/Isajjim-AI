@@ -11,10 +11,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from api.config import ASSETS_DIR
-from api.services.sam2 import initialize_model
 from api.routes import (
     health_router,
-    segment_router,
     generate_3d_router,
     furniture_router,
 )
@@ -26,8 +24,8 @@ if ai_path not in sys.path:
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="SAM 2 Image Segmentation API",
-    description="Segment objects in images using Segment Anything Model 2 (Hugging Face)",
+    title="SAM-3D Furniture Analysis API",
+    description="YOLOE-seg detection + SAM-3D 3D generation for furniture analysis",
     version="2.0.0",
 )
 
@@ -36,16 +34,13 @@ app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 # Include routers
 app.include_router(health_router, tags=["Health"])
-app.include_router(segment_router, tags=["Segmentation"])
 app.include_router(generate_3d_router, tags=["3D Generation"])
 app.include_router(furniture_router, tags=["Furniture Analysis"])
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize models and GPU pool on API startup"""
-    initialize_model()
-
+    """Initialize GPU pool on API startup"""
     # Initialize GPU pool for YOLOE detection
     try:
         from ai.gpu import initialize_gpu_pool

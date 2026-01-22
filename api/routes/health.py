@@ -9,7 +9,6 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from api.config import device
-from api.services.sam2 import is_model_loaded
 
 router = APIRouter()
 
@@ -19,9 +18,7 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "model_loaded": is_model_loaded(),
         "device": str(device),
-        "model": "facebook/sam2.1-hiera-large",
     }
 
 

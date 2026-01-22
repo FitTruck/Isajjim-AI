@@ -83,21 +83,6 @@ class TestCalculateFromPoints:
         assert result["bounding_box"]["height"] == pytest.approx(4.0)
         assert result["volume"] == pytest.approx(24.0)
 
-    def test_ratio_normalized(self):
-        """비율이 정규화되는지 확인"""
-        calc = VolumeCalculator()
-        # 1x2x4 직육면체 (가장 큰 값이 4)
-        points = np.array([
-            [0, 0, 0], [1, 0, 0], [0, 2, 0], [1, 2, 0],
-            [0, 0, 4], [1, 0, 4], [0, 2, 4], [1, 2, 4]
-        ], dtype=float)
-        result = calc._calculate_from_points(points)
-
-        # 가장 큰 값(height=4)을 1로 정규화
-        assert result["ratio"]["h"] == pytest.approx(1.0)
-        assert result["ratio"]["w"] == pytest.approx(0.25)
-        assert result["ratio"]["d"] == pytest.approx(0.5)
-
     def test_centroid_calculation(self):
         """중심점 계산"""
         calc = VolumeCalculator()
@@ -174,7 +159,6 @@ end_header
             if result is not None:  # trimesh가 설치된 경우
                 assert "volume" in result
                 assert "bounding_box" in result
-                assert "ratio" in result
                 assert "centroid" in result
         finally:
             os.unlink(ply_path)
@@ -341,10 +325,8 @@ class TestAnalyzeMesh:
 
         result = calc._analyze_mesh(mock_mesh)
 
-        # 0으로 나누기 방지
-        assert result["ratio"]["w"] == pytest.approx(0.0)
-        assert result["ratio"]["h"] == pytest.approx(0.0)
-        assert result["ratio"]["d"] == pytest.approx(0.0)
+        # 0 크기 메시도 처리 가능
+        assert result["volume"] == pytest.approx(0.0)
 
 
 class TestResultStructure:
@@ -363,10 +345,6 @@ class TestResultStructure:
         assert "width" in result["bounding_box"]
         assert "depth" in result["bounding_box"]
         assert "height" in result["bounding_box"]
-        assert "ratio" in result
-        assert "w" in result["ratio"]
-        assert "h" in result["ratio"]
-        assert "d" in result["ratio"]
         assert "centroid" in result
         assert "surface_area" in result
 
@@ -380,6 +358,5 @@ class TestResultStructure:
 
         assert isinstance(result["volume"], (int, float))
         assert isinstance(result["bounding_box"]["width"], (int, float))
-        assert isinstance(result["ratio"]["w"], (int, float))
         assert isinstance(result["centroid"], list)
         assert len(result["centroid"]) == 3

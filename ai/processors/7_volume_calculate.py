@@ -41,9 +41,8 @@ class VolumeCalculator:
 
         Returns:
             {
-                "volume": float (mm^3),
+                "volume": float,
                 "bounding_box": {"width": float, "depth": float, "height": float},
-                "ratio": {"w": float, "h": float, "d": float},
                 "centroid": [x, y, z],
                 "surface_area": float
             }
@@ -174,17 +173,6 @@ class VolumeCalculator:
             # fallback: bounding box 부피
             volume = width * depth * height
 
-        # 비율 계산 (가장 큰 값을 1로 정규화)
-        max_dim = max(width, height, depth)
-        if max_dim == 0:
-            max_dim = 1
-
-        ratio = {
-            "w": width / max_dim,
-            "h": height / max_dim,
-            "d": depth / max_dim
-        }
-
         # 중심점 계산
         centroid = mesh.centroid.tolist() if hasattr(mesh, 'centroid') else [0, 0, 0]
 
@@ -201,7 +189,6 @@ class VolumeCalculator:
                 "depth": depth,
                 "height": height
             },
-            "ratio": ratio,
             "centroid": centroid,
             "surface_area": surface_area
         }
@@ -214,7 +201,6 @@ class VolumeCalculator:
             return {
                 "volume": 0,
                 "bounding_box": {"width": 0, "depth": 0, "height": 0},
-                "ratio": {"w": 1, "h": 1, "d": 1},
                 "centroid": [0, 0, 0],
                 "surface_area": 0
             }
@@ -230,23 +216,11 @@ class VolumeCalculator:
         # Bounding box 부피
         volume = width * depth * height
 
-        # 비율 정규화
-        max_dim = max(width, height, depth)
-        if max_dim == 0:
-            max_dim = 1
-
-        ratio = {
-            "w": width / max_dim,
-            "h": height / max_dim,
-            "d": depth / max_dim
-        }
-
         centroid = points.mean(axis=0).tolist()
 
         return {
             "volume": volume,
             "bounding_box": {"width": width, "depth": depth, "height": height},
-            "ratio": ratio,
             "centroid": centroid,
             "surface_area": 0
         }

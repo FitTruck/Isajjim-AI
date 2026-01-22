@@ -2,30 +2,8 @@
 Pydantic Request/Response Models
 """
 
-from typing import List, Dict, Optional
+from typing import List
 from pydantic import BaseModel
-
-
-# ============================================================================
-# Segment Models
-# ============================================================================
-
-class SegmentRequest(BaseModel):
-    """Single point segmentation request"""
-    image: str  # base64 encoded image
-    x: float
-    y: float
-    multimask_output: bool = True
-    mask_threshold: float = 0.0
-    invert_mask: bool = False
-
-
-class SegmentBinaryRequest(BaseModel):
-    """Multi-point segmentation request"""
-    image: str  # base64 encoded image
-    points: List[Dict[str, float]]  # [{"x": float, "y": float}, ...]
-    previous_mask: Optional[str] = None  # base64 PNG
-    mask_threshold: float = 0.0
 
 
 # ============================================================================
