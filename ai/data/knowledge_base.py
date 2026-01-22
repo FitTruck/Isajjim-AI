@@ -3,11 +3,17 @@ Furniture Knowledge Base
 
 YOLO 클래스 매핑 + 한국어 라벨 + 프롬프트 저장용 정적 DB
 
-V2 파이프라인에서 단순화:
-- is_movable 제거 (모든 탐지 객체는 이동 대상)
-- dimensions 제거 (절대 부피는 백엔드에서 계산)
-- check_strategy 제거
+DeCl_v2 기반으로 업데이트됨:
+- min_confidence: 최소 신뢰도 임계값 (일부 카테고리)
+- subtypes: 세부 유형 프롬프트
 """
+
+from typing import Optional, List, Dict
+
+
+# =============================================================================
+# Furniture Database
+# =============================================================================
 
 FURNITURE_DB = {
     "air conditioner": {
@@ -30,16 +36,23 @@ FURNITURE_DB = {
     },
     "kitchen cabinet": {
         "synonyms": ["cupboard", "dish cupboard", "dish cabinet", "kitchen cupboard", "pantry cabinet", "wall cabinet", "overhead storage", "kitchen cabinet", "kitchen storage", "white cabinet", "black cabinet", "gray cabinet", "brown cabinet"],
-        "base_name": "찬장/수납장",
-        "content_labels": ["dish", "bowl", "plate", "cup", "wine glass", "coffee mug", "dish", "pot", "bottle"]
+        "base_name": "찬장",
+    },
+    "drawer": {
+        "synonyms": ["drawer", "chest of drawers", "dresser", "drawer unit", "brown drawer", "wooden drawer", "low chest of drawers", "low chest"],
+        "base_name": "서랍장",
+    },
+    "nightstand": {
+        "synonyms": ["nightstand", "bedside table", "bedside cabinet", "night table", "bedside drawer", "wooden nightstand", "brown nightstand", "brown cabinet", "oak nightstand", "oak cabinet", "bedside chest"],
+        "base_name": "협탁",
+        "min_confidence": 0.5
     },
     "bookshelf": {
         "synonyms": ["bookshelf", "bookcase", "library shelf"],
         "base_name": "책장",
-        "content_labels": ["book", "magazine collection", "file binder"]
     },
     "display shelf": {
-        "synonyms": ["display shelf", "open shelf", "minimalist rack", "metal frame shelf", "open display stand", "tiered display stand", "slim metal rack", "thin display rack", "floor shelf", "metal shelf", "minimalist shelf"],
+        "synonyms": ["close shelf", "wooden shelf", "display shelf", "open shelf", "minimalist rack", "metal frame shelf", "open display stand", "tiered display stand", "slim metal rack", "thin display rack", "floor shelf", "metal shelf", "minimalist shelf"],
         "base_name": "전시대/선반",
         "subtypes": [
             {
@@ -150,31 +163,9 @@ FURNITURE_DB = {
             }
         ]
     },
-    "tv": {
-        "synonyms": ["television", "tv", "flat screen tv"],
-        "base_name": "TV",
-        "subtypes": [
-            {
-                "name": "32인치 TV",
-                "prompt": "a small 32 inch flat screen television"
-            },
-            {
-                "name": "43인치 TV",
-                "prompt": "a medium 43 inch flat screen television"
-            },
-            {
-                "name": "55인치 TV",
-                "prompt": "a large 55 inch flat screen television"
-            },
-            {
-                "name": "65인치 TV",
-                "prompt": "an extra large 65 inch flat screen television"
-            },
-            {
-                "name": "75인치 TV",
-                "prompt": "a huge 75 inch flat screen television"
-            }
-        ]
+    "monitor": {
+        "synonyms": ["monitor", "computer monitor", "pc monitor", "desktop monitor", "lcd monitor", "computer screen", "display monitor", "television", "tv", "flat screen tv", "wall mounted tv", "large screen tv"],
+        "base_name": "모니터/TV"
     },
     "desk": {
         "synonyms": ["desk", "office desk", "computer desk", "writing desk"],
@@ -226,134 +217,80 @@ FURNITURE_DB = {
         "synonyms": ["dryer", "clothes dryer", "tumble dryer"],
         "base_name": "건조기"
     },
-    "box": {
-        "synonyms": ["box", "cardboard box", "moving box", "carton"],
-        "base_name": "박스"
-    },
-    "drawer": {
-        "synonyms": ["drawer", "chest of drawers", "dresser", "drawer unit"],
-        "base_name": "서랍장"
-    },
-    "mirror": {
-        "synonyms": ["mirror", "full length mirror", "wall mirror", "standing mirror"],
-        "base_name": "거울"
-    },
-    "microwave": {
-        "synonyms": ["microwave", "microwave oven"],
-        "base_name": "전자레인지"
-    },
-    "picture frame": {
-        "synonyms": ["picture frame", "painting on the wall", "framed art", "walldecor", "artwork"],
-        "base_name": "그림/액자"
-    },
-    "rug": {
-        "synonyms": ["rug", "carpet", "floor mat", "fabric rug", "textile floor covering"],
-        "base_name": "카펫/러그"
-    },
-    "cushion": {
-        "synonyms": ["sofa cushion", "decorative cushion", "scatter cushion", "backrest cushion", "sofa pillow"],
-        "base_name": "쿠션",
-        "subtypes": [
-            {
-                "name": "소파 쿠션",
-                "prompt": "a square-shaped decorative cushion or pillow on a sofa or armchair"
-            }
-        ]
-    },
-    "pillow": {
-        "synonyms": ["sleeping pillow", "bed pillow", "head pillow"],
-        "base_name": "베개",
-        "subtypes": [
-            {
-                "name": "취침용 베개",
-                "prompt": "a rectangular sleeping pillow on a bed with a pillowcase"
-            }
-        ]
-    },
     "floor": {
         "synonyms": ["wood grain floor", "hardwood flooring with patterns", "tiled floor", "solid floor texture"],
         "base_name": "바닥"
-    },
-    "candlestick": {
-        "synonyms": ["candlestick", "candle holder", "candelabra"],
-        "base_name": "촛대"
     },
     "potted plant": {
         "synonyms": ["potted plant", "flower pot", "houseplant", "indoor plant", "vase with flowers"],
         "base_name": "화분/식물"
     },
-    "curtain": {
-        "synonyms": ["curtain", "drapes", "window blind", "window cover", "sheer fabric"],
-        "base_name": "커튼",
+    "kimchi refrigerator": {
+        "synonyms": ["kimchi refrigerator", "kimchi fridge", "secondary fridge", "small refrigerator"],
+        "base_name": "김치냉장고"
+    },
+    "vanity table": {
+        "synonyms": ["vanity table", "dressing table", "makeup table", "vanity desk", "vanity mirror table"],
+        "base_name": "화장대",
         "subtypes": [
             {
-                "name": "일반 커튼",
-                "prompt": "a standard fabric window curtain"
+                "name": "거울 화장대",
+                "prompt": "a vanity table with attached mirror"
             },
             {
-                "name": "얇은 커튼",
-                "prompt": "a thin translucent sheer white curtain with light shining through"
-            },
-            {
-                "name": "무늬 있는 커튼",
-                "prompt": "a decorative window curtain with floral, stripes, or geometric patterns, colorful printed fabric drapes"
+                "name": "콘솔 화장대",
+                "prompt": "a simple console vanity table without mirror"
             }
         ]
     },
-    "seasoning container": {
-        "synonyms": ["seasoning container", "spice jar", "spice container", "condiment container", "seasoning jar", "spice rack container", "kitchen container", "food storage container", "airtight container", "clear container", "plastic container", "storage jar", "pantry container", "cereal container", "grain container", "dry food container"],
-        "base_name": "조미료통/반찬통"
-    },
-    "side dish container": {
-        "synonyms": ["side dish container", "banchan container", "food storage box", "rectangular food container", "meal prep container", "leftover container", "refrigerator container", "stackable container", "glass container", "plastic food box"],
-        "base_name": "반찬통"
-    },
-    "pot": {
-        "synonyms": ["pot", "cooking pot", "stock pot", "sauce pot", "stew pot", "soup pot", "dutch oven", "casserole pot", "ceramic pot", "enamel pot", "white pot", "kitchen pot", "two handle pot", "double handle pot", "lidded pot"],
-        "base_name": "냄비",
+    "tv stand": {
+        "synonyms": ["tv stand", "tv console", "media console", "entertainment center", "tv cabinet", "tv unit"],
+        "base_name": "TV 거치대",
         "subtypes": [
             {
-                "name": "양수 냄비",
-                "prompt": "a cooking pot with two side handles and a lid"
+                "name": "벽걸이 TV 거치대",
+                "prompt": "a wall mounted tv bracket"
             },
             {
-                "name": "편수 냄비",
-                "prompt": "a sauce pot with a single long handle"
+                "name": "TV 장식장",
+                "prompt": "a large tv entertainment center with storage"
             },
             {
-                "name": "압력솥",
-                "prompt": "a pressure cooker pot with locking lid"
+                "name": "낮은 TV 받침대",
+                "prompt": "a low tv stand console table"
             }
         ]
     },
-    "frying pan": {
-        "synonyms": ["frying pan", "skillet", "saute pan", "wok", "griddle pan", "non-stick pan", "cast iron pan", "cooking pan"],
-        "base_name": "프라이팬"
+    "piano": {
+        "synonyms": ["piano", "upright piano", "grand piano", "digital piano", "keyboard piano"],
+        "base_name": "피아노",
+        "subtypes": [
+            {
+                "name": "업라이트 피아노",
+                "prompt": "an upright vertical piano against a wall"
+            },
+            {
+                "name": "그랜드 피아노",
+                "prompt": "a grand piano with horizontal strings"
+            },
+            {
+                "name": "디지털 피아노",
+                "prompt": "a digital electric piano on a stand"
+            }
+        ]
     },
-    "tissue box": {
-        "synonyms": ["tissue box", "tissue paper box", "kleenex box", "facial tissue box", "paper tissue holder", "tissue dispenser", "rectangular tissue box", "tissue container"],
-        "base_name": "휴지곽"
+    "massage chair": {
+        "synonyms": ["massage chair", "recliner massage chair", "electric massage chair"],
+        "base_name": "안마의자"
     },
-    "toilet paper": {
-        "synonyms": ["toilet paper", "toilet roll", "bathroom tissue", "toilet tissue roll", "paper roll", "rolled paper"],
-        "base_name": "두루마리 휴지"
+    "treadmill": {
+        "synonyms": ["treadmill", "running machine", "exercise treadmill"],
+        "base_name": "러닝머신"
     },
-    "paper towel": {
-        "synonyms": ["paper towel", "kitchen towel", "kitchen paper", "paper towel roll", "kitchen roll", "absorbent paper"],
-        "base_name": "키친타올"
+    "exercise bike": {
+        "synonyms": ["exercise bike", "stationary bike", "spin bike", "indoor cycling bike"],
+        "base_name": "실내자전거"
     },
-    "plate": {
-        "synonyms": ["plate", "dinner plate", "serving plate", "dish plate", "ceramic plate", "flat plate", "round plate", "white plate", "porcelain plate", "food plate", "meal plate"],
-        "base_name": "접시"
-    },
-    "bowl": {
-        "synonyms": ["bowl", "soup bowl", "rice bowl", "cereal bowl", "salad bowl", "mixing bowl", "serving bowl", "ceramic bowl", "deep bowl", "round bowl"],
-        "base_name": "그릇/볼"
-    },
-    "cup": {
-        "synonyms": ["cup", "mug", "coffee cup", "tea cup", "drinking cup", "ceramic cup", "glass cup", "tumbler"],
-        "base_name": "컵/머그"
-    }
 }
 
 
@@ -361,7 +298,7 @@ FURNITURE_DB = {
 # Helper Functions
 # =============================================================================
 
-def get_db_key_from_label(label: str) -> str | None:
+def get_db_key_from_label(label: str) -> Optional[str]:
     """
     YOLO 라벨에서 DB 키를 찾습니다.
 
@@ -393,7 +330,7 @@ def get_base_name(db_key: str) -> str:
     return db_key
 
 
-def get_subtypes(db_key: str) -> list:
+def get_subtypes(db_key: str) -> List[Dict]:
     """
     특정 가구의 서브타입 목록을 가져옵니다.
 
@@ -408,24 +345,47 @@ def get_subtypes(db_key: str) -> list:
     return []
 
 
-def get_content_labels(db_key: str) -> list:
+def get_min_confidence(db_key: str) -> Optional[float]:
     """
-    내용물 탐지용 라벨 목록을 가져옵니다.
+    DB 키에서 최소 신뢰도 임계값을 가져옵니다.
 
     Args:
         db_key: DB 키
 
     Returns:
-        내용물 라벨 리스트
+        min_confidence 값 또는 None (설정되지 않은 경우)
     """
     if db_key in FURNITURE_DB:
-        return FURNITURE_DB[db_key].get("content_labels", [])
-    return []
+        return FURNITURE_DB[db_key].get("min_confidence")
+    return None
+
+
+def get_all_synonyms() -> List[str]:
+    """
+    모든 카테고리의 동의어 목록을 반환합니다.
+
+    Returns:
+        모든 동의어 리스트
+    """
+    synonyms = []
+    for info in FURNITURE_DB.values():
+        synonyms.extend(info.get("synonyms", []))
+    return synonyms
 
 
 # =============================================================================
 # Deprecated Functions (하위 호환성 유지)
 # =============================================================================
+
+def get_content_labels(db_key: str) -> list:
+    """
+    [DEPRECATED] 내용물 탐지용 라벨 목록을 가져옵니다.
+
+    V2 파이프라인에서는 content_labels가 제거되었습니다.
+    이 함수는 하위 호환성을 위해 유지되며 빈 리스트를 반환합니다.
+    """
+    return []
+
 
 def is_movable(db_key: str) -> bool:
     """
@@ -437,7 +397,7 @@ def is_movable(db_key: str) -> bool:
     return True
 
 
-def get_dimensions(db_key: str) -> dict | None:
+def get_dimensions(db_key: str) -> Optional[dict]:
     """
     [DEPRECATED] dimensions는 V2 파이프라인에서 제거되었습니다.
 
@@ -447,7 +407,7 @@ def get_dimensions(db_key: str) -> dict | None:
     return None
 
 
-def get_dimensions_for_subtype(db_key: str, subtype_name: str) -> dict | None:  # noqa: ARG001
+def get_dimensions_for_subtype(db_key: str, subtype_name: str) -> Optional[dict]:  # noqa: ARG001
     """
     [DEPRECATED] dimensions는 V2 파이프라인에서 제거되었습니다.
 
