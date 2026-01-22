@@ -1,0 +1,243 @@
+{
+  "comparison": [
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "\ucc45\uc0c1",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 2.8383324543722845
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "Pillow",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 10.329030750949892
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "\uc758\uc790/\uc2a4\ud234",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 0.055379570474599266
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "Lamp",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 99.58400163520452
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "Pillow",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 7.700935773068168
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "\uc758\uc790/\uc2a4\ud234",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 4.299895218145979
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "\uce74\ud3ab/\ub7ec\uadf8",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 37.158588234245244
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "Nightstand",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 5.386542497161398
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "Monitor/TV",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 2.66562349521106
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "\uce68\ub300",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 7.307658646944031
+    },
+    {
+      "image": "bed-1834327_1920.jpg",
+      "label": "Pillow",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 575.3464066082923
+    },
+    {
+      "image": "test8.jpg",
+      "label": "\uc5d0\uc5b4\ucee8",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 5.007199681311264
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Coffee Table",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 4.11570868525576
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Pillow",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 2.535742058066786
+    },
+    {
+      "image": "test8.jpg",
+      "label": "\uc5d0\uc5b4\ucee8",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 3.518571377402222
+    },
+    {
+      "image": "test8.jpg",
+      "label": "\uce68\ub300",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 20.99229125738777
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Cabinet/shelf",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 6.457476926353886
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Coffee Table",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 6.0975012026940565
+    },
+    {
+      "image": "test8.jpg",
+      "label": "\uc804\uc790\ub808\uc778\uc9c0",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 16.76205320878067
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Pillow",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 38.72270913986545
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Printer",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 3.8605410035629046
+    },
+    {
+      "image": "test8.jpg",
+      "label": "\uc758\uc790/\uc2a4\ud234",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 4.956330810336166
+    },
+    {
+      "image": "test8.jpg",
+      "label": "\uce74\ud3ab/\ub7ec\uadf8",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 31.591616027494663
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Vase",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 3.5098537985050844
+    },
+    {
+      "image": "test8.jpg",
+      "label": "\uce74\ud3ab/\ub7ec\uadf8",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 10.128964482177782
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Vase",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 24.193258283368362
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Pillow",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 18.6360119242839
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Kettle",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 4.106315842632236
+    },
+    {
+      "image": "test8.jpg",
+      "label": "Cabinet/shelf",
+      "width_diff_pct": 0.0,
+      "depth_diff_pct": 0.0,
+      "height_diff_pct": 0.0,
+      "volume_diff_pct": 40.35259347442506
+    }
+  ],
+  "summary": {
+    "avg_width_diff": 0.0,
+    "avg_depth_diff": 0.0,
+    "avg_height_diff": 0.0,
+    "avg_volume_diff": 34.421280485102535
+  },
+  "passed": false
+}

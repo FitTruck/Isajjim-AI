@@ -46,7 +46,7 @@ async def startup_event():
     """Initialize models and GPU pool on API startup"""
     initialize_model()
 
-    # Initialize GPU pool
+    # Initialize GPU pool for YOLOE detection
     try:
         from ai.gpu import initialize_gpu_pool
         from ai.config import Config
@@ -55,7 +55,7 @@ async def startup_event():
         pool = initialize_gpu_pool(gpu_ids)
         print(f"GPU pool initialized with {len(gpu_ids)} GPUs: {gpu_ids}")
 
-        # Pre-initialize pipelines per GPU
+        # Pre-initialize pipelines per GPU (YOLOE detection)
         try:
             from ai.pipeline import FurniturePipeline
 
@@ -76,3 +76,30 @@ async def startup_event():
 
     except Exception as e:
         print(f"GPU pool initialization failed (will use default): {e}")
+
+    # Initialize SAM3D Worker Pool (Persistent Workers for 3D generation)
+    try:
+        from ai.gpu import initialize_sam3d_worker_pool
+        from ai.config import Config
+
+        gpu_ids = Config.get_available_gpus()
+        print(f"Initializing SAM3D Worker Pool with {len(gpu_ids)} GPUs...")
+        sam3d_pool = await initialize_sam3d_worker_pool(gpu_ids)
+        print(f"SAM3D Worker Pool ready: {sam3d_pool.get_status()}")
+
+    except Exception as e:
+        print(f"SAM3D Worker Pool initialization failed (will use subprocess): {e}")
+        import traceback
+        traceback.print_exc()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on API shutdown"""
+    # Shutdown SAM3D Worker Pool
+    try:
+        from ai.gpu import shutdown_sam3d_worker_pool
+        await shutdown_sam3d_worker_pool()
+        print("SAM3D Worker Pool shutdown complete")
+    except Exception as e:
+        print(f"SAM3D Worker Pool shutdown error: {e}")

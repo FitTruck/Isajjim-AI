@@ -25,10 +25,41 @@ V2 파이프라인에서는 **YOLOE-seg 마스크를 SAM-3D에 직접 전달**�
 ### Process Isolation Pattern
 
 Uses **subprocess isolation** to prevent GPU/spconv state conflicts:
-- `api.py` - Main FastAPI server (YOLOE + GPU pool + 3D task management)
-- `ai/subprocess/generate_3d_worker.py` - Isolated subprocess for Sam-3d-objects 3D generation
+- `api/app.py` - Main FastAPI server (YOLOE + GPU pool + 3D task management)
+- `ai/subprocess/persistent_3d_worker.py` - Persistent Worker Process for Sam-3d-objects 3D generation
 
 This isolation is **essential** because spconv maintains persistent GPU state, and loading models in the same process causes conflicts.
+
+### Persistent Worker Pool Architecture (2026-01 Update)
+
+SAM-3D 3D 생성을 위한 **Persistent Worker Pool** 패턴:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      SAM3DWorkerPool                                 │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │                    Worker Processes                          │    │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │    │
+│  │  │ Worker 0 │  │ Worker 1 │  │ Worker 2 │  │ Worker 7 │    │    │
+│  │  │  GPU 0   │  │  GPU 1   │  │  GPU 2   │  │  GPU 7   │    │    │
+│  │  │ (SAM-3D) │  │ (SAM-3D) │  │ (SAM-3D) │  │ (SAM-3D) │    │    │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                              │                                       │
+│              Round-robin task distribution via stdin/stdout          │
+│                              ▼                                       │
+│         ┌───────────────────────────────────────────┐               │
+│         │      submit_tasks_parallel()              │               │
+│         │  obj1→Worker0, obj2→Worker1, ...          │               │
+│         └───────────────────────────────────────────┘               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Features:**
+- **Model pre-loading**: 워커 시작 시 SAM-3D 모델 1회 로드
+- **JSON protocol**: stdin/stdout으로 JSON 메시지 교환
+- **Parallel processing**: 여러 객체를 동시에 다른 GPU에서 처리
+- **Auto-restart**: 워커 프로세스 종료 시 자동 재시작
 
 ### Multi-GPU Parallel Processing Architecture
 
@@ -63,34 +94,45 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 
 ### Core Components
 
-1. **Main API (`api.py`)**
+1. **Main API (`api/app.py`)**
    - FastAPI server with YOLOE-seg pipelines
    - Initializes GPU pool and pre-initializes pipelines at startup
-   - Manages async 3D generation tasks via background workers
+   - Initializes SAM3D Worker Pool for persistent 3D generation
    - Serves static assets (PLY, GIF, GLB) at /assets endpoint
 
 2. **GPU Pool Manager (`ai/gpu/gpu_pool_manager.py`)**
-   - GPUPoolManager class: Manages GPU resource pool
+   - GPUPoolManager class: Manages GPU resource pool for YOLOE detection
    - Round-robin GPU allocation (acquire/release)
    - GPU health check and automatic failover
    - Pipeline pre-initialization and registry management
    - gpu_context/pipeline_context async context managers
 
-3. **3D Generation Subprocess (`ai/subprocess/generate_3d_worker.py`)**
-   - Fresh Python process for each 3D generation task
-   - Loads Sam-3d-objects pipeline independently
-   - Gaussian splat generation, rotating GIF rendering, GLB mesh export
-   - Uses synthetic pinhole pointmaps to prevent intrinsics recovery failure
-   - Post-processes PLY files by adding RGB colors from spherical harmonics
+3. **SAM3D Worker Pool (`ai/gpu/sam3d_worker_pool.py`)**
+   - SAM3DWorkerPool class: GPU당 하나의 persistent 워커 프로세스 관리
+   - 모델 1회 로드 후 재사용 (모델 로딩 오버헤드 제거)
+   - 라운드로빈 작업 분배
+   - JSON 기반 stdin/stdout 통신 프로토콜
+   - submit_tasks_parallel(): 여러 작업 동시 제출
 
-4. **Furniture Analysis Pipeline (`ai/pipeline/furniture_pipeline.py`)**
+4. **Persistent 3D Worker (`ai/subprocess/persistent_3d_worker.py`)**
+   - GPU별 독립 프로세스로 SAM-3D 모델 실행
+   - 성능 최적화 설정 포함 (다운샘플링, inference steps, binary PLY)
+   - Synthetic pinhole pointmap으로 intrinsics 문제 방지
+   - SH coefficients에서 RGB 추출하여 PLY 후처리
+
+5. **Worker Protocol (`ai/subprocess/worker_protocol.py`)**
+   - TaskMessage, ResultMessage, InitMessage, HeartbeatMessage 정의
+   - JSON 기반 메시지 직렬화/역직렬화
+   - 워커-풀 매니저 간 통신 규약
+
+6. **Furniture Analysis Pipeline (`ai/pipeline/furniture_pipeline.py`)**
    - FurniturePipeline class: Full AI logic orchestrator
+   - _parallel_3d_generation(): Worker Pool을 통한 병렬 3D 생성
    - device_id parameter for running on specific GPU
    - gpu_pool parameter for Multi-GPU parallel processing support
-   - process_multiple_images: Parallel image processing from GPU pool
    - **CLIP/SAHI 제거** - YOLOE 클래스로 직접 DB 매칭
 
-5. **AI Processors (`ai/processors/`)**
+7. **AI Processors (`ai/processors/`)**
    - Furniture detection using YOLOE-seg (Objects365 기반 365 classes)
    - Korean language interface for moving services
    - Furniture dimension Knowledge Base for volume calculation
@@ -110,9 +152,30 @@ These paths are hardcoded in both `api.py` and `ai/subprocess/generate_3d_worker
 - `SPCONV_TUNE_DEVICE=0`
 - `SPCONV_ALGO_TIME_LIMIT=100` (prevents infinite tuning)
 - `OMP_NUM_THREADS=4` (prevents thread explosion)
+- `OPENBLAS_NUM_THREADS=4`, `MKL_NUM_THREADS=4`, `VECLIB_MAXIMUM_THREADS=4`, `NUMEXPR_NUM_THREADS=4`
 - `PYTORCH_ENABLE_MPS_FALLBACK=1` (macOS compatibility)
 
-These are set at the top of `api.py` and `ai/subprocess/generate_3d_worker.py` before any imports.
+These are set at the top of `api/app.py` and `ai/subprocess/persistent_3d_worker.py` before any imports.
+
+### Performance Optimization Configuration
+
+`ai/subprocess/persistent_3d_worker.py`에서 성능 최적화 설정:
+
+```python
+# Phase 1: 이미지 다운샘플링 (None = 비활성화)
+MAX_IMAGE_SIZE = None  # 부피 정확도 유지 (다운샘플링이 91.7% 영향)
+
+# Phase 2: Inference Steps (8 = 속도, 12 = 품질)
+STAGE2_INFERENCE_STEPS = 8  # ~15-20% 속도 향상, ~4% 부피 오차
+
+# Phase 3: PLY 형식 (True = Binary)
+USE_BINARY_PLY = True  # ~70% 파일 크기 감소, ~50% I/O 속도 향상
+```
+
+**성능 테스트 결과 (8 GPU, 8 이미지, 101 객체):**
+- 총 시간: ~3분 47초 (226초)
+- 객체당 평균: 2.24초
+- 부피 정확도: ~4% 오차 이내
 
 ### Task Storage Pattern
 
@@ -248,6 +311,19 @@ curl http://localhost:8000/gpu-status
 
 ## 3D Generation Pipeline
 
+### Persistent Worker Pool 방식 (권장, /analyze-furniture 사용)
+
+1. 서버 시작 시 SAM3DWorkerPool 초기화 (GPU당 1개 워커 프로세스)
+2. 각 워커는 SAM-3D 모델을 1회 로드하고 대기
+3. FurniturePipeline._parallel_3d_generation() 호출:
+   - 이미지와 마스크를 base64로 인코딩
+   - TaskMessage를 JSON으로 워커에 전송 (stdin)
+   - 워커가 3D 생성 후 ResultMessage 반환 (stdout)
+   - PLY base64를 받아서 부피 계산
+4. 여러 객체가 있으면 다른 워커에 병렬 분배
+
+### Legacy Subprocess 방식 (POST /generate-3d 직접 호출)
+
 1. Client sends image + mask to POST /generate-3d
 2. API generates task_id and starts background worker
 3. Background worker runs generate_3d_worker.py in a new process
@@ -255,7 +331,7 @@ curl http://localhost:8000/gpu-status
    - Loads Sam-3d-objects pipeline with fixed config path
    - Creates synthetic pinhole pointmap (avoids MoGe intrinsics failure)
    - Runs pipeline with decode_formats=["gaussian", "glb", "mesh"]
-   - Renders 360° rotating GIF using render_video()
+   - Renders 360 rotating GIF using render_video()
    - Exports PLY with RGB colors added from SH coefficients
    - Attempts textured GLB export via to_glb() or native pipeline output
    - Saves files with metadata to assets/ folder
@@ -347,7 +423,10 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 
 ### Key Components
 - `ai/pipeline/furniture_pipeline.py` - Main pipeline orchestrator
-- `ai/gpu/gpu_pool_manager.py` - Multi-GPU pool manager
+- `ai/gpu/gpu_pool_manager.py` - YOLOE Multi-GPU pool manager
+- `ai/gpu/sam3d_worker_pool.py` - SAM-3D Persistent Worker Pool manager
+- `ai/subprocess/persistent_3d_worker.py` - Persistent 3D Worker (성능 최적화 설정 포함)
+- `ai/subprocess/worker_protocol.py` - 워커-풀 통신 프로토콜
 - `ai/processors/2_YOLO_detect.py` - YOLOE-seg detector (Objects365 기반)
 - `ai/processors/4_DB_movability_check.py` - 한국어 라벨 매핑 (is_movable 제거됨)
 - `ai/processors/7_volume_calculate.py` - Mesh relative volume/dimensions (절대 부피는 백엔드 계산)
@@ -356,11 +435,23 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ## Code Modification Guidelines
 
 ### When Modifying 3D Generation
-- **Never** load Sam-3d-objects in the api.py main process - always use subprocess
-- Maintain environment variables at the top of generate_3d_worker.py
+- **Never** load Sam-3d-objects in the api/app.py main process - always use subprocess
+- Maintain environment variables at the top of persistent_3d_worker.py
 - Use synthetic pinhole pointmaps (make_synthetic_pointmap) instead of MoGe/dummy maps
 - Check debug markers in subprocess stdout (PLY_URL_START/END, etc.)
 - Test GLB export carefully - to_glb() requires mesh data and can raise AttributeError
+
+### When Modifying Performance Settings
+- 성능 최적화 설정은 `ai/subprocess/persistent_3d_worker.py` 상단에 위치
+- `MAX_IMAGE_SIZE`: None(비활성화 권장) - 다운샘플링은 부피 정확도에 91.7% 영향
+- `STAGE2_INFERENCE_STEPS`: 8(속도) / 12(품질) - ~4% 부피 오차
+- `USE_BINARY_PLY`: True 권장 - 70% 파일 크기 감소
+
+### When Modifying Worker Pool
+- SAM3DWorkerPool은 `ai/gpu/sam3d_worker_pool.py`에 정의
+- 워커 통신 프로토콜은 `ai/subprocess/worker_protocol.py` 참조
+- JSON 메시지 형식: TaskMessage, ResultMessage, InitMessage, HeartbeatMessage
+- 워커 시작 시 init_timeout(120초), 작업 처리 시 task_timeout(300초) 설정 확인
 
 ### When Modifying YOLO Detection
 - Use YoloDetector class in `ai/processors/2_YOLO_detect.py`
@@ -369,28 +460,32 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 - No more CLIP classification - YOLOE class directly maps to DB
 
 ### When Modifying Multi-GPU Processing
-- Check GPUPoolManager class in `ai/gpu/gpu_pool_manager.py`
+- YOLOE용: GPUPoolManager class in `ai/gpu/gpu_pool_manager.py`
+- SAM-3D용: SAM3DWorkerPool class in `ai/gpu/sam3d_worker_pool.py`
 - Follow acquire/release pattern when adding new GPU features
 - Pipeline factory functions must accept device_id
 - Use GPU context managers to ensure automatic release
 - Check Multi-GPU settings in `ai/config.py` (GPU_IDS, ENABLE_MULTI_GPU, etc.)
 
 ### When Adding New Endpoints
+- 라우트는 `api/routes/` 디렉토리에 추가
 - Use background_tasks for operations taking more than 5 seconds
 - Return task_id immediately for async operations
 - Store results in generation_tasks dict or persistent storage
-- If Multi-GPU is needed, acquire pool via get_gpu_pool()
+- If Multi-GPU is needed, acquire pool via get_gpu_pool() or get_sam3d_worker_pool()
 
 ### When Working with PLY Files
 - PLY files are post-processed to add RGB from SH coefficients (add_rgb_to_ply)
-- ASCII format is used for compatibility (files can be large)
+- Binary format is now default (USE_BINARY_PLY = True) - ~70% smaller, ~50% faster
+- ASCII format available for compatibility if needed
 - Clients need to handle large base64 payloads when polling results
 
 ### When Debugging 3D Generation
-- Check subprocess stdout/stderr logs (printed in _generate_3d_background)
+- Check subprocess stdout/stderr logs (Worker Pool logs to stderr)
 - Verify Sam-3d-objects paths exist: ./sam-3d-objects/notebook and checkpoints
 - Check for memory issues - peak GPU memory is logged
 - Verify mask has sufficient pixels (100+ recommended, logged in subprocess)
+- Worker Pool status: `curl http://localhost:8000/gpu-status`
 
 ## File Structure
 

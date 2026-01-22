@@ -70,13 +70,15 @@ async def generate_3d(request: Generate3dRequest, background_tasks: BackgroundTa
             "created_at": str(np.datetime64("now")),
         }
 
-        # Add background task
+        # Add background task with optimization options
         background_tasks.add_task(
             generate_3d_background,
             task_id,
             image_temp_path,
             mask_temp_path,
             request.seed,
+            skip_gif=request.skip_gif,
+            max_image_size=request.max_image_size,
         )
 
         print(f"[API] Task {task_id} queued for 3D generation")

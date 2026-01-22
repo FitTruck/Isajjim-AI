@@ -42,11 +42,19 @@ class ImageFetcher:
         비동기로 URL에서 이미지를 가져옵니다.
 
         Args:
-            url: 이미지 URL (Firebase Storage 또는 일반 URL)
+            url: 이미지 URL (Firebase Storage, 일반 URL, 또는 file:// 로컬 경로)
 
         Returns:
             PIL Image 객체 또는 None (실패 시)
         """
+        # 로컬 파일 지원 (file:// 또는 절대 경로)
+        if url.startswith("file://"):
+            local_path = url[7:]  # "file://" 제거
+            return self._load_local_file(local_path)
+        elif url.startswith("/") and not url.startswith("//"):
+            # 절대 경로로 보이는 경우
+            return self._load_local_file(url)
+
         if not HAS_AIOHTTP:
             print("[ImageFetcher] aiohttp not installed, falling back to sync")
             return self.fetch_sync(url)
@@ -70,6 +78,19 @@ class ImageFetcher:
             return None
         except Exception as e:
             print(f"[ImageFetcher] Error fetching {url}: {e}")
+            return None
+
+    def _load_local_file(self, path: str) -> Optional[Image.Image]:
+        """로컬 파일에서 이미지 로드"""
+        try:
+            import os
+            if not os.path.exists(path):
+                print(f"[ImageFetcher] File not found: {path}")
+                return None
+            image = Image.open(path).convert("RGB")
+            return image
+        except Exception as e:
+            print(f"[ImageFetcher] Error loading local file {path}: {e}")
             return None
 
     def fetch_sync(self, url: str) -> Optional[Image.Image]:

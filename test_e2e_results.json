@@ -1,0 +1,751 @@
+{
+  "results": [
+    {
+      "image_id": 1,
+      "objects": [
+        {
+          "label": "책상",
+          "width": 1.01,
+          "depth": 0.65,
+          "height": 0.83,
+          "volume": 0.206201
+        },
+        {
+          "label": "Pillow",
+          "width": 1.0,
+          "depth": 1.01,
+          "height": 0.39,
+          "volume": 0.105547
+        },
+        {
+          "label": "의자/스툴",
+          "width": 0.88,
+          "depth": 1.01,
+          "height": 0.89,
+          "volume": 0.336457
+        },
+        {
+          "label": "Lamp",
+          "width": 1.11,
+          "depth": 6.32,
+          "height": 1.6,
+          "volume": 2.154103
+        },
+        {
+          "label": "Pillow",
+          "width": 1.01,
+          "depth": 1.0,
+          "height": 0.28,
+          "volume": 0.097418
+        },
+        {
+          "label": "의자/스툴",
+          "width": 1.03,
+          "depth": 0.87,
+          "height": 0.97,
+          "volume": 0.28611
+        },
+        {
+          "label": "카펫/러그",
+          "width": 1.12,
+          "depth": 0.06,
+          "height": 0.7,
+          "volume": 0.010339
+        },
+        {
+          "label": "Nightstand",
+          "width": 0.98,
+          "depth": 0.82,
+          "height": 1.02,
+          "volume": 0.311702
+        },
+        {
+          "label": "Monitor/TV",
+          "width": 1.01,
+          "depth": 0.91,
+          "height": 0.33,
+          "volume": 0.104693
+        },
+        {
+          "label": "침대",
+          "width": 1.0,
+          "depth": 0.38,
+          "height": 0.75,
+          "volume": 0.118403
+        },
+        {
+          "label": "Pillow",
+          "width": 1.01,
+          "depth": 0.21,
+          "height": 0.41,
+          "volume": 0.014229
+        }
+      ]
+    },
+    {
+      "image_id": 2,
+      "objects": [
+        {
+          "label": "에어컨",
+          "width": 1.01,
+          "depth": 0.39,
+          "height": 0.93,
+          "volume": 0.249437
+        },
+        {
+          "label": "Coffee Table",
+          "width": 1.01,
+          "depth": 0.29,
+          "height": 0.65,
+          "volume": 0.107272
+        },
+        {
+          "label": "Pillow",
+          "width": 0.91,
+          "depth": 0.24,
+          "height": 1.01,
+          "volume": 0.144325
+        },
+        {
+          "label": "에어컨",
+          "width": 1.0,
+          "depth": 0.26,
+          "height": 0.16,
+          "volume": 0.032447
+        },
+        {
+          "label": "침대",
+          "width": 0.88,
+          "depth": 1.01,
+          "height": 0.68,
+          "volume": 0.314093
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 1.0,
+          "depth": 0.46,
+          "height": 0.3,
+          "volume": 0.109412
+        },
+        {
+          "label": "Coffee Table",
+          "width": 0.96,
+          "depth": 1.02,
+          "height": 0.99,
+          "volume": 0.6361
+        },
+        {
+          "label": "전자레인지",
+          "width": 1.01,
+          "depth": 0.34,
+          "height": 0.78,
+          "volume": 0.20151
+        },
+        {
+          "label": "Pillow",
+          "width": 1.01,
+          "depth": 0.82,
+          "height": 1.0,
+          "volume": 0.432771
+        },
+        {
+          "label": "Printer",
+          "width": 1.03,
+          "depth": 0.44,
+          "height": 0.77,
+          "volume": 0.262589
+        },
+        {
+          "label": "의자/스툴",
+          "width": 1.01,
+          "depth": 0.69,
+          "height": 0.97,
+          "volume": 0.346101
+        },
+        {
+          "label": "카펫/러그",
+          "width": 1.01,
+          "depth": 0.04,
+          "height": 0.41,
+          "volume": 0.006481
+        },
+        {
+          "label": "Vase",
+          "width": 0.26,
+          "depth": 1.0,
+          "height": 0.27,
+          "volume": 0.043619
+        },
+        {
+          "label": "카펫/러그",
+          "width": 1.01,
+          "depth": 0.18,
+          "height": 0.68,
+          "volume": 0.013047
+        },
+        {
+          "label": "Vase",
+          "width": 0.88,
+          "depth": 1.01,
+          "height": 0.68,
+          "volume": 0.305152
+        },
+        {
+          "label": "Pillow",
+          "width": 0.63,
+          "depth": 0.93,
+          "height": 1.01,
+          "volume": 0.359262
+        },
+        {
+          "label": "Kettle",
+          "width": 0.85,
+          "depth": 1.01,
+          "height": 0.79,
+          "volume": 0.395954
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.62,
+          "depth": 1.04,
+          "height": 0.91,
+          "volume": 0.199181
+        }
+      ]
+    },
+    {
+      "image_id": 3,
+      "objects": [
+        {
+          "label": "Vase",
+          "width": 0.75,
+          "depth": 1.01,
+          "height": 0.75,
+          "volume": 0.272372
+        },
+        {
+          "label": "Coffee Table",
+          "width": 1.01,
+          "depth": 0.22,
+          "height": 0.44,
+          "volume": 0.076687
+        },
+        {
+          "label": "카펫/러그",
+          "width": 1.01,
+          "depth": 0.05,
+          "height": 0.64,
+          "volume": 0.014338
+        },
+        {
+          "label": "Vase",
+          "width": 0.57,
+          "depth": 1.01,
+          "height": 0.61,
+          "volume": 0.223617
+        },
+        {
+          "label": "Vase",
+          "width": 0.33,
+          "depth": 1.0,
+          "height": 0.33,
+          "volume": 0.058924
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 1.01,
+          "depth": 0.24,
+          "height": 0.21,
+          "volume": 0.03926
+        },
+        {
+          "label": "Vase",
+          "width": 0.52,
+          "depth": 1.01,
+          "height": 0.52,
+          "volume": 0.14433
+        },
+        {
+          "label": "Vase",
+          "width": 0.99,
+          "depth": 1.02,
+          "height": 0.66,
+          "volume": 0.309269
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.58,
+          "depth": 1.01,
+          "height": 0.42,
+          "volume": 0.168905
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.37,
+          "depth": 1.01,
+          "height": 0.27,
+          "volume": 0.085282
+        },
+        {
+          "label": "Vase",
+          "width": 0.68,
+          "depth": 1.01,
+          "height": 0.71,
+          "volume": 0.219222
+        },
+        {
+          "label": "Monitor/TV",
+          "width": 1.01,
+          "depth": 0.65,
+          "height": 0.08,
+          "volume": 0.031673
+        },
+        {
+          "label": "Vase",
+          "width": 0.75,
+          "depth": 1.01,
+          "height": 0.75,
+          "volume": 0.281497
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.26,
+          "depth": 1.01,
+          "height": 0.11,
+          "volume": 0.013425
+        },
+        {
+          "label": "Vase",
+          "width": 0.65,
+          "depth": 1.01,
+          "height": 0.66,
+          "volume": 0.290757
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 1.02,
+          "depth": 0.96,
+          "height": 0.95,
+          "volume": 0.332614
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.21,
+          "depth": 1.01,
+          "height": 0.14,
+          "volume": 0.02135
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.87,
+          "depth": 1.01,
+          "height": 0.17,
+          "volume": 0.093515
+        }
+      ]
+    },
+    {
+      "image_id": 4,
+      "objects": [
+        {
+          "label": "에어컨",
+          "width": 1.01,
+          "depth": 0.41,
+          "height": 0.97,
+          "volume": 0.102297
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.41,
+          "depth": 1.01,
+          "height": 0.45,
+          "volume": 0.073644
+        },
+        {
+          "label": "Pillow",
+          "width": 1.0,
+          "depth": 0.19,
+          "height": 1.01,
+          "volume": 0.062794
+        },
+        {
+          "label": "Bench",
+          "width": 1.01,
+          "depth": 0.23,
+          "height": 0.98,
+          "volume": 0.079374
+        },
+        {
+          "label": "Monitor/TV",
+          "width": 1.02,
+          "depth": 0.68,
+          "height": 0.6,
+          "volume": 0.020772
+        },
+        {
+          "label": "Vase",
+          "width": 0.7,
+          "depth": 1.01,
+          "height": 0.61,
+          "volume": 0.272775
+        },
+        {
+          "label": "Pillow",
+          "width": 1.01,
+          "depth": 0.22,
+          "height": 1.01,
+          "volume": 0.074006
+        },
+        {
+          "label": "의자/스툴",
+          "width": 1.0,
+          "depth": 0.27,
+          "height": 0.64,
+          "volume": 0.062506
+        },
+        {
+          "label": "Lamp",
+          "width": 1.01,
+          "depth": 0.99,
+          "height": 0.71,
+          "volume": 0.211605
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 1.01,
+          "depth": 0.57,
+          "height": 0.59,
+          "volume": 0.073711
+        }
+      ]
+    },
+    {
+      "image_id": 5,
+      "objects": [
+        {
+          "label": "Pot/Pan",
+          "width": 1.0,
+          "depth": 0.46,
+          "height": 0.58,
+          "volume": 0.125922
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 1.0,
+          "depth": 0.7,
+          "height": 0.37,
+          "volume": 0.214705
+        },
+        {
+          "label": "Pot/Pan",
+          "width": 1.01,
+          "depth": 0.38,
+          "height": 0.82,
+          "volume": 0.195542
+        }
+      ]
+    },
+    {
+      "image_id": 6,
+      "objects": [
+        {
+          "label": "Fan",
+          "width": 0.8,
+          "depth": 1.01,
+          "height": 0.44,
+          "volume": 0.162687
+        },
+        {
+          "label": "거울",
+          "width": 1.01,
+          "depth": 1.01,
+          "height": 0.14,
+          "volume": 0.02992
+        },
+        {
+          "label": "의자/스툴",
+          "width": 1.02,
+          "depth": 0.64,
+          "height": 1.01,
+          "volume": 0.240505
+        },
+        {
+          "label": "의자/스툴",
+          "width": 0.91,
+          "depth": 1.01,
+          "height": 0.94,
+          "volume": 0.377388
+        },
+        {
+          "label": "Bench",
+          "width": 1.01,
+          "depth": 0.58,
+          "height": 0.35,
+          "volume": 0.160246
+        },
+        {
+          "label": "카펫/러그",
+          "width": 1.01,
+          "depth": 0.04,
+          "height": 0.46,
+          "volume": 0.005939
+        },
+        {
+          "label": "Basket",
+          "width": 0.77,
+          "depth": 1.01,
+          "height": 0.7,
+          "volume": 0.316826
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 1.01,
+          "depth": 0.89,
+          "height": 0.38,
+          "volume": 0.294175
+        }
+      ]
+    },
+    {
+      "image_id": 7,
+      "objects": [
+        {
+          "label": "Lamp",
+          "width": 1.01,
+          "depth": 0.61,
+          "height": 1.02,
+          "volume": 0.388017
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.48,
+          "depth": 1.01,
+          "height": 0.54,
+          "volume": 0.202629
+        },
+        {
+          "label": "Sink",
+          "width": 1.01,
+          "depth": 0.2,
+          "height": 1.01,
+          "volume": 0.102256
+        },
+        {
+          "label": "Oven",
+          "width": 0.86,
+          "depth": 1.02,
+          "height": 0.67,
+          "volume": 0.517705
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.52,
+          "depth": 1.01,
+          "height": 0.52,
+          "volume": 0.208699
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.5,
+          "depth": 1.01,
+          "height": 0.55,
+          "volume": 0.184216
+        },
+        {
+          "label": "냉장고",
+          "width": 0.6,
+          "depth": 1.01,
+          "height": 0.63,
+          "volume": 0.220001
+        },
+        {
+          "label": "Oven",
+          "width": 0.57,
+          "depth": 1.01,
+          "height": 0.64,
+          "volume": 0.186382
+        },
+        {
+          "label": "Pot/Pan",
+          "width": 1.02,
+          "depth": 0.27,
+          "height": 0.63,
+          "volume": 0.078308
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.37,
+          "depth": 1.01,
+          "height": 0.13,
+          "volume": 0.019992
+        },
+        {
+          "label": "책상",
+          "width": 1.01,
+          "depth": 1.0,
+          "height": 1.0,
+          "volume": 0.851158
+        },
+        {
+          "label": "Towel",
+          "width": 0.41,
+          "depth": 1.0,
+          "height": 0.43,
+          "volume": 0.102263
+        },
+        {
+          "label": "Pot/Pan",
+          "width": 0.38,
+          "depth": 1.0,
+          "height": 0.25,
+          "volume": 0.02927
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.24,
+          "depth": 1.01,
+          "height": 0.18,
+          "volume": 0.009657
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.7,
+          "depth": 1.0,
+          "height": 0.66,
+          "volume": 0.389742
+        },
+        {
+          "label": "Cabinet/shelf",
+          "width": 0.5,
+          "depth": 1.01,
+          "height": 0.58,
+          "volume": 0.227793
+        },
+        {
+          "label": "Clock",
+          "width": 0.78,
+          "depth": 1.01,
+          "height": 0.18,
+          "volume": 0.048055
+        },
+        {
+          "label": "Vase",
+          "width": 0.33,
+          "depth": 1.01,
+          "height": 0.34,
+          "volume": 0.087894
+        },
+        {
+          "label": "카펫/러그",
+          "width": 1.01,
+          "depth": 0.04,
+          "height": 0.29,
+          "volume": 0.006596
+        },
+        {
+          "label": "Towel",
+          "width": 0.26,
+          "depth": 1.02,
+          "height": 0.16,
+          "volume": 0.020796
+        }
+      ]
+    },
+    {
+      "image_id": 8,
+      "objects": [
+        {
+          "label": "Lamp",
+          "width": 0.87,
+          "depth": 1.01,
+          "height": 0.9,
+          "volume": 0.420846
+        },
+        {
+          "label": "Nightstand",
+          "width": 0.96,
+          "depth": 0.79,
+          "height": 1.02,
+          "volume": 0.41934
+        },
+        {
+          "label": "Lamp",
+          "width": 0.3,
+          "depth": 1.01,
+          "height": 0.31,
+          "volume": 0.055817
+        },
+        {
+          "label": "Pillow",
+          "width": 0.83,
+          "depth": 1.01,
+          "height": 0.97,
+          "volume": 0.182198
+        },
+        {
+          "label": "Pillow",
+          "width": 0.63,
+          "depth": 1.01,
+          "height": 0.92,
+          "volume": 0.148731
+        },
+        {
+          "label": "침대",
+          "width": 1.01,
+          "depth": 0.52,
+          "height": 0.9,
+          "volume": 0.191735
+        },
+        {
+          "label": "Pillow",
+          "width": 0.78,
+          "depth": 1.01,
+          "height": 0.77,
+          "volume": 0.121144
+        },
+        {
+          "label": "Pillow",
+          "width": 0.73,
+          "depth": 1.0,
+          "height": 0.8,
+          "volume": 0.096835
+        },
+        {
+          "label": "Pillow",
+          "width": 0.74,
+          "depth": 0.85,
+          "height": 1.01,
+          "volume": 0.128549
+        },
+        {
+          "label": "Blanket",
+          "width": 0.96,
+          "depth": 0.42,
+          "height": 1.01,
+          "volume": 0.204613
+        },
+        {
+          "label": "Pillow",
+          "width": 0.44,
+          "depth": 1.01,
+          "height": 0.72,
+          "volume": 0.115925
+        },
+        {
+          "label": "Nightstand",
+          "width": 1.01,
+          "depth": 0.41,
+          "height": 0.85,
+          "volume": 0.232854
+        },
+        {
+          "label": "커튼",
+          "width": 0.32,
+          "depth": 1.0,
+          "height": 0.14,
+          "volume": 0.015362
+        }
+      ]
+    }
+  ]
+}

@@ -11,7 +11,25 @@
 - **YOLOE-seg 탐지**: Objects365 기반 365개 클래스 탐지 + 인스턴스 세그멘테이션 마스크
 - **SAM-3D 3D 생성**: 2D 이미지 + YOLO 마스크에서 3D Gaussian Splat, PLY, GLB 메시 생성
 - **부피 계산**: 3D 모델 bounding box 기반 상대 부피/치수 계산
-- **Multi-GPU 병렬 처리**: 라운드 로빈 GPU 할당을 통한 병렬 이미지 처리
+- **Multi-GPU 병렬 처리**: 최대 8개 GPU에서 Persistent Worker Pool로 병렬 처리
+
+---
+
+## 성능 지표
+
+| 테스트 환경 | 이미지 수 | 객체 수 | 총 시간 | 객체당 시간 |
+|------------|----------|--------|--------|------------|
+| 8 GPU | 8 | 101 | ~3분 47초 | **2.24초** |
+
+### 최적화 설정
+
+| 설정 | 값 | 효과 |
+|------|-----|------|
+| `MAX_IMAGE_SIZE` | None (비활성화) | 부피 정확도 유지 (~4% 오차) |
+| `STAGE2_INFERENCE_STEPS` | 8 | ~15-20% 속도 향상 |
+| `USE_BINARY_PLY` | True | ~70% 파일 크기 감소, ~50% I/O 속도 향상 |
+
+> 설정 파일: `ai/subprocess/persistent_3d_worker.py`
 
 ---
 
@@ -52,7 +70,7 @@ API 문서: http://localhost:8000/docs
 ## AI Logic 파이프라인 V2
 
 ```
-Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D → 부피 계산
+Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Worker Pool) → 부피 계산
 ```
 
 | 단계 | 파일 | 설명 |
@@ -72,6 +90,8 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D → 부피 계
 | 마스크 생성 | SAM2 (center point) | **YOLO 마스크 직접 사용** |
 | API 호출 | 3회 | 2회 |
 | 부피 단위 | 절대값 (m³) | **상대값** (백엔드 계산) |
+| 3D 워커 | 매 요청마다 subprocess | **Persistent Worker Pool** |
+| 병렬 처리 | 이미지별 순차 | **객체별 병렬 (Multi-GPU)** |
 
 ---
 
@@ -171,7 +191,18 @@ curl -X POST http://localhost:8000/detect-furniture \
 
 ```
 sam3d-api/
-├── api.py                      # FastAPI 메인 서버
+├── api/                        # FastAPI 애플리케이션 (모듈화)
+│   ├── app.py                  # 메인 애플리케이션 및 라우터 등록
+│   ├── config.py               # API 설정
+│   ├── models.py               # Pydantic 모델
+│   ├── routes/                 # API 라우트
+│   │   ├── furniture.py        # /analyze-furniture 엔드포인트
+│   │   ├── generate_3d.py      # /generate-3d 엔드포인트
+│   │   ├── health.py           # /health, /gpu-status 엔드포인트
+│   │   └── segment.py          # /segment 엔드포인트
+│   └── services/               # 서비스 레이어
+│       ├── sam2.py             # SAM2 모델 서비스
+│       └── tasks.py            # 비동기 태스크 관리
 ├── requirements.txt            # Python 의존성
 ├── setup.sh                    # 환경 설정 스크립트
 ├── assets/                     # 생성된 PLY/GIF/GLB 에셋
@@ -181,9 +212,13 @@ sam3d-api/
 ├── ai/                         # AI 모듈
 │   ├── config.py               # 설정 (GPU_IDS, 모델 경로)
 │   ├── gpu/                    # GPU 풀 매니저
+│   │   ├── gpu_pool_manager.py # YOLOE GPU 풀
+│   │   └── sam3d_worker_pool.py # SAM-3D Persistent Worker Pool
 │   ├── processors/             # 파이프라인 프로세서
 │   ├── pipeline/               # 파이프라인 오케스트레이터
 │   ├── subprocess/             # SAM-3D worker (GPU 격리)
+│   │   ├── persistent_3d_worker.py # Persistent Worker (최적화 설정)
+│   │   └── worker_protocol.py  # 워커 통신 프로토콜
 │   ├── data/                   # Knowledge Base
 │   └── utils/                  # 유틸리티
 ├── sam-3d-objects/             # Facebook Research SAM-3D (setup.sh로 클론)
@@ -196,7 +231,7 @@ sam3d-api/
 
 ### 환경 변수
 
-`api.py`와 `generate_3d_worker.py`에서 **torch import 전** 자동 설정됩니다:
+`api.py`와 `persistent_3d_worker.py`에서 **torch import 전** 자동 설정됩니다:
 
 ```bash
 # GPU 설정 (spconv 튜닝 이슈 방지)
@@ -208,10 +243,32 @@ SPCONV_ALGO_TIME_LIMIT=100
 OMP_NUM_THREADS=4
 OPENBLAS_NUM_THREADS=4
 MKL_NUM_THREADS=4
+VECLIB_MAXIMUM_THREADS=4
+NUMEXPR_NUM_THREADS=4
 
 # macOS 호환성
 PYTORCH_ENABLE_MPS_FALLBACK=1
 ```
+
+### 성능 최적화 설정
+
+`ai/subprocess/persistent_3d_worker.py`에서 다음 설정을 조정할 수 있습니다:
+
+```python
+# Phase 1: 이미지 다운샘플링 (None = 비활성화, 부피 정확도 유지)
+MAX_IMAGE_SIZE = None
+
+# Phase 2: Inference Steps (8 = 속도 최적화, 12 = 품질 우선)
+STAGE2_INFERENCE_STEPS = 8
+
+# Phase 3: PLY 형식 (True = Binary, 70% 작은 파일)
+USE_BINARY_PLY = True
+```
+
+**최적화 테스트 결과:**
+- 다운샘플링: 부피 정확도에 91.7% 영향 (작은 객체에서 최대 576% 차이)
+- Steps 감소: 부피 정확도에 ~4% 영향 (수용 가능)
+- Binary PLY: ~50% 빠른 I/O, ~70% 작은 파일 크기
 
 ### 모니터링
 
@@ -247,7 +304,9 @@ curl http://localhost:8000/gpu-status
 | CUDA out of memory | GPU 메모리 부족 | 워커 수 줄이기, 이미지 해상도 축소 |
 | Empty mask error | 세그멘테이션 실패 | 마스크 >100 픽셀 확인 |
 | Pipeline not initialized | 시작 시 초기화 실패 | on-demand 생성 fallback (자동) |
-| Subprocess timeout | 3D 생성 10분 초과 | GPU 성능 확인, 마스크 크기 확인 |
+| Subprocess timeout | 3D 생성 5분 초과 | GPU 성능 확인, 마스크 크기 확인 |
+| Worker not ready | 워커 초기화 실패 | 로그 확인, 워커 재시작 |
+| 부피 정확도 문제 | 이미지 다운샘플링 | `MAX_IMAGE_SIZE = None` 설정 확인 |
 
 ### 롤백 절차
 

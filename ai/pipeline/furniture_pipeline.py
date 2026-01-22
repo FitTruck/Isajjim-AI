@@ -40,6 +40,7 @@ from ai.processors import (
 
 # GPU pool manager import
 from ai.gpu import GPUPoolManager, get_gpu_pool
+from ai.gpu import SAM3DWorkerPool, get_sam3d_worker_pool
 
 # Config import
 from ai.config import Config
@@ -269,7 +270,9 @@ class FurniturePipeline:
         self,
         image: Image.Image,
         mask_b64: str,
-        seed: int = 42
+        seed: int = 42,
+        skip_gif: bool = True,
+        max_image_size: int = 512
     ) -> Optional[Dict]:
         """
         SAM-3D API를 호출하여 3D 모델을 생성합니다.
@@ -277,6 +280,9 @@ class FurniturePipeline:
         Args:
             image: 원본 이미지
             mask_b64: Base64 인코딩된 마스크
+            seed: 랜덤 시드
+            skip_gif: GIF 렌더링 스킵 (부피 계산 최적화)
+            max_image_size: 최대 이미지 크기 (속도 최적화)
 
         Returns:
             {"task_id": str, "ply_b64": str, "glb_b64": str, ...}
@@ -290,10 +296,16 @@ class FurniturePipeline:
             image_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
             async with aiohttp.ClientSession() as session:
-                # 3D 생성 요청
+                # 3D 생성 요청 (최적화 옵션 포함)
                 async with session.post(
                     f"{self.sam2_api_url}/generate-3d",
-                    json={"image": image_b64, "mask": mask_b64, "seed": seed},
+                    json={
+                        "image": image_b64,
+                        "mask": mask_b64,
+                        "seed": seed,
+                        "skip_gif": skip_gif,
+                        "max_image_size": max_image_size
+                    },
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status != 200:
@@ -367,11 +379,82 @@ class FurniturePipeline:
     # 통합 처리
     # =========================================================================
 
+    def _image_to_base64(self, image: Image.Image) -> str:
+        """PIL 이미지를 base64로 변환"""
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+    async def _parallel_3d_generation(
+        self,
+        image: Image.Image,
+        objects_with_masks: List[Tuple[int, DetectedObject]]
+    ) -> Dict[int, Dict]:
+        """
+        여러 객체를 병렬로 3D 변환 (Worker Pool 사용)
+
+        Args:
+            image: 원본 이미지
+            objects_with_masks: [(object_id, DetectedObject), ...] 마스크가 있는 객체들
+
+        Returns:
+            {object_id: {"ply_b64": str, ...}, ...}
+        """
+        sam3d_pool = get_sam3d_worker_pool()
+
+        if sam3d_pool is None or not sam3d_pool.is_ready():
+            # Worker Pool 미사용 - 기존 순차 처리
+            print("[FurniturePipeline] SAM3D Worker Pool not available, falling back to sequential")
+            results = {}
+            for obj_id, obj in objects_with_masks:
+                gen_result = await self.generate_3d(image, obj.mask_base64)
+                if gen_result:
+                    results[obj_id] = gen_result
+            return results
+
+        # Worker Pool 사용 - 병렬 처리
+        print(f"[FurniturePipeline] Parallel 3D generation for {len(objects_with_masks)} objects")
+
+        # 이미지를 base64로 변환 (한 번만)
+        image_b64 = self._image_to_base64(image)
+
+        # 작업 목록 생성
+        tasks = []
+        for obj_id, obj in objects_with_masks:
+            tasks.append({
+                "task_id": f"obj_{obj_id}",
+                "image_b64": image_b64,
+                "mask_b64": obj.mask_base64,
+                "seed": 42,
+                "skip_gif": True
+            })
+
+        # 병렬 제출
+        worker_results = await sam3d_pool.submit_tasks_parallel(tasks)
+
+        # 결과 매핑
+        results = {}
+        for i, (obj_id, obj) in enumerate(objects_with_masks):
+            worker_result = worker_results[i]
+            if worker_result.success:
+                results[obj_id] = {
+                    "ply_b64": worker_result.ply_b64,
+                    "ply_size_bytes": worker_result.ply_size_bytes,
+                    "gif_b64": worker_result.gif_b64,
+                    "mesh_url": worker_result.mesh_url
+                }
+                print(f"[FurniturePipeline] Object {obj_id} 3D generated: {worker_result.ply_size_bytes} bytes")
+            else:
+                print(f"[FurniturePipeline] Object {obj_id} 3D failed: {worker_result.error}")
+
+        return results
+
     async def process_single_image(
         self,
         image_url: str,
         enable_mask: bool = True,
-        enable_3d: bool = True
+        enable_3d: bool = True,
+        use_parallel_3d: bool = True
     ) -> PipelineResult:
         """
         단일 이미지를 처리합니다 (V2 파이프라인).
@@ -380,6 +463,7 @@ class FurniturePipeline:
             image_url: Firebase Storage 이미지 URL
             enable_mask: 마스크 활성화 (V2: YOLOE-seg 마스크 사용)
             enable_3d: SAM-3D 3D 생성 활성화
+            use_parallel_3d: 병렬 3D 생성 사용 (Worker Pool)
 
         Returns:
             PipelineResult
@@ -404,22 +488,35 @@ class FurniturePipeline:
             # Stage 2-3: 객체 탐지 및 is_movable 결정
             detected_objects = self.detect_objects(image)
 
-            # Stage 4-6: 각 객체에 대해 마스크 및 3D 생성 (V2: YOLOE-seg 마스크 직접 사용)
+            # Stage 4: 마스크 준비 (V2: YOLOE-seg 마스크 직접 사용)
+            objects_with_masks = []
             for obj in detected_objects:
                 if enable_mask:
-                    # V2 파이프라인: YOLOE-seg 마스크 직접 사용 (SAM2 완전 제거)
                     if obj.yolo_mask is not None:
                         mask_b64 = self._yolo_mask_to_base64(obj.yolo_mask)
                         obj.mask_base64 = mask_b64
+                        objects_with_masks.append((obj.id, obj))
                     else:
-                        # YOLOE-seg 마스크 없으면 3D 생성 스킵
                         print(f"[FurniturePipeline] No YOLOE-seg mask for {obj.label}, skipping 3D")
                         obj.mask_base64 = None
 
-                if enable_3d and self.enable_3d_generation and obj.mask_base64:
-                    gen_result = await self.generate_3d(image, obj.mask_base64)
+            # Stage 5-6: 3D 생성 (병렬 또는 순차)
+            if enable_3d and self.enable_3d_generation and objects_with_masks:
+                if use_parallel_3d:
+                    # 병렬 3D 생성 (Worker Pool)
+                    gen_results = await self._parallel_3d_generation(image, objects_with_masks)
+                else:
+                    # 순차 3D 생성 (기존 방식)
+                    gen_results = {}
+                    for obj_id, obj in objects_with_masks:
+                        gen_result = await self.generate_3d(image, obj.mask_base64)
+                        if gen_result:
+                            gen_results[obj_id] = gen_result
 
-                    if gen_result:
+                # 결과를 객체에 매핑
+                for obj in detected_objects:
+                    if obj.id in gen_results:
+                        gen_result = gen_results[obj.id]
                         obj.glb_url = gen_result.get("mesh_url")
 
                         if gen_result.get("ply_b64"):

@@ -37,6 +37,8 @@ class Generate3dRequest(BaseModel):
     image: str  # base64 encoded image
     mask: str  # base64 encoded binary mask
     seed: int = 42
+    skip_gif: bool = True  # GIF 렌더링 스킵 (부피 계산 최적화, 기본값: True)
+    max_image_size: int = 512  # 최대 이미지 크기 (속도 최적화)
 
 
 # ============================================================================
@@ -69,3 +71,5 @@ class AnalyzeFurnitureBase64Request(BaseModel):
     image: str  # Base64 encoded image
     enable_mask: bool = True
     enable_3d: bool = True
+    skip_gif: bool = True  # GIF 렌더링 스킵 (부피 계산 최적화, 기본값: True)
+    max_image_size: int = 512  # 3D 생성 시 최대 이미지 크기 (속도 최적화)

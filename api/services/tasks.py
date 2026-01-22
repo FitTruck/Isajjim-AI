@@ -20,7 +20,9 @@ def generate_3d_background(
     task_id: str,
     image_temp_path: str,
     mask_temp_path: str,
-    seed: int
+    seed: int,
+    skip_gif: bool = True,
+    max_image_size: int = 512
 ):
     """
     Background task for 3D generation.
@@ -38,26 +40,57 @@ def generate_3d_background(
             ply_temp_path = tmp.name
             gif_temp_path = ply_temp_path.replace(".ply", ".gif")
 
-        # Get the subprocess script path
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        subprocess_script = os.path.join(script_dir, "ai", "subprocess", "generate_3d_worker.py")
+        # Get the subprocess script path (project root is 3 levels up from this file)
+        # This file: api/services/tasks.py -> api/services -> api -> project_root
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        subprocess_script = os.path.join(project_root, "ai", "subprocess", "generate_3d_worker.py")
 
         print(f"[Task {task_id}] Running 3D generation in subprocess...")
+        print(f"[Task {task_id}] Options: skip_gif={skip_gif}, max_image_size={max_image_size}")
+
+        # Resize image and mask if needed for faster processing
+        if max_image_size > 0:
+            try:
+                from PIL import Image
+
+                # Resize image
+                img = Image.open(image_temp_path)
+                w, h = img.size
+                if max(w, h) > max_image_size:
+                    scale = max_image_size / max(w, h)
+                    new_w, new_h = int(w * scale), int(h * scale)
+                    img = img.resize((new_w, new_h), Image.LANCZOS)
+                    img.save(image_temp_path)
+                    print(f"[Task {task_id}] Resized image: {w}x{h} -> {new_w}x{new_h}")
+
+                # Resize mask to match
+                mask = Image.open(mask_temp_path)
+                if mask.size != img.size:
+                    mask = mask.resize(img.size, Image.NEAREST)
+                    mask.save(mask_temp_path)
+                    print(f"[Task {task_id}] Resized mask to match: {img.size}")
+            except Exception as e:
+                print(f"[Task {task_id}] Warning: Could not resize image: {e}")
 
         # Run subprocess with sam3d-objects conda environment
         sam3d_python = os.path.expanduser("~/miniconda3/envs/sam3d-objects/bin/python")
         python_executable = sam3d_python if os.path.exists(sam3d_python) else sys.executable
 
+        # Build command with optional skip-gif flag
+        cmd = [
+            python_executable,
+            subprocess_script,
+            image_temp_path,
+            mask_temp_path,
+            str(seed),
+            ply_temp_path,
+            ASSETS_DIR,
+        ]
+        if skip_gif:
+            cmd.append("--skip-gif")
+
         result = subprocess.run(
-            [
-                python_executable,
-                subprocess_script,
-                image_temp_path,
-                mask_temp_path,
-                str(seed),
-                ply_temp_path,
-                ASSETS_DIR,
-            ],
+            cmd,
             capture_output=True,
             text=True,
             timeout=600,  # 10 minute timeout
