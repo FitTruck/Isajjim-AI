@@ -378,7 +378,7 @@ docker compose logs -f
 
 - Python 3.10+
 - CUDA 11.8+ (GPU 권장)
-- 32GB+ RAM
+- 32GB+ VRAM
 - 50GB+ 디스크 (모델 저장)
 
 ### 주요 의존성
