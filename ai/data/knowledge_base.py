@@ -21,7 +21,7 @@ FURNITURE_DB = {
         "base_name": "AIR_CONDITIONER",
         "subtypes": [
             {
-                "name": "CEILING_MOUNTED_AIR_CONDITIONER(VENT)",
+                "name": "CEILING_MOUNTED_AIR_CONDITIONER_VENT",
                 "prompt": "a ceiling mounted cassette air conditioner vent"
             },
             {
