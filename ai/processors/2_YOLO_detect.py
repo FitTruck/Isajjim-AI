@@ -39,49 +39,49 @@ except ImportError:
 # Objects365 기반 가구/가정용품 클래스 목록 (탐지 대상)
 FURNITURE_CLASSES = {
     # 가구 (고우선순위)
-    "Bed": {"base_name": "침대"},
-    "Sofa": {"base_name": "소파"},
-    "Chair": {"base_name": "의자"},
-    "Desk": {"base_name": "책상"},
-    "Dining Table": {"base_name": "식탁"},
-    "Coffee Table": {"base_name": "커피테이블"},
-    "Nightstand": {"base_name": "협탁"},
-    "Cabinet/shelf": {"base_name": "캐비닛/선반"},
-    "Refrigerator": {"base_name": "냉장고"},
-    "Washing Machine": {"base_name": "세탁기"},
-    "Microwave": {"base_name": "전자레인지"},
-    "Oven": {"base_name": "오븐"},
-    "Air Conditioner": {"base_name": "에어컨"},
-    "Monitor/TV": {"base_name": "TV/모니터"},
-    "Mirror": {"base_name": "거울"},
-    "Storage box": {"base_name": "박스/수납함"},
+    "Bed": {"base_name": "BED"},
+    "Sofa": {"base_name": "SOFA"},
+    "Chair": {"base_name": "CHAIR_STOOL"},
+    "Desk": {"base_name": "DESK"},
+    "Dining Table": {"base_name": "DINING_TABLE"},
+    "Coffee Table": {"base_name": "COFFEE_TABLE"},
+    "Nightstand": {"base_name": "NIGHTSTAND"},
+    "Cabinet/shelf": {"base_name": "CABINET"},
+    "Refrigerator": {"base_name": "REFRIGERATOR"},
+    "Washing Machine": {"base_name": "WASHING_MACHINE"},
+    "Microwave": {"base_name": "MICROWAVE"},
+    "Oven": {"base_name": "OVEN"},
+    "Air Conditioner": {"base_name": "AIR_CONDITIONER"},
+    "Monitor/TV": {"base_name": "MONITOR_TV"},
+    "Mirror": {"base_name": "MIRROR"},
+    "Storage box": {"base_name": "STORAGE_BOX"},
 
     # 가구 (중우선순위)
-    "Stool": {"base_name": "스툴"},
-    "Bench": {"base_name": "벤치"},
-    "Toilet": {"base_name": "변기"},
-    "Sink": {"base_name": "싱크대"},
-    "Bathtub": {"base_name": "욕조"},
-    "Bicycle": {"base_name": "자전거"},
-    "Ladder": {"base_name": "사다리"},
+    "Stool": {"base_name": "CHAIR_STOOL"},
+    "Bench": {"base_name": "BENCH"},
+    "Toilet": {"base_name": "TOILET"},
+    "Sink": {"base_name": "SINK"},
+    "Bathtub": {"base_name": "BATHTUB"},
+    "Bicycle": {"base_name": "BICYCLE"},
+    "Ladder": {"base_name": "LADDER"},
 
     # 추가 가정용품
-    "Bookshelf": {"base_name": "책장"},
-    "Wardrobe": {"base_name": "옷장"},
-    "Drawer": {"base_name": "서랍장"},
-    "Television": {"base_name": "TV"},
-    "Fan": {"base_name": "선풍기"},
-    "Vase": {"base_name": "꽃병"},
-    "Plant": {"base_name": "화분"},
-    "Box": {"base_name": "박스"},
+    "Bookshelf": {"base_name": "BOOKSHELF"},
+    "Wardrobe": {"base_name": "WARDROBE"},
+    "Drawer": {"base_name": "DRAWER"},
+    "Television": {"base_name": "MONITOR_TV"},
+    "Fan": {"base_name": "FAN"},
+    "Vase": {"base_name": "POTTED_PLANT"},
+    "Plant": {"base_name": "POTTED_PLANT"},
+    "Box": {"base_name": "BOX"},
 
     # 탐지는 하되 출력에서 제외되는 클래스 (EXCLUDED_FROM_OUTPUT 참조)
-    "Kitchen Island": {"base_name": "아일랜드"},
-    "Floor": {"base_name": "바닥"},
+    "Kitchen Island": {"base_name": "KITCHEN_ISLAND"},
+    "Floor": {"base_name": "FLOOR"},
 }
 
 # 탐지는 수행하지만 최종 출력에서 제외할 클래스 목록
-EXCLUDED_FROM_OUTPUT = {"Kitchen Island", "Floor"}
+EXCLUDED_FROM_OUTPUT = {"KITCHEN_ISLAND", "FLOOR"}
 
 
 def _empty_result() -> Dict:

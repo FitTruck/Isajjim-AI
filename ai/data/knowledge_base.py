@@ -18,340 +18,336 @@ from typing import Optional, List, Dict
 FURNITURE_DB = {
     "air conditioner": {
         "synonyms": ["air conditioner", "ac unit", "climate control unit"],
-        "base_name": "에어컨",
+        "base_name": "AIR_CONDITIONER",
         "subtypes": [
             {
-                "name": "천장형 에어컨 (시스템)",
+                "name": "CEILING_MOUNTED_AIR_CONDITIONER(VENT)",
                 "prompt": "a ceiling mounted cassette air conditioner vent"
             },
             {
-                "name": "벽걸이 에어컨",
+                "name": "WALL_MOUNTED_AIR_CONDITIONER",
                 "prompt": "a split air conditioner unit mounted high on a wall"
             },
             {
-                "name": "스탠드 에어컨",
+                "name": "STANDING_AIR_CONDITIONER",
                 "prompt": "a tall floor standing tower air conditioner"
             }
         ]
     },
     "coffee table": {
         "synonyms": ["coffee table", "living room table", "center table", "low table"],
-        "base_name": "커피테이블",
+        "base_name": "COFFEE_TABLE",
     },
     "microwave": {
         "synonyms": ["microwave", "microwave oven", "countertop microwave"],
-        "base_name": "전자레인지",
+        "base_name": "MICROWAVE",
     },
     "oven": {
         "synonyms": ["oven", "kitchen oven", "built-in oven", "wall oven"],
-        "base_name": "오븐",
+        "base_name": "OVEN",
     },
     "mirror": {
         "synonyms": ["mirror", "wall mirror", "standing mirror", "full length mirror", "vanity mirror"],
-        "base_name": "거울",
+        "base_name": "MIRROR",
     },
     "storage box": {
         "synonyms": ["storage box", "storage container", "plastic box", "moving box"],
-        "base_name": "박스/수납함",
+        "base_name": "STORAGE_BOX",
     },
     "bench": {
         "synonyms": ["bench", "wooden bench", "sitting bench", "entryway bench"],
-        "base_name": "벤치",
+        "base_name": "BENCH",
     },
     "toilet": {
         "synonyms": ["toilet", "toilet bowl", "bathroom toilet", "commode"],
-        "base_name": "변기",
+        "base_name": "TOILET",
     },
     "sink": {
         "synonyms": ["sink", "kitchen sink", "bathroom sink", "wash basin"],
-        "base_name": "싱크대",
+        "base_name": "SINK",
     },
     "bathtub": {
         "synonyms": ["bathtub", "bath tub", "tub", "soaking tub"],
-        "base_name": "욕조",
+        "base_name": "BATHTUB",
     },
     "bicycle": {
         "synonyms": ["bicycle", "bike", "cycle", "mountain bike", "road bike"],
-        "base_name": "자전거",
+        "base_name": "BICYCLE",
     },
     "ladder": {
         "synonyms": ["ladder", "step ladder", "folding ladder", "extension ladder"],
-        "base_name": "사다리",
+        "base_name": "LADDER",
     },
     "fan": {
         "synonyms": ["fan", "electric fan", "standing fan", "floor fan", "ceiling fan", "desk fan"],
-        "base_name": "선풍기",
+        "base_name": "FAN",
     },
     "box": {
         "synonyms": ["box", "cardboard box", "packing box"],
-        "base_name": "박스",
+        "base_name": "BOX",
     },
     "kitchen island": {
         "synonyms": ["kitchen island", "island counter", "island table", "center island"],
-        "base_name": "아일랜드",
+        "base_name": "KITCHEN_ISLAND",
         "exclude_from_output": True,
     },
     "cabinet": {
         "synonyms": ["cabinet", "cabinet/shelf", "storage cabinet", "display cabinet"],
-        "base_name": "캐비닛",
+        "base_name": "CABINET",
     },
     "kitchen cabinet": {
         "synonyms": ["cupboard", "dish cupboard", "dish cabinet", "kitchen cupboard", "pantry cabinet", "wall cabinet", "overhead storage", "kitchen cabinet", "kitchen storage", "white cabinet", "black cabinet", "gray cabinet", "brown cabinet"],
-        "base_name": "찬장",
+        "base_name": "KITCHEN_CABINET",
     },
     "drawer": {
         "synonyms": ["drawer", "chest of drawers", "dresser", "drawer unit", "brown drawer", "wooden drawer", "low chest of drawers", "low chest"],
-        "base_name": "서랍장",
+        "base_name": "DRAWER",
     },
     "nightstand": {
         "synonyms": ["nightstand", "bedside table", "bedside cabinet", "night table", "bedside drawer", "wooden nightstand", "brown nightstand", "brown cabinet", "oak nightstand", "oak cabinet", "bedside chest"],
-        "base_name": "협탁",
+        "base_name": "NIGHTSTAND",
         "min_confidence": 0.5
     },
     "bookshelf": {
         "synonyms": ["bookshelf", "bookcase", "library shelf"],
-        "base_name": "책장",
+        "base_name": "BOOKSHELF",
     },
     "display shelf": {
         "synonyms": ["close shelf", "wooden shelf", "display shelf", "open shelf", "minimalist rack", "metal frame shelf", "open display stand", "tiered display stand", "slim metal rack", "thin display rack", "floor shelf", "metal shelf", "minimalist shelf"],
-        "base_name": "전시대/선반",
+        "base_name": "DISPLAY_SHELF",
         "subtypes": [
             {
-                "name": "전시대",
+                "name": "DISPLAY_SHELF",
                 "prompt": "a minimalist open display shelf with thin frames and no back panel"
             }
         ]
     },
     "refrigerator": {
         "synonyms": ["refrigerator", "fridge", "freezer"],
-        "base_name": "냉장고",
+        "base_name": "REFRIGERATOR",
         "subtypes": [
             {
-                "name": "일반 냉장고",
+                "name": "MOVABLE_REFRIGERATOR",
                 "prompt": "a standard free-standing refrigerator"
             },
             {
-                "name": "빌트인 냉장고",
+                "name": "BUILT_IN_REFRIGERATOR",
                 "prompt": "a built-in refrigerator flush with kitchen cabinets"
             }
         ]
     },
     "wardrobe": {
         "synonyms": ["wardrobe", "closet", "armoire", "clothes closet"],
-        "base_name": "장롱/수납장",
+        "base_name": "WARDROBE",
         "subtypes": [
             {
-                "name": "붙박이장 (매립형)",
+                "name": "BUILT_IN_WARDROBE",
                 "prompt": "a built-in wardrobe integrated into the wall without gaps"
             },
             {
-                "name": "일반 옷장 (이동식)",
+                "name": "MOVABLE_WARDROBE",
                 "prompt": "a free-standing wooden wardrobe furniture"
             },
             {
-                "name": "시스템 행거",
+                "name": "SYSTEM_HANGER",
                 "prompt": "an open walk-in closet system hanger with metal poles"
             }
         ]
     },
     "sofa": {
         "synonyms": ["sofa", "couch", "settee"],
-        "base_name": "소파",
+        "base_name": "SOFA",
         "subtypes": [
             {
-                "name": "1인용 소파",
+                "name": "SINGLE_SOFA",
                 "prompt": "a single seater armchair sofa"
             },
             {
-                "name": "2인용 소파",
+                "name": "TWIN_SOFA",
                 "prompt": "a two seater loveseat sofa"
             },
             {
-                "name": "3인용 소파",
+                "name": "THREE_SEATER_SOFA",
                 "prompt": "a three seater long sofa"
             },
             {
-                "name": "L자형 소파",
+                "name": "L_SHAPED_SOFA",
                 "prompt": "an L-shaped sectional corner sofa"
             }
         ]
     },
     "bed": {
         "synonyms": ["bed", "bed frame", "bunk bed"],
-        "base_name": "침대",
+        "base_name": "BED",
         "subtypes": [
             {
-                "name": "싱글 침대",
+                "name": "SINGLE_BED",
                 "prompt": "a single bed with a narrow mattress"
             },
             {
-                "name": "슈퍼싱글 침대",
+                "name": "SUPER_SINGLE_BED",
                 "prompt": "a super single bed slightly wider than single"
             },
             {
-                "name": "더블 침대",
+                "name": "DOUBLE_BED",
                 "prompt": "a double bed with full size mattress"
             },
             {
-                "name": "퀸 사이즈 침대",
+                "name": "QUEEN_SIZE_BED",
                 "prompt": "a queen size bed with wide mattress"
             },
             {
-                "name": "킹 사이즈 침대",
+                "name": "KING_SIZE_BED",
                 "prompt": "a king size bed with extra wide mattress"
             },
             {
-                "name": "2층 침대",
+                "name": "BUNK_BED",
                 "prompt": "a bunk bed with two levels stacked"
             }
         ]
     },
     "dining table": {
         "synonyms": ["dining table", "kitchen table"],
-        "base_name": "식탁",
+        "base_name": "DINING_TABLE",
         "subtypes": [
             {
-                "name": "2인용 식탁",
+                "name": "TWO_PERSON_DINING_TABLE",
                 "prompt": "a small dining table for two people"
             },
             {
-                "name": "4인용 식탁",
+                "name": "FOUR_PERSON_DINING_TABLE",
                 "prompt": "a rectangular dining table for four people"
             },
             {
-                "name": "6인용 식탁",
+                "name": "SIX_PERSON_DINING_TABLE",
                 "prompt": "a large dining table for six people"
             }
         ]
     },
     "monitor": {
         "synonyms": ["monitor", "monitor/tv", "computer monitor", "pc monitor", "desktop monitor", "lcd monitor", "computer screen", "display monitor", "television", "tv", "flat screen tv", "wall mounted tv", "large screen tv"],
-        "base_name": "모니터/TV"
+        "base_name": "MONITOR_TV"
     },
     "desk": {
         "synonyms": ["desk", "office desk", "computer desk", "writing desk"],
-        "base_name": "책상",
+        "base_name": "DESK",
         "subtypes": [
             {
-                "name": "일반 책상",
+                "name": "STANDARD_DESK",
                 "prompt": "a standard writing desk"
             },
             {
-                "name": "L자형 책상",
+                "name": "L_SHAPED_DESK",
                 "prompt": "an L-shaped corner desk"
             },
             {
-                "name": "컴퓨터 책상",
+                "name": "COMPUTER_DESK",
                 "prompt": "a computer desk with keyboard tray"
             }
         ]
     },
     "chair": {
         "synonyms": ["chair", "office chair", "dining chair", "armchair", "stool", "round stool", "circular stool"],
-        "base_name": "의자/스툴",
+        "base_name": "CHAIR_STOOL",
         "subtypes": [
             {
-                "name": "일반 의자",
+                "name": "STANDARD_CHAIR",
                 "prompt": "a standard dining or office chair with a backrest"
             },
             {
-                "name": "원형 의자",
+                "name": "ROUND_STOOL",
                 "prompt": "a round stool with a circular seat and thin slim legs"
             }
         ]
     },
     "washing machine": {
         "synonyms": ["washing machine", "washer", "laundry machine"],
-        "base_name": "세탁기",
+        "base_name": "WASHING_MACHINE",
         "subtypes": [
             {
-                "name": "드럼 세탁기",
+                "name": "DRUM_WASHING_MACHINE",
                 "prompt": "a front loading drum washing machine"
             },
             {
-                "name": "통돌이 세탁기",
+                "name": "TOP_LOADING_WASHING_MACHINE",
                 "prompt": "a top loading washing machine"
             }
         ]
     },
-    "dryer": {
-        "synonyms": ["dryer", "clothes dryer", "tumble dryer"],
-        "base_name": "건조기"
-    },
     "floor": {
         "synonyms": ["floor", "wood grain floor", "hardwood flooring with patterns", "tiled floor", "solid floor texture"],
-        "base_name": "바닥",
+        "base_name": "FLOOR",
         "exclude_from_output": True,
     },
     "potted plant": {
         "synonyms": ["potted plant", "plant", "vase", "flower pot", "houseplant", "indoor plant", "vase with flowers"],
-        "base_name": "화분/식물"
+        "base_name": "POTTED_PLANT"
     },
     "kimchi refrigerator": {
         "synonyms": ["kimchi refrigerator", "kimchi fridge", "secondary fridge", "small refrigerator"],
-        "base_name": "김치냉장고"
+        "base_name": "KIMCHI_REFRIGERATOR"
     },
     "vanity table": {
         "synonyms": ["vanity table", "dressing table", "makeup table", "vanity desk", "vanity mirror table"],
-        "base_name": "화장대",
+        "base_name": "VANITY_TABLE",
         "subtypes": [
             {
-                "name": "거울 화장대",
+                "name": "VANITY_TABLE_WITH_ATTACHED_MIRROR",
                 "prompt": "a vanity table with attached mirror"
             },
             {
-                "name": "콘솔 화장대",
+                "name": "CONSOLE_VANITY_TABLE",
                 "prompt": "a simple console vanity table without mirror"
             }
         ]
     },
     "tv stand": {
         "synonyms": ["tv stand", "tv console", "media console", "entertainment center", "tv cabinet", "tv unit"],
-        "base_name": "TV 거치대",
+        "base_name": "TV_STAND",
         "subtypes": [
             {
-                "name": "벽걸이 TV 거치대",
+                "name": "WALL_MOUNTED_TV_BRACKET",
                 "prompt": "a wall mounted tv bracket"
             },
             {
-                "name": "TV 장식장",
+                "name": "TV_ENTERTAINMENT_CENTER_WITH_STORAGE",
                 "prompt": "a large tv entertainment center with storage"
             },
             {
-                "name": "낮은 TV 받침대",
+                "name": "LOW_TV_STAND",
                 "prompt": "a low tv stand console table"
             }
         ]
     },
     "piano": {
         "synonyms": ["piano", "upright piano", "grand piano", "digital piano", "keyboard piano"],
-        "base_name": "피아노",
+        "base_name": "PIANO",
         "subtypes": [
             {
-                "name": "업라이트 피아노",
+                "name": "UPRIGHT_VERTICAL_PIANO",
                 "prompt": "an upright vertical piano against a wall"
             },
             {
-                "name": "그랜드 피아노",
+                "name": "GRAND_PIANO",
                 "prompt": "a grand piano with horizontal strings"
             },
             {
-                "name": "디지털 피아노",
+                "name": "DIGITAL_PIANO",
                 "prompt": "a digital electric piano on a stand"
             }
         ]
     },
     "massage chair": {
         "synonyms": ["massage chair", "recliner massage chair", "electric massage chair"],
-        "base_name": "안마의자"
+        "base_name": "MASSAGE_CHAIR"
     },
     "treadmill": {
         "synonyms": ["treadmill", "running machine", "exercise treadmill"],
-        "base_name": "러닝머신"
+        "base_name": "TREADMILL"
     },
     "exercise bike": {
         "synonyms": ["exercise bike", "stationary bike", "spin bike", "indoor cycling bike"],
-        "base_name": "실내자전거"
+        "base_name": "EXERCISE_BIKE"
     },
 }
 
@@ -379,13 +375,13 @@ def get_db_key_from_label(label: str) -> Optional[str]:
 
 def get_base_name(db_key: str) -> str:
     """
-    DB 키에서 한국어 라벨을 가져옵니다.
+    DB 키에서 영어 라벨을 가져옵니다.
 
     Args:
         db_key: DB 키 (예: "bed", "sofa")
 
     Returns:
-        한국어 라벨 (예: "침대", "소파")
+        영어 라벨 (예: "BED", "SOFA")
     """
     if db_key in FURNITURE_DB:
         return FURNITURE_DB[db_key].get("base_name", db_key)
