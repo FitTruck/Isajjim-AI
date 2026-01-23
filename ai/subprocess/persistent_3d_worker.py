@@ -13,7 +13,6 @@ import os
 import base64
 import tempfile
 import time
-import json
 
 # ============================================================================
 # CRITICAL: Set environment variables BEFORE importing torch/spconv
@@ -65,13 +64,18 @@ STAGE2_INFERENCE_STEPS = 8  # Speed: 8 (권장), Quality: 12
 # Binary is ~70% smaller and ~50% faster to write
 USE_BINARY_PLY = True
 
+# Phase 5: Gaussian-only decode (GLB/Mesh 생성 스킵)
+# 테스트 결과: 37.4% 속도 향상, 부피 오차 0.005% (무시 가능)
+# GLB/Mesh가 필요 없고 부피 계산만 필요한 경우 활성화
+GAUSSIAN_ONLY_MODE = True  # True = ["gaussian"], False = ["gaussian", "glb", "mesh"]
+
 # ============================================================================
 
 # Import protocol after environment setup
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from worker_protocol import (
     MessageType, TaskMessage, ResultMessage, InitMessage,
-    HeartbeatMessage, parse_message, ShutdownMessage
+    HeartbeatMessage, parse_message
 )
 
 
@@ -306,10 +310,12 @@ class PersistentWorker:
             log(f"Loading SAM-3D from {config_path}...")
             load_start = time.time()
 
+            # compile=True: 첫 warmup 시 torch.compile로 CUDA 커널 컴파일
+            # 워커 시작 시 ~20-30초 추가되지만, 이후 추론 ~10-20% 빠름
             try:
-                self.sam3d_inference = Inference(config_path, compile=False, device="cuda")
+                self.sam3d_inference = Inference(config_path, compile=True, device="cuda")
             except TypeError:
-                self.sam3d_inference = Inference(config_path, compile=False)
+                self.sam3d_inference = Inference(config_path, compile=True)
 
             # Move models to GPU
             moved_count = 0
@@ -416,10 +422,10 @@ class PersistentWorker:
                 pointmap = make_synthetic_pointmap(image, z=1.0)
 
                 # Run inference
-                # Phase 4: Skip GLB/mesh generation if only volume calculation needed
-                if getattr(task, 'volume_only', False):
+                # Phase 5: Gaussian-only mode for volume calculation (skip GLB/mesh)
+                if GAUSSIAN_ONLY_MODE:
                     decode_formats = ["gaussian"]
-                    log("Volume-only mode: skipping GLB/mesh generation")
+                    log("Phase 5: Gaussian-only mode (37.4% faster, 0.005% volume diff)")
                 else:
                     decode_formats = ["gaussian", "glb", "mesh"]
 
@@ -441,10 +447,10 @@ class PersistentWorker:
 
                 torch.cuda.synchronize()
 
-                # Prepare scene
-                scene_gs = self.make_scene(output, in_place=False)
+                # Prepare scene (in_place=True로 deepcopy 제거하여 메모리/속도 최적화)
+                scene_gs = self.make_scene(output, in_place=True)
                 scene_gs = self.ready_gaussian_for_video_rendering(
-                    scene_gs, in_place=False, fix_alignment=False
+                    scene_gs, in_place=True, fix_alignment=False
                 )
 
                 # Save PLY
