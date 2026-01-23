@@ -34,6 +34,67 @@ FURNITURE_DB = {
             }
         ]
     },
+    "coffee table": {
+        "synonyms": ["coffee table", "living room table", "center table", "low table"],
+        "base_name": "커피테이블",
+    },
+    "microwave": {
+        "synonyms": ["microwave", "microwave oven", "countertop microwave"],
+        "base_name": "전자레인지",
+    },
+    "oven": {
+        "synonyms": ["oven", "kitchen oven", "built-in oven", "wall oven"],
+        "base_name": "오븐",
+    },
+    "mirror": {
+        "synonyms": ["mirror", "wall mirror", "standing mirror", "full length mirror", "vanity mirror"],
+        "base_name": "거울",
+    },
+    "storage box": {
+        "synonyms": ["storage box", "storage container", "plastic box", "moving box"],
+        "base_name": "박스/수납함",
+    },
+    "bench": {
+        "synonyms": ["bench", "wooden bench", "sitting bench", "entryway bench"],
+        "base_name": "벤치",
+    },
+    "toilet": {
+        "synonyms": ["toilet", "toilet bowl", "bathroom toilet", "commode"],
+        "base_name": "변기",
+    },
+    "sink": {
+        "synonyms": ["sink", "kitchen sink", "bathroom sink", "wash basin"],
+        "base_name": "싱크대",
+    },
+    "bathtub": {
+        "synonyms": ["bathtub", "bath tub", "tub", "soaking tub"],
+        "base_name": "욕조",
+    },
+    "bicycle": {
+        "synonyms": ["bicycle", "bike", "cycle", "mountain bike", "road bike"],
+        "base_name": "자전거",
+    },
+    "ladder": {
+        "synonyms": ["ladder", "step ladder", "folding ladder", "extension ladder"],
+        "base_name": "사다리",
+    },
+    "fan": {
+        "synonyms": ["fan", "electric fan", "standing fan", "floor fan", "ceiling fan", "desk fan"],
+        "base_name": "선풍기",
+    },
+    "box": {
+        "synonyms": ["box", "cardboard box", "packing box"],
+        "base_name": "박스",
+    },
+    "kitchen island": {
+        "synonyms": ["kitchen island", "island counter", "island table", "center island"],
+        "base_name": "아일랜드",
+        "exclude_from_output": True,
+    },
+    "cabinet": {
+        "synonyms": ["cabinet", "cabinet/shelf", "storage cabinet", "display cabinet"],
+        "base_name": "캐비닛",
+    },
     "kitchen cabinet": {
         "synonyms": ["cupboard", "dish cupboard", "dish cabinet", "kitchen cupboard", "pantry cabinet", "wall cabinet", "overhead storage", "kitchen cabinet", "kitchen storage", "white cabinet", "black cabinet", "gray cabinet", "brown cabinet"],
         "base_name": "찬장",
@@ -164,7 +225,7 @@ FURNITURE_DB = {
         ]
     },
     "monitor": {
-        "synonyms": ["monitor", "computer monitor", "pc monitor", "desktop monitor", "lcd monitor", "computer screen", "display monitor", "television", "tv", "flat screen tv", "wall mounted tv", "large screen tv"],
+        "synonyms": ["monitor", "monitor/tv", "computer monitor", "pc monitor", "desktop monitor", "lcd monitor", "computer screen", "display monitor", "television", "tv", "flat screen tv", "wall mounted tv", "large screen tv"],
         "base_name": "모니터/TV"
     },
     "desk": {
@@ -218,11 +279,12 @@ FURNITURE_DB = {
         "base_name": "건조기"
     },
     "floor": {
-        "synonyms": ["wood grain floor", "hardwood flooring with patterns", "tiled floor", "solid floor texture"],
-        "base_name": "바닥"
+        "synonyms": ["floor", "wood grain floor", "hardwood flooring with patterns", "tiled floor", "solid floor texture"],
+        "base_name": "바닥",
+        "exclude_from_output": True,
     },
     "potted plant": {
-        "synonyms": ["potted plant", "flower pot", "houseplant", "indoor plant", "vase with flowers"],
+        "synonyms": ["potted plant", "plant", "vase", "flower pot", "houseplant", "indoor plant", "vase with flowers"],
         "base_name": "화분/식물"
     },
     "kimchi refrigerator": {

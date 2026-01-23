@@ -191,6 +191,9 @@ class FurniturePipeline:
         # Stage 2: YOLO-E 탐지 (세그멘테이션 마스크 포함)
         results = self.detector.detect_smart(image, return_masks=True)
 
+        # 출력에서 제외할 클래스 필터링 (예: Kitchen Island, Floor)
+        results = self.detector.filter_excluded_classes(results)
+
         if results is None or len(results["boxes"]) == 0:
             return detected_objects
 
