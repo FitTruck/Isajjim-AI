@@ -40,19 +40,34 @@ app.include_router(furniture_router, tags=["Furniture Analysis"])
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize GPU pool on API startup"""
-    # Initialize GPU pool for YOLOE detection
+    """Initialize GPU pool and SAM3D Worker Pool on API startup (parallel)"""
+    import asyncio
+    import time
+
+    start_time = time.time()
+    print("=" * 60)
+    print("Starting parallel initialization: YOLOE + SAM3D Worker Pool")
+    print("=" * 60)
+
+    # Get GPU IDs first
     try:
-        from ai.gpu import initialize_gpu_pool
         from ai.config import Config
-
         gpu_ids = Config.get_available_gpus()
-        pool = initialize_gpu_pool(gpu_ids)
-        print(f"GPU pool initialized with {len(gpu_ids)} GPUs: {gpu_ids}")
+        print(f"Available GPUs: {gpu_ids}")
+    except Exception as e:
+        print(f"GPU detection failed, using default [0]: {e}")
+        gpu_ids = [0]
 
-        # Pre-initialize pipelines per GPU (YOLOE detection)
+    # Define initialization tasks
+    async def init_yoloe_pipelines():
+        """Initialize YOLOE detection pipelines"""
+        yoloe_start = time.time()
         try:
+            from ai.gpu import initialize_gpu_pool
             from ai.pipeline import FurniturePipeline
+
+            pool = initialize_gpu_pool(gpu_ids)
+            print(f"[YOLOE] GPU pool initialized")
 
             def create_pipeline(gpu_id: int) -> FurniturePipeline:
                 return FurniturePipeline(
@@ -63,29 +78,46 @@ async def startup_event():
                 )
 
             await pool.initialize_pipelines(create_pipeline, skip_on_error=True)
-            print(f"Furniture pipelines pre-initialized for {len(gpu_ids)} GPUs")
+            elapsed = time.time() - yoloe_start
+            print(f"[YOLOE] Pipelines initialized for {len(gpu_ids)} GPUs in {elapsed:.2f}s")
+            return True
         except Exception as e:
-            print(f"Pipeline pre-initialization failed (will create on-demand): {e}")
+            elapsed = time.time() - yoloe_start
+            print(f"[YOLOE] Initialization failed in {elapsed:.2f}s: {e}")
             import traceback
             traceback.print_exc()
+            return False
 
-    except Exception as e:
-        print(f"GPU pool initialization failed (will use default): {e}")
+    async def init_sam3d_worker_pool():
+        """Initialize SAM3D Worker Pool"""
+        sam3d_start = time.time()
+        try:
+            from ai.gpu.sam3d_worker_pool import initialize_sam3d_worker_pool
 
-    # Initialize SAM3D Worker Pool (Persistent Workers for 3D generation)
-    try:
-        from ai.gpu import initialize_sam3d_worker_pool
-        from ai.config import Config
+            await initialize_sam3d_worker_pool(gpu_ids=gpu_ids)
+            elapsed = time.time() - sam3d_start
+            print(f"[SAM3D] Worker Pool initialized for {len(gpu_ids)} GPUs in {elapsed:.2f}s")
+            return True
+        except Exception as e:
+            elapsed = time.time() - sam3d_start
+            print(f"[SAM3D] Worker Pool initialization failed in {elapsed:.2f}s: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
-        gpu_ids = Config.get_available_gpus()
-        print(f"Initializing SAM3D Worker Pool with {len(gpu_ids)} GPUs...")
-        sam3d_pool = await initialize_sam3d_worker_pool(gpu_ids)
-        print(f"SAM3D Worker Pool ready: {sam3d_pool.get_status()}")
+    # Run both initializations in parallel
+    results = await asyncio.gather(
+        init_yoloe_pipelines(),
+        init_sam3d_worker_pool(),
+        return_exceptions=True
+    )
 
-    except Exception as e:
-        print(f"SAM3D Worker Pool initialization failed (will use subprocess): {e}")
-        import traceback
-        traceback.print_exc()
+    total_elapsed = time.time() - start_time
+    print("=" * 60)
+    print(f"Initialization complete in {total_elapsed:.2f}s")
+    print(f"  YOLOE: {'OK' if results[0] is True else 'FAILED'}")
+    print(f"  SAM3D: {'OK' if results[1] is True else 'FAILED'}")
+    print("=" * 60)
 
 
 @app.on_event("shutdown")

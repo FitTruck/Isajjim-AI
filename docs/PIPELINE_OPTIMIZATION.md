@@ -9,10 +9,11 @@
 3. [Multi-GPU 병렬 처리 (1단계)](#3-multi-gpu-병렬-처리-1단계)
 4. [SAM-3D Worker Pool (2단계)](#4-sam-3d-worker-pool-2단계)
 5. [SAM-3D 추론 최적화](#5-sam-3d-추론-최적화)
-6. [환경 변수 최적화](#6-환경-변수-최적화)
-7. [프로세스 격리](#7-프로세스-격리)
-8. [Synthetic Pinhole Pointmap](#8-synthetic-pinhole-pointmap)
-9. [초기 대비 최적화 효과 분석](#9-초기-대비-최적화-효과-분석)
+6. [워커 내부 부피 계산 (Phase 4)](#6-워커-내부-부피-계산-phase-4)
+7. [환경 변수 최적화](#7-환경-변수-최적화)
+8. [프로세스 격리](#8-프로세스-격리)
+9. [Synthetic Pinhole Pointmap](#9-synthetic-pinhole-pointmap)
+10. [초기 대비 최적화 효과 분석](#10-초기-대비-최적화-효과-분석)
 
 ---
 
@@ -387,9 +388,175 @@ MAX_IMAGE_SIZE = None  # 비활성화
 
 ---
 
-## 6. 환경 변수 최적화
+## 6. 워커 내부 부피 계산 (Phase 4)
 
-### 6.1 스레드 폭발 방지
+### 문제점
+
+기존 방식에서는 워커가 PLY 파일을 생성한 후 **base64로 인코딩(10-20MB)**하여 메인 프로세스로 전송하고, 메인 프로세스에서 디코딩 후 trimesh로 부피를 계산했습니다.
+
+```
+[기존 방식]
+워커 → PLY 생성 → base64 인코딩 (10-20MB) → stdout 전송 → 메인 프로세스 → 디코딩 → trimesh 부피 계산
+
+문제:
+- base64 인코딩: 객체당 ~1-2초
+- 대용량 데이터 전송: stdout을 통한 10-20MB 전송
+- base64 디코딩: 객체당 ~0.5-1초
+- 임시 파일 생성: 메인 프로세스에서 추가 I/O
+```
+
+### 해결책: 워커 내부 부피 계산
+
+PLY를 base64로 인코딩하여 전송하는 대신, **워커 내부에서 trimesh로 부피를 계산**하고 결과 JSON만 전송합니다.
+
+```
+[최적화 방식]
+워커 → PLY 생성 → trimesh 부피 계산 (워커 내부) → dimensions JSON (수 KB) 전송
+
+장점:
+- base64 인코딩/디코딩 제거
+- 전송 데이터 99% 감소 (10-20MB → 수 KB)
+- 메인 프로세스 I/O 제거
+```
+
+### 구현
+
+#### 6.1 프로토콜 업데이트
+
+```python
+# ai/subprocess/worker_protocol.py
+@dataclass
+class ResultMessage:
+    task_id: str
+    success: bool
+    ply_b64: Optional[str] = None           # volume_only=True일 때 None
+    ply_size_bytes: Optional[int] = None
+    # 새 필드: 부피/치수 정보 (Phase 4)
+    dimensions: Optional[Dict] = None       # {"volume": float, "bounding_box": {...}}
+    ...
+```
+
+#### 6.2 워커 내부 부피 계산
+
+```python
+# ai/subprocess/persistent_3d_worker.py
+ENABLE_WORKER_VOLUME_CALC = True  # Phase 4 활성화
+
+def calculate_volume_from_ply(ply_path: str) -> dict:
+    """워커 내부에서 PLY 파일의 부피/치수 계산"""
+    import trimesh
+    mesh = trimesh.load(ply_path)
+
+    if isinstance(mesh, trimesh.PointCloud):
+        mesh = trimesh.convex.convex_hull(mesh.vertices)
+
+    bounds = mesh.bounds
+    dimensions = bounds[1] - bounds[0]
+
+    return {
+        "volume": float(mesh.convex_hull.volume),
+        "bounding_box": {
+            "width": float(dimensions[0]),
+            "depth": float(dimensions[1]),
+            "height": float(dimensions[2])
+        }
+    }
+```
+
+#### 6.3 파이프라인에서 결과 사용
+
+```python
+# ai/pipeline/furniture_pipeline.py
+# 워커 결과에서 dimensions 직접 사용 (PLY 디코딩 불필요)
+if gen_result.get("dimensions"):
+    obj.relative_dimensions = gen_result["dimensions"]
+elif gen_result.get("ply_b64"):
+    # 폴백: 기존 방식
+    ...
+```
+
+### 데이터 흐름 비교
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          기존 방식 (Phase 3까지)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  [Worker]                              [Main Process]                       │
+│                                                                             │
+│  PLY 생성 (34MB)                                                            │
+│       ↓                                                                     │
+│  base64 인코딩 (~1-2초)                                                     │
+│       ↓                                                                     │
+│  stdout 전송 ──────────────────────► base64 수신 (45MB)                     │
+│                                            ↓                                │
+│                                      디코딩 (~0.5-1초)                      │
+│                                            ↓                                │
+│                                      임시 파일 저장                          │
+│                                            ↓                                │
+│                                      trimesh 로드                           │
+│                                            ↓                                │
+│                                      부피 계산                               │
+│                                            ↓                                │
+│                                      임시 파일 삭제                          │
+│                                                                             │
+│  총 오버헤드: ~2-4초/객체                                                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          최적화 방식 (Phase 4)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  [Worker]                              [Main Process]                       │
+│                                                                             │
+│  PLY 생성 (34MB)                                                            │
+│       ↓                                                                     │
+│  trimesh 부피 계산 (워커 내부)                                               │
+│       ↓                                                                     │
+│  dimensions JSON 전송 ────────────► JSON 수신 (수 KB)                       │
+│                                            ↓                                │
+│                                      obj.relative_dimensions = result      │
+│                                                                             │
+│  총 오버헤드: ~0.1초/객체                                                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 코드 위치
+
+- `ai/subprocess/worker_protocol.py:45-56` - ResultMessage에 dimensions 필드 추가
+- `ai/subprocess/persistent_3d_worker.py:70` - ENABLE_WORKER_VOLUME_CALC 설정
+- `ai/subprocess/persistent_3d_worker.py:270-340` - calculate_volume_from_ply 함수
+- `ai/pipeline/furniture_pipeline.py:436-456` - 워커 결과에서 dimensions 사용
+
+### 테스트 결과
+
+```
+[Worker 0] Volume calculated: 0.1002, bbox: {width: 1.01, depth: 0.39, height: 0.35}
+[Worker 0] Task obj_0 completed in 19.95s (volume calc mode)
+[FurniturePipeline] Object 0 3D generated: volume=0.1002 (worker calc)
+```
+
+### 효과
+
+| 항목 | 기존 | 최적화 | 개선 |
+|------|------|--------|------|
+| 전송 데이터 | PLY base64 (10-20MB) | JSON (수 KB) | **99% 감소** |
+| base64 인코딩 | ~1-2초/객체 | 0초 | **제거** |
+| base64 디코딩 | ~0.5-1초/객체 | 0초 | **제거** |
+| 메인 프로세스 I/O | 2회 (저장/로드) | 0회 | **제거** |
+| **예상 속도 향상** | - | - | **~20-30%** |
+
+### 품질 영향
+
+**없음** - 동일한 trimesh 로직을 워커 내부에서 실행하므로 결과 동일
+
+---
+
+## 7. 환경 변수 최적화
+
+### 7.1 스레드 폭발 방지
 
 ```python
 # ai/subprocess/generate_3d_worker.py:32-37
@@ -408,7 +575,7 @@ torch.set_num_interop_threads(2)
 
 **해결**: 스레드 수를 4개로 제한하여 컨텍스트 스위칭 오버헤드 감소
 
-### 6.2 spconv 튜닝 시간 제한
+### 7.2 spconv 튜닝 시간 제한
 
 ```python
 # ai/subprocess/generate_3d_worker.py:29
@@ -418,7 +585,7 @@ os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # 100ms 제한
 # 해결: 튜닝 시간을 100ms로 제한
 ```
 
-### 6.3 CUDA 디바이스 격리
+### 7.3 CUDA 디바이스 격리
 
 ```python
 # Multi-GPU 환경에서 특정 GPU만 보이게 설정
@@ -430,7 +597,7 @@ os.environ["SPCONV_TUNE_DEVICE"] = "0"
 
 ---
 
-## 7. 프로세스 격리
+## 8. 프로세스 격리
 
 ### 문제점
 
@@ -457,7 +624,7 @@ result = subprocess.run(
 
 ---
 
-## 8. Synthetic Pinhole Pointmap
+## 9. Synthetic Pinhole Pointmap
 
 ### 문제점
 
@@ -496,9 +663,9 @@ def make_synthetic_pointmap(image, z=1.0, f=None):
 
 ---
 
-## 9. 초기 대비 최적화 효과 분석
+## 10. 초기 대비 최적화 효과 분석
 
-### 9.1 단일 객체 처리 시간 비교
+### 10.1 단일 객체 처리 시간 비교
 
 #### 초기 상태 (V1 파이프라인, 최적화 없음)
 
@@ -537,7 +704,7 @@ def make_synthetic_pointmap(image, z=1.0, f=None):
 
 ---
 
-### 9.2 다중 이미지/객체 처리 시간 비교
+### 10.2 다중 이미지/객체 처리 시간 비교
 
 #### 시나리오: 4개 이미지, 이미지당 3개 객체 (총 12개 객체), 4 GPU
 
@@ -584,7 +751,7 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 
 ---
 
-### 9.3 규모별 최적화 효과
+### 10.3 규모별 최적화 효과
 
 | 시나리오 | 초기 | 현재 | 절약 | 배수 |
 |----------|------|------|------|------|
@@ -597,7 +764,7 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 
 ---
 
-### 9.4 최적화 기여도 분석
+### 10.4 최적화 기여도 분석
 
 각 최적화 기법이 전체 성능 향상에 기여한 정도를 분석합니다.
 
@@ -610,7 +777,8 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 | V2 파이프라인 (SAM2/CLIP 제거) | 3-7초 | **2-4%** |
 | 모델 사전 로드 (YOLOE + SAM-3D) | 7-11초 | **5-7%** |
 | Steps 감소 (12→8) | ~7초 | **~5%** |
-| **합계** | **~124초** | **~83%** |
+| 워커 내부 부피 계산 (Phase 4) | ~2-4초 | **~2-3%** |
+| **합계** | **~126-128초** | **~84-85%** |
 
 #### 다중 이미지/객체 기준 (추가 최적화)
 
@@ -622,7 +790,7 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 
 ---
 
-### 9.5 시각적 요약
+### 10.5 시각적 요약
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -645,7 +813,7 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 
 ---
 
-### 9.6 결론
+### 10.6 결론
 
 | 측면 | 초기 | 현재 | 개선율 |
 |------|------|------|--------|
@@ -665,6 +833,7 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 | `ai/gpu/gpu_pool_manager.py` | YOLOE용 GPU Pool Manager (1단계) |
 | `ai/gpu/sam3d_worker_pool.py` | SAM-3D Persistent Worker Pool (2단계) |
 | `ai/subprocess/generate_3d_worker.py` | SAM-3D subprocess 워커 |
-| `ai/subprocess/persistent_3d_worker.py` | SAM-3D persistent 워커 |
+| `ai/subprocess/persistent_3d_worker.py` | SAM-3D persistent 워커 + 워커 내부 부피 계산 (Phase 4) |
+| `ai/subprocess/worker_protocol.py` | 워커-메인 프로세스 통신 프로토콜 (dimensions 필드 포함) |
 | `ai/pipeline/furniture_pipeline.py` | V2 파이프라인 오케스트레이터 |
 | `ai/config.py` | Multi-GPU 설정 |

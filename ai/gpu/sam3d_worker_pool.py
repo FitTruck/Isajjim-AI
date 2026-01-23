@@ -481,11 +481,86 @@ class SAM3DWorkerPool:
 
 # 글로벌 인스턴스
 _global_sam3d_pool: Optional[SAM3DWorkerPool] = None
+_init_lock: Optional[asyncio.Lock] = None
+_initializing: bool = False
 
 
 def get_sam3d_worker_pool() -> Optional[SAM3DWorkerPool]:
     """글로벌 SAM3D Worker Pool을 가져옵니다."""
     return _global_sam3d_pool
+
+
+async def get_or_create_sam3d_worker_pool(
+    gpu_ids: Optional[List[int]] = None
+) -> Optional[SAM3DWorkerPool]:
+    """
+    글로벌 SAM3D Worker Pool을 가져오거나 없으면 생성합니다 (Lazy Initialization).
+
+    이 함수는 첫 3D 생성 요청 시 호출되어 워커 풀을 초기화합니다.
+    서버 시작 시점이 아닌 실제 사용 시점에 초기화하여 GPU 충돌을 방지합니다.
+
+    Args:
+        gpu_ids: 사용할 GPU ID 목록 (None이면 자동 감지)
+
+    Returns:
+        SAM3DWorkerPool 인스턴스 또는 초기화 실패 시 None
+    """
+    global _global_sam3d_pool, _init_lock, _initializing
+
+    # 이미 초기화된 경우 바로 반환
+    if _global_sam3d_pool is not None and _global_sam3d_pool._started:
+        return _global_sam3d_pool
+
+    # Lock 초기화 (한 번만)
+    if _init_lock is None:
+        _init_lock = asyncio.Lock()
+
+    async with _init_lock:
+        # Double-check after acquiring lock
+        if _global_sam3d_pool is not None and _global_sam3d_pool._started:
+            return _global_sam3d_pool
+
+        # 이미 초기화 중인 경우 대기
+        if _initializing:
+            print("[SAM3DWorkerPool] Initialization already in progress, waiting...")
+            # 초기화 완료 대기 (최대 180초)
+            for _ in range(180):
+                await asyncio.sleep(1)
+                if _global_sam3d_pool is not None and _global_sam3d_pool._started:
+                    return _global_sam3d_pool
+            return None
+
+        _initializing = True
+        print("[SAM3DWorkerPool] Lazy initialization started...")
+
+        try:
+            # GPU ID 자동 감지
+            if gpu_ids is None:
+                try:
+                    from ai.config import Config
+                    gpu_ids = Config.get_available_gpus()
+                except Exception:
+                    import torch
+                    if torch.cuda.is_available():
+                        gpu_ids = list(range(torch.cuda.device_count()))
+                    else:
+                        gpu_ids = [0]
+
+            _global_sam3d_pool = SAM3DWorkerPool(gpu_ids=gpu_ids)
+            await _global_sam3d_pool.start_workers()
+
+            print(f"[SAM3DWorkerPool] Lazy initialization complete: {_global_sam3d_pool.get_status()}")
+            return _global_sam3d_pool
+
+        except Exception as e:
+            print(f"[SAM3DWorkerPool] Lazy initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+            _global_sam3d_pool = None
+            return None
+
+        finally:
+            _initializing = False
 
 
 async def initialize_sam3d_worker_pool(

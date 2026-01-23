@@ -252,3 +252,84 @@ class TestFetchMultipleAsync:
             assert len(results) == 2
             # 예외가 발생한 URL은 None으로 처리됨
             assert results[1][1] is None
+
+
+class TestLocalFileLoading:
+    """로컬 파일 로딩 테스트"""
+
+    @pytest.fixture
+    def temp_image(self, tmp_path):
+        """임시 이미지 파일 생성"""
+        img = Image.new('RGB', (80, 80), color='purple')
+        img_path = tmp_path / "test_image.png"
+        img.save(str(img_path))
+        return str(img_path)
+
+    @pytest.mark.asyncio
+    async def test_fetch_async_with_file_protocol(self, temp_image):
+        """file:// 프로토콜로 로컬 파일 로드"""
+        fetcher = ImageFetcher()
+        file_url = f"file://{temp_image}"
+
+        result = await fetcher.fetch_async(file_url)
+
+        assert result is not None
+        assert isinstance(result, Image.Image)
+        assert result.size == (80, 80)
+
+    @pytest.mark.asyncio
+    async def test_fetch_async_with_absolute_path(self, temp_image):
+        """절대 경로로 로컬 파일 로드"""
+        fetcher = ImageFetcher()
+
+        result = await fetcher.fetch_async(temp_image)
+
+        assert result is not None
+        assert isinstance(result, Image.Image)
+
+    @pytest.mark.asyncio
+    async def test_fetch_async_file_not_found(self):
+        """존재하지 않는 파일"""
+        fetcher = ImageFetcher()
+
+        result = await fetcher.fetch_async("file:///nonexistent/path.png")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_fetch_async_absolute_path_not_found(self):
+        """존재하지 않는 절대 경로"""
+        fetcher = ImageFetcher()
+
+        result = await fetcher.fetch_async("/nonexistent/absolute/path.png")
+
+        assert result is None
+
+    def test_load_local_file_success(self, temp_image):
+        """_load_local_file 성공"""
+        fetcher = ImageFetcher()
+
+        result = fetcher._load_local_file(temp_image)
+
+        assert result is not None
+        assert isinstance(result, Image.Image)
+
+    def test_load_local_file_not_found(self):
+        """_load_local_file 파일 없음"""
+        fetcher = ImageFetcher()
+
+        result = fetcher._load_local_file("/nonexistent/file.png")
+
+        assert result is None
+
+    def test_load_local_file_invalid_image(self, tmp_path):
+        """_load_local_file 잘못된 이미지 파일"""
+        fetcher = ImageFetcher()
+
+        # 잘못된 이미지 파일 생성
+        invalid_file = tmp_path / "invalid.png"
+        invalid_file.write_text("not an image")
+
+        result = fetcher._load_local_file(str(invalid_file))
+
+        assert result is None

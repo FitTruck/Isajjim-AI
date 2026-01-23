@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |------|------|
-| Version | 2.1 |
-| Last Updated | 2026-01-21 |
+| Version | 2.3 |
+| Last Updated | 2026-01-23 |
 | Author | AI Team |
 | Status | Implemented |
 
@@ -238,11 +238,12 @@ if obj.yolo_mask is not None:
 
 ### 4.1 POST /analyze-furniture
 
-**Description:** Multi-image furniture analysis (Multi-GPU parallel)
+**Description:** Multi-image furniture analysis (Multi-GPU parallel, Callback 지원)
 
 **Request:**
 ```json
 {
+  "estimate_id": 123,
   "image_urls": [
     {
       "id": 101,
@@ -252,14 +253,25 @@ if obj.yolo_mask is not None:
       "id": 102,
       "url": "https://firebase-storage-url-2.jpg/"
     }
-  ]
+  ],
+  "callback_url": "http://api.example.com/api/v1/estimates/{estimateId}/callback"
 }
-
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| image_urls | array[string] | Yes | Firebase Storage URL 리스트 (1-20개) |
+| estimate_id | int | Yes | 백엔드 견적 ID (callback URL 경로에 삽입됨) |
+| image_urls | array[object] | Yes | Firebase Storage URL 객체 리스트 (1-20개) |
+| image_urls[].id | int | Yes | 사용자 지정 이미지 ID |
+| image_urls[].url | string | Yes | Firebase Storage URL |
+| callback_url | string | No | 비동기 처리 완료 후 결과 POST할 URL (`{estimateId}` placeholder 지원) |
+
+**동기 모드 (callback_url 없음):**
+- 처리 완료 후 결과 직접 반환
+
+**비동기 모드 (callback_url 있음):**
+- 즉시 202 Accepted 반환
+- 처리 완료 후 callback_url로 결과 POST
 
 **Response:**
 ```json
@@ -308,6 +320,51 @@ if obj.yolo_mask is not None:
 ```
 
 > Response 필드 상세는 **Section 2.4** 참조
+
+**비동기 모드 응답 (202 Accepted):**
+```json
+{
+  "task_id": "uuid-...",
+  "message": "Processing started",
+  "status_url": "/analyze-furniture/status/uuid-..."
+}
+```
+
+**Callback URL 변환:**
+- 요청: `callback_url: "http://api.example.com/api/v1/estimates/{estimateId}/callback"`, `estimate_id: 123`
+- 실제 전송: `POST http://api.example.com/api/v1/estimates/123/callback`
+
+**Callback 페이로드:**
+```json
+{
+  "task_id": "uuid-...",
+  "status": "completed",
+  "results": [...]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| task_id | string | AI 서버에서 생성한 작업 ID |
+| status | string | "completed" 또는 "failed" |
+| results | array | 분석 결과 (위 Response와 동일 형식) |
+| error | string | 실패 시 에러 메시지 (status=failed일 때만) |
+
+### 4.1.1 GET /analyze-furniture/status/{task_id}
+
+**Description:** 비동기 작업 상태 조회 (callback 실패 시 fallback)
+
+**Response:**
+```json
+{
+  "status": "completed",
+  "created_at": "2026-01-23T12:00:00Z",
+  "updated_at": "2026-01-23T12:05:00Z",
+  "callback_url": "http://api.example.com/callback",
+  "callback_sent": true,
+  "results": [...]
+}
+```
 
 ### 4.2 POST /analyze-furniture-single
 
@@ -605,8 +662,17 @@ await pool.initialize_pipelines(
 | Image Fetch | ~0.5s |
 | YOLOE-seg Detection | ~1.0s |
 | DB Matching | <0.1s |
-| SAM-3D (per object) | ~30-60s |
-| Volume Calculation | ~0.5s |
+| SAM-3D (per object) | ~20-30s |
+| Volume Calculation | ~0.1s (워커 내부) |
+
+### 7.3 Phase 4 최적화 (워커 내부 부피 계산)
+
+| 항목 | 이전 | 최적화 후 | 개선 |
+|------|------|----------|------|
+| 부피 계산 위치 | 메인 프로세스 | 워커 내부 | - |
+| 전송 데이터 | PLY base64 (10-20MB) | dimensions JSON (수 KB) | 99% 감소 |
+| Base64 인코딩/디코딩 | ~2-3초/객체 | 0초 | 제거 |
+| 메인 프로세스 I/O | 2회 | 0회 | 제거 |
 
 ---
 
@@ -664,6 +730,27 @@ aiohttp                 # Async HTTP client
 ---
 
 ## 10. Changelog
+
+### V2.4 (2026-01-23)
+
+**Changes:**
+- Phase 4 최적화: 워커 내부 부피 계산 구현
+- PLY base64 전송 제거, dimensions JSON만 전송 (99% 데이터 감소)
+- `ResultMessage.dimensions` 필드 추가
+- `calculate_volume_from_ply()` 함수 추가 (워커 내부)
+- ~20-30% 속도 향상 예상
+
+**Files Modified:**
+- `ai/subprocess/worker_protocol.py` - dimensions 필드 추가
+- `ai/subprocess/persistent_3d_worker.py` - 워커 내부 부피 계산 구현
+- `ai/pipeline/furniture_pipeline.py` - 워커 결과에서 dimensions 직접 사용
+
+### V2.3 (2026-01-23)
+
+**Changes:**
+- `estimate_id` 필드 추가 (필수)
+- Callback URL에 `{estimateId}` placeholder 지원
+- YOLOE + SAM3D 병렬 초기화 (서버 시작 시 ~57초)
 
 ### V2.0 (2026-01-18)
 

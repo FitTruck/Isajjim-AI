@@ -14,6 +14,7 @@ from .gpu_pool_manager import (
 from .sam3d_worker_pool import (
     SAM3DWorkerPool,
     get_sam3d_worker_pool,
+    get_or_create_sam3d_worker_pool,
     initialize_sam3d_worker_pool,
     shutdown_sam3d_worker_pool
 )
@@ -25,6 +26,7 @@ __all__ = [
     'initialize_gpu_pool',
     'SAM3DWorkerPool',
     'get_sam3d_worker_pool',
+    'get_or_create_sam3d_worker_pool',
     'initialize_sam3d_worker_pool',
     'shutdown_sam3d_worker_pool'
 ]
