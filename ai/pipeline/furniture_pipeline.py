@@ -40,7 +40,7 @@ from ai.processors import (
 
 # GPU pool manager import
 from ai.gpu import GPUPoolManager, get_gpu_pool
-from ai.gpu import SAM3DWorkerPool, get_sam3d_worker_pool, get_or_create_sam3d_worker_pool
+from ai.gpu import SAM3DWorkerPool, get_sam3d_worker_pool
 
 # Config import
 from ai.config import Config
@@ -400,8 +400,7 @@ class FurniturePipeline:
         Returns:
             {object_id: {"ply_b64": str, ...}, ...}
         """
-        # Lazy initialization: 첫 요청 시 Worker Pool 생성
-        sam3d_pool = await get_or_create_sam3d_worker_pool()
+        sam3d_pool = get_sam3d_worker_pool()
 
         if sam3d_pool is None or not sam3d_pool.is_ready():
             # Worker Pool 미사용 - 기존 순차 처리
@@ -442,15 +441,9 @@ class FurniturePipeline:
                     "ply_b64": worker_result.ply_b64,
                     "ply_size_bytes": worker_result.ply_size_bytes,
                     "gif_b64": worker_result.gif_b64,
-                    "mesh_url": worker_result.mesh_url,
-                    # Phase 4: 워커 내부 부피 계산 결과 (최적화)
-                    "dimensions": worker_result.dimensions
+                    "mesh_url": worker_result.mesh_url
                 }
-                if worker_result.dimensions:
-                    dims = worker_result.dimensions
-                    print(f"[FurniturePipeline] Object {obj_id} 3D generated: volume={dims.get('volume', 0):.4f} (worker calc)")
-                else:
-                    print(f"[FurniturePipeline] Object {obj_id} 3D generated: {worker_result.ply_size_bytes} bytes")
+                print(f"[FurniturePipeline] Object {obj_id} 3D generated: {worker_result.ply_size_bytes} bytes")
             else:
                 print(f"[FurniturePipeline] Object {obj_id} 3D failed: {worker_result.error}")
 
@@ -526,13 +519,7 @@ class FurniturePipeline:
                         gen_result = gen_results[obj.id]
                         obj.glb_url = gen_result.get("mesh_url")
 
-                        # Phase 4: 워커 내부 부피 계산 결과 우선 사용 (최적화)
-                        if gen_result.get("dimensions"):
-                            # 워커에서 계산된 dimensions 직접 사용 (PLY 디코딩 불필요)
-                            obj.relative_dimensions = gen_result["dimensions"]
-                            obj.absolute_dimensions = None
-                        elif gen_result.get("ply_b64"):
-                            # 폴백: PLY base64에서 계산 (기존 방식)
+                        if gen_result.get("ply_b64"):
                             with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as tmp:
                                 tmp.write(base64.b64decode(gen_result["ply_b64"]))
                                 ply_path = tmp.name

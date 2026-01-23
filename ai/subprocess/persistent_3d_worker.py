@@ -48,13 +48,6 @@ torch.set_default_dtype(torch.float32)
 
 from PIL import Image
 
-# trimesh for volume calculation (워커 내부 부피 계산 최적화)
-try:
-    import trimesh
-    HAS_TRIMESH = True
-except ImportError:
-    HAS_TRIMESH = False
-
 # ============================================================================
 # Performance Optimization Configuration
 # ============================================================================
@@ -71,10 +64,6 @@ STAGE2_INFERENCE_STEPS = 8  # Speed: 8 (권장), Quality: 12
 # Phase 3: PLY output format
 # Binary is ~70% smaller and ~50% faster to write
 USE_BINARY_PLY = True
-
-# Phase 4: Worker-side volume calculation (워커 내부 부피 계산)
-# PLY base64 전송 대신 부피/치수 결과만 전송하여 ~20-30% 속도 향상
-ENABLE_WORKER_VOLUME_CALC = True
 
 # ============================================================================
 
@@ -278,93 +267,6 @@ def add_rgb_to_ply(ply_path: str, use_binary: bool = True):
             out.write(ply_content)
 
 
-def calculate_volume_from_ply(ply_path: str) -> dict:
-    """
-    PLY 파일에서 부피와 치수를 계산합니다 (워커 내부 계산).
-
-    Phase 4 최적화: PLY base64 전송 대신 워커에서 직접 계산하여
-    ~20-30% 속도 향상 (base64 인코딩/디코딩/전송 제거)
-
-    Args:
-        ply_path: PLY 파일 경로
-
-    Returns:
-        {
-            "volume": float,
-            "bounding_box": {"width": float, "depth": float, "height": float},
-            "centroid": [x, y, z],
-            "surface_area": float
-        }
-    """
-    if not HAS_TRIMESH:
-        log("Warning: trimesh not available, skipping volume calculation")
-        return None
-
-    try:
-        mesh = trimesh.load(ply_path)
-
-        # Point cloud인 경우 convex hull로 메시 생성
-        if isinstance(mesh, trimesh.PointCloud):
-            points = mesh.vertices
-            if len(points) < 4:
-                # 점이 4개 미만이면 bounding box 기반 계산
-                min_bounds = points.min(axis=0)
-                max_bounds = points.max(axis=0)
-                dimensions = max_bounds - min_bounds
-                return {
-                    "volume": float(dimensions[0] * dimensions[1] * dimensions[2]),
-                    "bounding_box": {
-                        "width": float(dimensions[0]),
-                        "depth": float(dimensions[1]),
-                        "height": float(dimensions[2])
-                    },
-                    "centroid": points.mean(axis=0).tolist(),
-                    "surface_area": 0.0
-                }
-            mesh = trimesh.convex.convex_hull(points)
-
-        # Bounding box 계산
-        bounds = mesh.bounds  # [[min_x, min_y, min_z], [max_x, max_y, max_z]]
-        dimensions = bounds[1] - bounds[0]
-
-        width = float(dimensions[0])
-        depth = float(dimensions[1])
-        height = float(dimensions[2])
-
-        # 부피 계산
-        try:
-            if mesh.is_watertight:
-                volume = float(mesh.volume)
-            else:
-                volume = float(mesh.convex_hull.volume)
-        except Exception:
-            volume = width * depth * height
-
-        # 중심점 계산
-        centroid = mesh.centroid.tolist() if hasattr(mesh, 'centroid') else [0, 0, 0]
-
-        # 표면적 계산
-        try:
-            surface_area = float(mesh.area)
-        except Exception:
-            surface_area = 0.0
-
-        return {
-            "volume": volume,
-            "bounding_box": {
-                "width": width,
-                "depth": depth,
-                "height": height
-            },
-            "centroid": centroid,
-            "surface_area": surface_area
-        }
-
-    except Exception as e:
-        log(f"Volume calculation error: {e}")
-        return None
-
-
 class PersistentWorker:
     """Persistent 3D Worker - 모델을 미리 로드하고 작업 요청 대기"""
 
@@ -554,43 +456,21 @@ class PersistentWorker:
                 except Exception as e:
                     log(f"Warning: Could not add RGB to PLY: {e}")
 
-                # Phase 4: Worker-side volume calculation (워커 내부 부피 계산)
-                dimensions = None
-                ply_b64 = None
-                ply_size_bytes = 0
+                # Read PLY
+                with open(output_ply_path, "rb") as f:
+                    ply_bytes = f.read()
 
-                if ENABLE_WORKER_VOLUME_CALC and HAS_TRIMESH:
-                    # 워커 내부에서 부피 계산 - PLY base64 전송 생략
-                    dimensions = calculate_volume_from_ply(output_ply_path)
-                    if dimensions:
-                        log(f"Volume calculated: {dimensions['volume']:.4f}, bbox: {dimensions['bounding_box']}")
-                    else:
-                        log("Warning: Volume calculation failed, falling back to PLY transfer")
-                        # 폴백: PLY base64 전송
-                        with open(output_ply_path, "rb") as f:
-                            ply_bytes = f.read()
-                        ply_b64 = base64.b64encode(ply_bytes).decode("utf-8")
-                        ply_size_bytes = len(ply_bytes)
-                else:
-                    # 기존 방식: PLY base64 전송
-                    with open(output_ply_path, "rb") as f:
-                        ply_bytes = f.read()
-                    ply_b64 = base64.b64encode(ply_bytes).decode("utf-8")
-                    ply_size_bytes = len(ply_bytes)
+                ply_b64 = base64.b64encode(ply_bytes).decode("utf-8")
+                ply_size_bytes = len(ply_bytes)
 
                 processing_time = time.time() - start_time
-
-                if dimensions:
-                    log(f"Task {task.task_id} completed in {processing_time:.2f}s (volume calc mode)")
-                else:
-                    log(f"Task {task.task_id} completed in {processing_time:.2f}s, PLY: {ply_size_bytes} bytes")
+                log(f"Task {task.task_id} completed in {processing_time:.2f}s, PLY: {ply_size_bytes} bytes")
 
                 return ResultMessage(
                     task_id=task.task_id,
                     success=True,
                     ply_b64=ply_b64,
                     ply_size_bytes=ply_size_bytes,
-                    dimensions=dimensions,
                     processing_time_seconds=processing_time
                 )
 

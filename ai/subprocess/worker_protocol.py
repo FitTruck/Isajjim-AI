@@ -53,8 +53,6 @@ class ResultMessage:
     mesh_url: Optional[str] = None
     error: Optional[str] = None
     processing_time_seconds: float = 0.0
-    # 워커 내부 부피 계산 결과 (최적화: PLY 전송 대신 결과만 전송)
-    dimensions: Optional[Dict] = None  # {"volume": float, "bounding_box": {"width", "depth", "height"}}
 
     def to_json(self) -> str:
         return json.dumps({

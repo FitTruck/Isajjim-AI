@@ -96,7 +96,8 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 
 1. **Main API (`api/app.py`)**
    - FastAPI server with YOLOE-seg pipelines
-   - **Parallel initialization at startup**: YOLOE + SAM3D Worker Pool 동시 초기화 (~57초)
+   - Initializes GPU pool and pre-initializes pipelines at startup
+   - Initializes SAM3D Worker Pool for persistent 3D generation
    - Serves static assets (PLY, GIF, GLB) at /assets endpoint
 
 2. **GPU Pool Manager (`ai/gpu/gpu_pool_manager.py`)**
@@ -108,7 +109,6 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 
 3. **SAM3D Worker Pool (`ai/gpu/sam3d_worker_pool.py`)**
    - SAM3DWorkerPool class: GPU당 하나의 persistent 워커 프로세스 관리
-   - **Parallel initialization**: 서버 시작 시 YOLOE와 동시 초기화 (subprocess isolation으로 충돌 없음)
    - 모델 1회 로드 후 재사용 (모델 로딩 오버헤드 제거)
    - 라운드로빈 작업 분배
    - JSON 기반 stdin/stdout 통신 프로토콜
@@ -124,7 +124,6 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
    - TaskMessage, ResultMessage, InitMessage, HeartbeatMessage 정의
    - JSON 기반 메시지 직렬화/역직렬화
    - 워커-풀 매니저 간 통신 규약
-   - **ResultMessage.dimensions**: Phase 4 워커 내부 부피 계산 결과 (PLY base64 전송 대신)
 
 6. **Furniture Analysis Pipeline (`ai/pipeline/furniture_pipeline.py`)**
    - FurniturePipeline class: Full AI logic orchestrator
@@ -171,15 +170,7 @@ STAGE2_INFERENCE_STEPS = 8  # ~15-20% 속도 향상, ~4% 부피 오차
 
 # Phase 3: PLY 형식 (True = Binary)
 USE_BINARY_PLY = True  # ~70% 파일 크기 감소, ~50% I/O 속도 향상
-
-# Phase 4: 워커 내부 부피 계산 (True = 활성화)
-ENABLE_WORKER_VOLUME_CALC = True  # PLY base64 전송 대신 부피만 반환, ~20-30% 속도 향상
 ```
-
-**Phase 4 최적화 (워커 내부 부피 계산):**
-- 기존: 워커 → PLY base64 (10-20MB) → 메인 프로세스 → 디코딩 → trimesh
-- 최적화: 워커 → trimesh (내부) → dimensions JSON (수 KB)
-- 효과: base64 인코딩/디코딩 제거, 전송 데이터 99% 감소
 
 **성능 테스트 결과 (8 GPU, 8 이미지, 101 객체):**
 - 총 시간: ~3분 47초 (226초)
@@ -254,8 +245,6 @@ python main.py  # Analyzes images in imgs/ directory
 
 ### Furniture Analysis Endpoints (AI Integration)
 - `POST /analyze-furniture` - Full pipeline: Firebase URLs → Detection → 3D → Volume (Multi-GPU parallel processing)
-  - **Callback 지원**: `callback_url` 필드로 비동기 처리 가능 (202 반환 후 결과를 callback URL로 POST)
-- `GET /analyze-furniture/status/{task_id}` - 비동기 작업 상태 조회 (callback 실패 시 fallback)
 - `POST /analyze-furniture-single` - Single image analysis
 - `POST /analyze-furniture-base64` - Base64 image input (no Firebase URL)
 - `POST /detect-furniture` - Detection only (no 3D, fast response)
@@ -324,8 +313,8 @@ curl http://localhost:8000/gpu-status
 
 ### Persistent Worker Pool 방식 (권장, /analyze-furniture 사용)
 
-1. **Parallel Initialization**: 서버 시작 시 YOLOE와 동시에 SAM3DWorkerPool 초기화 (GPU당 1개 워커 프로세스, ~53초)
-2. 각 워커는 SAM-3D 모델을 1회 로드하고 대기 (~33초 소요)
+1. 서버 시작 시 SAM3DWorkerPool 초기화 (GPU당 1개 워커 프로세스)
+2. 각 워커는 SAM-3D 모델을 1회 로드하고 대기
 3. FurniturePipeline._parallel_3d_generation() 호출:
    - 이미지와 마스크를 base64로 인코딩
    - TaskMessage를 JSON으로 워커에 전송 (stdin)
@@ -387,38 +376,17 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ### Request Format (TDD 문서 Section 4.1)
 ```json
 {
-  "estimate_id": 123,
   "image_urls": [
     {"id": 101, "url": "https://firebase-storage-url-1.jpg/"},
     {"id": 102, "url": "https://firebase-storage-url-2.jpg/"}
-  ],
-  "callback_url": "http://api.example.com/api/v1/estimates/{estimateId}/callback"
+  ]
 }
 ```
 
 **필드:**
-- `estimate_id`: 백엔드 견적 ID (필수, callback URL 경로에 삽입됨)
 - `image_urls`: 이미지 URL 객체 배열 (1-20개)
   - `id`: 사용자 지정 이미지 ID (정수)
   - `url`: Firebase Storage URL (문자열)
-- `callback_url`: (선택) 비동기 처리 완료 후 결과를 POST할 URL
-  - `{estimateId}` placeholder가 `estimate_id` 값으로 치환됨
-
-### Callback Mode (비동기 처리)
-
-`callback_url`이 제공되면:
-1. 즉시 202 Accepted 반환: `{"task_id": "...", "message": "Processing started"}`
-2. 백그라운드에서 분석 진행
-3. 완료 시 **resolved callback URL**로 결과 POST:
-   - 예: `http://api.example.com/api/v1/estimates/123/callback` (estimate_id=123)
-```json
-{
-  "task_id": "uuid-...",
-  "status": "completed",
-  "results": [{"image_id": 101, "objects": [...]}]
-}
-```
-4. 실패 시에도 callback 전송: `{"task_id": "...", "status": "failed", "error": "..."}`
 
 ### Response Format (TDD 문서 Section 4.1)
 ```json
@@ -504,8 +472,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 - Use background_tasks for operations taking more than 5 seconds
 - Return task_id immediately for async operations
 - Store results in generation_tasks dict or persistent storage
-- If Multi-GPU is needed, acquire pool via get_gpu_pool() or `await get_or_create_sam3d_worker_pool()`
-- For callback support, use `send_callback()` helper in `api/routes/furniture.py`
+- If Multi-GPU is needed, acquire pool via get_gpu_pool() or get_sam3d_worker_pool()
 
 ### When Working with PLY Files
 - PLY files are post-processed to add RGB from SH coefficients (add_rgb_to_ply)
@@ -576,4 +543,3 @@ test_pipeline_qa.py                     # Pipeline V2 QA test script
 5. **Empty mask error**: Subprocess validates mask has >0 pixels and warns if <100 pixels
 6. **Multi-GPU pipeline not initialized**: Falls back to creating new pipeline on-demand if pre-initialization fails
 7. **GPU allocation timeout**: Raises RuntimeError if wait_timeout (default 300s) is exceeded
-8. **SAM3D Worker Pool startup conflict**: Solved by subprocess isolation - YOLOE와 SAM3D 병렬 초기화 가능 (서버 시작 시 ~57초)

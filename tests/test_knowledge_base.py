@@ -47,8 +47,7 @@ class TestFurnitureDB:
 
     def test_known_furniture_types_exist(self):
         """알려진 가구 타입이 존재하는지 확인"""
-        # V2에서 "tv"는 "monitor"의 synonym으로 변경됨
-        expected_keys = ["bed", "sofa", "desk", "chair", "refrigerator", "monitor"]
+        expected_keys = ["bed", "sofa", "desk", "chair", "refrigerator", "tv"]
         for key in expected_keys:
             assert key in FURNITURE_DB, f"'{key}'가 FURNITURE_DB에 없습니다"
 
@@ -138,20 +137,20 @@ class TestGetSubtypes:
 
 
 class TestGetContentLabels:
-    """get_content_labels 함수 테스트 (V2에서 deprecated)"""
+    """get_content_labels 함수 테스트"""
 
     def test_kitchen_cabinet_content_labels(self):
-        """주방 캐비닛 내용물 라벨 테스트 - V2에서 deprecated로 빈 리스트 반환"""
+        """주방 캐비닛 내용물 라벨 테스트"""
         labels = get_content_labels("kitchen cabinet")
         assert isinstance(labels, list)
-        # V2에서 content_labels는 deprecated되어 빈 리스트 반환
-        assert labels == []
+        assert "dish" in labels
+        assert "plate" in labels
+        assert "cup" in labels
 
     def test_bookshelf_content_labels(self):
-        """책장 내용물 라벨 테스트 - V2에서 deprecated로 빈 리스트 반환"""
+        """책장 내용물 라벨 테스트"""
         labels = get_content_labels("bookshelf")
-        # V2에서 content_labels는 deprecated되어 빈 리스트 반환
-        assert labels == []
+        assert "book" in labels
 
     def test_no_content_labels_returns_empty_list(self):
         """내용물 라벨이 없는 가구는 빈 리스트 반환"""

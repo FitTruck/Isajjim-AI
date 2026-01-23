@@ -2,7 +2,7 @@
 Pydantic Request/Response Models
 """
 
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel
 
 
@@ -31,24 +31,10 @@ class ImageUrlItem(BaseModel):
 
 class AnalyzeFurnitureRequest(BaseModel):
     """Multi-image furniture analysis request (TDD Section 4.1)"""
-    estimate_id: int  # Backend estimate ID (used in callback URL path)
     image_urls: List[ImageUrlItem]
-    callback_url: Optional[str] = None  # Callback URL with {estimateId} placeholder
     enable_mask: bool = True
     enable_3d: bool = True
     max_concurrent: int = 3
-
-
-# ============================================================================
-# Callback Models
-# ============================================================================
-
-class CallbackPayload(BaseModel):
-    """Callback API payload sent to backend server"""
-    task_id: str                            # AI server generated task ID
-    status: str                             # "completed" | "failed"
-    results: Optional[List[dict]] = None    # Analysis results (TDD format)
-    error: Optional[str] = None             # Error message on failure
 
 
 class AnalyzeFurnitureSingleRequest(BaseModel):

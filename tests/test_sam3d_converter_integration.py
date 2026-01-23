@@ -103,18 +103,13 @@ class TestSAM3DConverterTestOutputs:
     def test_original_image_exists(self):
         """원본 이미지 존재 확인"""
         original = BEDROOM_DIR / "00_original.jpg"
-        if not BEDROOM_DIR.exists():
-            pytest.skip(f"Test data directory not found: {BEDROOM_DIR}")
         assert original.exists(), f"Original image not found: {original}"
 
     def test_mask_files_exist(self):
         """마스크 파일 존재 확인"""
-        if not BEDROOM_DIR.exists():
-            pytest.skip(f"Test data directory not found: {BEDROOM_DIR}")
         mask_files = list(BEDROOM_DIR.glob("mask_*.png"))
         print(f"Found {len(mask_files)} mask files")
-        if len(mask_files) == 0:
-            pytest.skip("No mask files found in test directory")
+        assert len(mask_files) > 0, "No mask files found"
 
         for mask_file in mask_files[:5]:
             print(f"  - {mask_file.name}")

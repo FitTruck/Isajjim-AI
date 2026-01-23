@@ -90,9 +90,8 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Wo
 | 마스크 생성 | SAM2 (center point) | **YOLO 마스크 직접 사용** |
 | API 호출 | 3회 | 2회 |
 | 부피 단위 | 절대값 (m³) | **상대값** (백엔드 계산) |
-| 3D 워커 | 매 요청마다 subprocess | **Persistent Worker Pool (서버 시작 시 초기화)** |
+| 3D 워커 | 매 요청마다 subprocess | **Persistent Worker Pool** |
 | 병렬 처리 | 이미지별 순차 | **객체별 병렬 (Multi-GPU)** |
-| Callback API | 없음 | **비동기 처리 + Callback 지원 ({estimateId} placeholder)** |
 
 ---
 
@@ -102,8 +101,7 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Wo
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/analyze-furniture` | 다중 이미지 가구 분석 (Firebase URL, **Callback 지원**) |
-| GET | `/analyze-furniture/status/{task_id}` | 비동기 작업 상태 조회 |
+| POST | `/analyze-furniture` | 다중 이미지 가구 분석 (Firebase URL) |
 | POST | `/analyze-furniture-single` | 단일 이미지 가구 분석 |
 | POST | `/analyze-furniture-base64` | Base64 이미지 가구 분석 |
 | POST | `/detect-furniture` | 탐지만 (3D 없음, 빠른 응답) |
@@ -123,13 +121,12 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Wo
 
 ## 요청/응답 예시
 
-### 가구 분석 요청 (동기)
+### 가구 분석 요청
 
 ```bash
 curl -X POST http://localhost:8000/analyze-furniture \
   -H 'Content-Type: application/json' \
   -d '{
-    "estimate_id": 123,
     "image_urls": [
       {"id": 101, "url": "https://firebase-url-1.jpg"},
       {"id": 102, "url": "https://firebase-url-2.jpg"}
@@ -137,41 +134,7 @@ curl -X POST http://localhost:8000/analyze-furniture \
   }'
 ```
 
-### 가구 분석 요청 (비동기 Callback)
-
-```bash
-curl -X POST http://localhost:8000/analyze-furniture \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "estimate_id": 123,
-    "image_urls": [
-      {"id": 101, "url": "https://firebase-url-1.jpg"}
-    ],
-    "callback_url": "http://your-backend.com/api/v1/estimates/{estimateId}/callback"
-  }'
-```
-
-> `{estimateId}`는 `estimate_id` 값(123)으로 치환되어 `http://your-backend.com/api/v1/estimates/123/callback`으로 전송됩니다.
-
-**즉시 응답 (202 Accepted):**
-```json
-{
-  "task_id": "uuid-...",
-  "message": "Processing started",
-  "status_url": "/analyze-furniture/status/uuid-..."
-}
-```
-
-**Callback으로 전송되는 결과:**
-```json
-{
-  "task_id": "uuid-...",
-  "status": "completed",
-  "results": [{"image_id": 101, "objects": [...]}]
-}
-```
-
-### 동기 응답
+### 응답
 
 ```json
 {

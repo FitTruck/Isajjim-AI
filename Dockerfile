@@ -1,8 +1,6 @@
 # =============================================================================
-# SAM3D API Dockerfile (V2 Pipeline)
-# Multi-stage build for FastAPI + SAM-3D + YOLOE-seg
-#
-# V2 Changes: CLIP/SAHI/SAM2 제거 - YOLOE-seg 마스크 직접 사용
+# SAM3D API Dockerfile
+# Multi-stage build for FastAPI + SAM2 + SAM-3D + YOLO + CLIP
 #
 # Build: docker build -t sam3d-api .
 # Run:   docker run --gpus all -p 8000:8000 -v /data/sam3d:/data/sam3d sam3d-api
@@ -91,6 +89,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglew2.2 \
     ffmpeg \
     curl \
+    git \
     python3.11 \
     python3.11-venv \
     && rm -rf /var/lib/apt/lists/*
@@ -104,7 +103,6 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install remaining Python packages (non-CUDA)
-# V2 Pipeline: CLIP/SAHI 제거됨 - YOLOE 클래스로 직접 DB 매칭
 RUN pip install --no-cache-dir \
     fastapi \
     "uvicorn[standard]" \
@@ -112,24 +110,30 @@ RUN pip install --no-cache-dir \
     Pillow>=10.0.0 \
     numpy>=1.24.0 \
     opencv-python-headless>=4.9.0 \
-    transformers==4.57.3 \
+    transformers==4.43.3 \
     tokenizers>=0.15.0 \
     scipy>=1.10.0 \
     trimesh \
     pygltflib \
     omegaconf>=2.3.0 \
     hydra-core>=1.3.2 \
-    ultralytics>=8.3.0 \
+    ultralytics>=8.1.0 \
+    sahi \
     aiohttp \
     requests \
+    ftfy \
+    regex \
     imageio \
     imageio-ffmpeg
+
+# Install CLIP from OpenAI
+RUN pip install --no-cache-dir git+https://github.com/openai/CLIP.git
 
 # Set working directory
 WORKDIR /app
 
 # Copy application code
-COPY api/ ./api/
+COPY api.py .
 COPY ai/ ./ai/
 
 # =============================================================================
@@ -174,4 +178,4 @@ COPY docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

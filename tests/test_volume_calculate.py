@@ -184,66 +184,6 @@ class TestCalculateFromGlb:
         finally:
             _stage7.HAS_TRIMESH = original_value
 
-    def test_with_scene_glb(self, tmp_path):
-        """GLB Scene 처리 테스트"""
-        from unittest.mock import patch
-        import trimesh
-
-        calc = VolumeCalculator()
-
-        # Mock Scene 객체
-        mock_mesh = MagicMock()
-        mock_mesh.bounds = np.array([[0, 0, 0], [1, 1, 1]])
-        mock_mesh.is_watertight = True
-        mock_mesh.volume = 1.0
-        mock_mesh.centroid = np.array([0.5, 0.5, 0.5])
-        mock_mesh.area = 6.0
-
-        mock_scene = MagicMock(spec=trimesh.Scene)
-        mock_scene.geometry = {"mesh1": mock_mesh}
-
-        # GLB 파일 경로 생성
-        glb_path = tmp_path / "test.glb"
-        glb_path.write_bytes(b"GLTF")
-
-        with patch("trimesh.load", return_value=mock_scene), \
-             patch("trimesh.util.concatenate", return_value=mock_mesh):
-            result = calc.calculate_from_glb(str(glb_path))
-
-        if result is not None:
-            assert "volume" in result
-            assert "bounding_box" in result
-
-    def test_glb_load_error(self, tmp_path):
-        """GLB 로드 에러 처리"""
-        from unittest.mock import patch
-
-        calc = VolumeCalculator()
-        glb_path = tmp_path / "error.glb"
-        glb_path.write_bytes(b"GLTF")
-
-        with patch("trimesh.load", side_effect=Exception("Load error")):
-            result = calc.calculate_from_glb(str(glb_path))
-
-        assert result is None
-
-    def test_glb_scene_no_meshes(self, tmp_path):
-        """GLB Scene에 메시가 없는 경우"""
-        from unittest.mock import patch
-        import trimesh
-
-        calc = VolumeCalculator()
-        glb_path = tmp_path / "empty.glb"
-        glb_path.write_bytes(b"GLTF")
-
-        mock_scene = MagicMock(spec=trimesh.Scene)
-        mock_scene.geometry = {}  # 빈 geometry
-
-        with patch("trimesh.load", return_value=mock_scene):
-            result = calc.calculate_from_glb(str(glb_path))
-
-        assert result is None
-
 
 class TestCalculateFromGaussianSplat:
     """calculate_from_gaussian_splat 함수 테스트"""
