@@ -56,9 +56,10 @@ from PIL import Image
 MAX_IMAGE_SIZE = None  # None = 다운샘플링 비활성화 (부피 정확도 유지)
 
 # Phase 2: Inference steps optimization
-# 테스트 결과: Steps 감소는 부피에 ~4% 영향으로 수용 가능
-# Default is 12, 8 steps gives ~15-20% speedup with ~4% volume variance
-STAGE2_INFERENCE_STEPS = 8  # Speed: 8 (권장), Quality: 12
+# Stage1 (Sparse Structure): 테스트 결과 15 steps가 최적 (부피 오차 1.31%, 속도 1.47x)
+# Stage2 (SLAT): 8 steps가 최적 (부피 오차 ~4%, 속도 ~15-20% 향상)
+STAGE1_INFERENCE_STEPS = 15  # Speed: 15 (권장), Quality: 25
+STAGE2_INFERENCE_STEPS = 8   # Speed: 8 (권장), Quality: 12
 
 # Phase 3: PLY output format
 # Binary is ~70% smaller and ~50% faster to write
@@ -438,6 +439,7 @@ class PersistentWorker:
                         seed=task.seed,
                         pointmap=pointmap,
                         decode_formats=decode_formats,
+                        stage1_inference_steps=STAGE1_INFERENCE_STEPS,
                         stage2_inference_steps=STAGE2_INFERENCE_STEPS,
                         with_mesh_postprocess=False,
                         with_texture_baking=False,
