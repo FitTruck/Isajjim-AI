@@ -158,9 +158,10 @@ class VolumeCalculator:
         bounds = mesh.bounds  # [[min_x, min_y, min_z], [max_x, max_y, max_z]]
         dimensions = bounds[1] - bounds[0]
 
-        width = float(dimensions[0])
-        depth = float(dimensions[1])
-        height = float(dimensions[2])
+        # 좌표계: X=이미지 가로, Y=이미지 세로(높이), Z=3D 추론 깊이
+        width = float(dimensions[0])   # X축 = 이미지 가로
+        height = float(dimensions[1])  # Y축 = 이미지 세로 (실제 높이)
+        depth = float(dimensions[2])   # Z축 = 3D 추론 깊이
 
         # 부피 계산 (mesh가 watertight인 경우)
         try:
@@ -209,9 +210,10 @@ class VolumeCalculator:
         max_bounds = points.max(axis=0)
         dimensions = max_bounds - min_bounds
 
-        width = float(dimensions[0])
-        depth = float(dimensions[1])
-        height = float(dimensions[2])
+        # 좌표계: X=이미지 가로, Y=이미지 세로(높이), Z=3D 추론 깊이
+        width = float(dimensions[0])   # X축 = 이미지 가로
+        height = float(dimensions[1])  # Y축 = 이미지 세로 (실제 높이)
+        depth = float(dimensions[2])   # Z축 = 3D 추론 깊이
 
         # Bounding box 부피
         volume = width * depth * height

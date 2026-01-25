@@ -226,11 +226,14 @@ class FurniturePipeline:
             if masks and idx < len(masks):
                 yolo_mask = masks[idx]
 
+            # Subtype 탐지 (knowledge_base.py에 subtypes가 있는 경우만)
+            subtype_name = self.detector.detect_subtype(crop, label)
+
             obj = DetectedObject(
                 id=idx,
                 label=movability.label,
                 db_key=db_key,
-                subtype_name=None,  # CLIP 제거로 서브타입 없음
+                subtype_name=subtype_name,
                 bbox=[x1, y1, x2, y2],
                 center_point=[center_x, center_y],
                 confidence=float(score),
@@ -299,6 +302,52 @@ class FurniturePipeline:
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+    async def generate_3d(
+        self,
+        image: Image.Image,
+        mask_b64: str
+    ) -> Optional[Dict]:
+        """
+        단일 객체에 대한 3D 생성 (Worker Pool 사용)
+
+        Args:
+            image: 원본 이미지
+            mask_b64: 마스크 base64 문자열
+
+        Returns:
+            {"ply_b64": str, "ply_size_bytes": int, ...} or None
+        """
+        sam3d_pool = get_sam3d_worker_pool()
+
+        if sam3d_pool is None or not sam3d_pool.is_ready():
+            print("[FurniturePipeline] SAM3D Worker Pool not available")
+            return None
+
+        # 이미지를 base64로 변환
+        image_b64 = self._image_to_base64(image)
+
+        # 단일 작업 생성
+        tasks = [{
+            "task_id": "single_obj",
+            "image_b64": image_b64,
+            "mask_b64": mask_b64,
+            "seed": 42,
+            "skip_gif": True
+        }]
+
+        # Worker Pool에 제출
+        results = await sam3d_pool.submit_tasks_parallel(tasks)
+
+        if results and results[0].success:
+            return {
+                "ply_b64": results[0].ply_b64,
+                "ply_size_bytes": results[0].ply_size_bytes,
+                "gif_b64": results[0].gif_b64,
+                "mesh_url": results[0].mesh_url
+            }
+
+        return None
 
     async def _parallel_3d_generation(
         self,
@@ -641,6 +690,7 @@ class FurniturePipeline:
 
                     all_objects.append({
                         "label": obj.label,
+                        "subtype": obj.subtype_name or "",
                         "width": round(bbox.get("width", 0), 2),
                         "depth": round(bbox.get("depth", 0), 2),
                         "height": round(bbox.get("height", 0), 2),
@@ -683,6 +733,7 @@ class FurniturePipeline:
 
                     objects_list.append({
                         "label": obj.label,
+                        "subtype": obj.subtype_name or "",
                         "width": round(bbox.get("width", 0), 2),
                         "depth": round(bbox.get("depth", 0), 2),
                         "height": round(bbox.get("height", 0), 2),

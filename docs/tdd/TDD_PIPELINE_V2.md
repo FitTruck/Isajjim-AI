@@ -132,6 +132,7 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
       "objects": [
         {
           "label": "sofa",
+          "subtype": "",
           "width": 200.0,
           "depth": 90.0,
           "height": 85.0,
@@ -139,6 +140,7 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
         },
         {
           "label": "table",
+          "subtype": "",
           "width": 120.0,
           "depth": 60.0,
           "height": 45.0,
@@ -146,6 +148,7 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
         },
         {
           "label": "lamp",
+          "subtype": "",
           "width": 30.0,
           "depth": 30.0,
           "height": 150.0,
@@ -158,6 +161,7 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
       "objects": [
         {
           "label": "chair",
+          "subtype": "",
           "width": 45.0,
           "depth": 50.0,
           "height": 90.0,
@@ -293,6 +297,7 @@ if obj.yolo_mask is not None:
       "objects": [
         {
           "label": "sofa",
+          "subtype": "SINGLE_SOFA",
           "width": 200.0,
           "depth": 90.0,
           "height": 85.0,
@@ -300,6 +305,7 @@ if obj.yolo_mask is not None:
         },
         {
           "label": "table",
+          "subtype": "",
           "width": 120.0,
           "depth": 60.0,
           "height": 45.0,
@@ -307,6 +313,7 @@ if obj.yolo_mask is not None:
         },
         {
           "label": "lamp",
+          "subtype": "",
           "width": 30.0,
           "depth": 30.0,
           "height": 150.0,
@@ -319,6 +326,7 @@ if obj.yolo_mask is not None:
       "objects": [
         {
           "label": "chair",
+          "subtype": "",
           "width": 45.0,
           "depth": 50.0,
           "height": 90.0,

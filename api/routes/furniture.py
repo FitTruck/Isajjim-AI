@@ -254,11 +254,13 @@ async def analyze_furniture_base64(request: AnalyzeFurnitureBase64Request):
                 obj.mask_base64 = mask_b64
 
             # SAM-3D 3D generation
+            ply_b64_data = None
             if request.enable_3d and obj.mask_base64:
                 gen_result = await pipeline.generate_3d(image, obj.mask_base64)
                 if gen_result and gen_result.get("ply_b64"):
+                    ply_b64_data = gen_result["ply_b64"]
                     with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as tmp:
-                        tmp.write(base64.b64decode(gen_result["ply_b64"]))
+                        tmp.write(base64.b64decode(ply_b64_data))
                         ply_path = tmp.name
 
                     rel_dims, _ = pipeline.calculate_dimensions(obj, ply_path=ply_path)
@@ -266,7 +268,7 @@ async def analyze_furniture_base64(request: AnalyzeFurnitureBase64Request):
 
                     os.unlink(ply_path)
 
-            # TDD format: 5 fields only
+            # TDD format: 6 fields (label, subtype, width, depth, height, volume)
             if obj.relative_dimensions:
                 dims = obj.relative_dimensions
                 bbox = dims.get("bounding_box", {})
@@ -275,13 +277,20 @@ async def analyze_furniture_base64(request: AnalyzeFurnitureBase64Request):
                 volume_raw = dims.get("volume", 0)
                 volume_m3 = volume_raw / 1e9 if volume_raw > 1000 else volume_raw
 
-                objects_data.append({
+                obj_response = {
                     "label": obj.label,
+                    "subtype": obj.subtype_name or "",
                     "width": round(bbox.get("width", 0), 2),
                     "depth": round(bbox.get("depth", 0), 2),
                     "height": round(bbox.get("height", 0), 2),
                     "volume": round(volume_m3, 6)
-                })
+                }
+
+                # return_ply=True일 때 PLY base64 데이터 포함
+                if request.return_ply and ply_b64_data:
+                    obj_response["ply_b64"] = ply_b64_data
+
+                objects_data.append(obj_response)
 
         return JSONResponse({"objects": objects_data})
 

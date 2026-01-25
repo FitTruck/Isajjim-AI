@@ -15,6 +15,7 @@ from PIL import Image
 # AI module imports
 from ai.config import Config
 from ai.utils.image_ops import ImageUtils
+from ai.data.knowledge_base import get_subtypes, get_db_key_from_label
 
 try:
     from ultralytics import YOLOE
@@ -356,6 +357,92 @@ class YoloDetector:
             if class_name.lower() == label_lower:
                 return info
         return None
+
+    def detect_subtype(
+        self,
+        crop_image: Image.Image,
+        base_label: str,
+        confidence_threshold: float = 0.2
+    ) -> Optional[str]:
+        """
+        객체 crop 이미지에서 subtype을 탐지합니다.
+
+        YOLOE의 open-vocabulary 기능을 사용하여
+        knowledge_base.py의 subtype prompt로 세부 분류를 수행합니다.
+
+        Args:
+            crop_image: 객체가 crop된 PIL 이미지
+            base_label: 1차 탐지된 base 라벨 (예: "Sofa", "Bed")
+            confidence_threshold: subtype 탐지 신뢰도 임계값
+
+        Returns:
+            subtype name (예: "SINGLE_SOFA") 또는 None
+        """
+        if self.model is None or not HAS_YOLO:
+            return None
+
+        # DB 키 찾기
+        db_key = get_db_key_from_label(base_label)
+        if db_key is None:
+            return None
+
+        # subtypes 가져오기
+        subtypes = get_subtypes(db_key)
+        if not subtypes:
+            return None
+
+        # subtype prompt 추출
+        subtype_prompts = []
+        subtype_map = {}  # prompt -> subtype name 매핑
+        for st in subtypes:
+            prompt = st.get("prompt")
+            name = st.get("name")
+            if prompt and name:
+                subtype_prompts.append(prompt)
+                subtype_map[prompt] = name
+
+        if not subtype_prompts:
+            return None
+
+        # YOLOE에 subtype prompt 설정
+        try:
+            self.model.set_classes(subtype_prompts)
+
+            # subtype 탐지
+            results = self.model.predict(
+                crop_image,
+                conf=confidence_threshold,
+                verbose=False,
+                device=self._device
+            )[0]
+
+            # 원래 클래스로 복원
+            furniture_class_names = list(FURNITURE_CLASSES.keys())
+            self.model.set_classes(furniture_class_names)
+
+            if len(results.boxes) == 0:
+                return None
+
+            # 가장 높은 confidence의 결과 선택
+            scores = results.boxes.conf.cpu().numpy()
+            classes = results.boxes.cls.cpu().numpy().astype(int)
+
+            best_idx = scores.argmax()
+            best_class = classes[best_idx]
+            best_prompt = self.model.names[int(best_class)]
+
+            # prompt -> subtype name 매핑
+            return subtype_map.get(best_prompt)
+
+        except Exception as e:
+            print(f"[YoloDetector] Subtype detection failed: {e}")
+            # 에러 시 원래 클래스로 복원
+            try:
+                furniture_class_names = list(FURNITURE_CLASSES.keys())
+                self.model.set_classes(furniture_class_names)
+            except Exception:
+                pass
+            return None
 
 
 # 하위 호환성을 위한 별칭

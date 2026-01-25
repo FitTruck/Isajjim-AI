@@ -56,10 +56,11 @@ from PIL import Image
 MAX_IMAGE_SIZE = None  # None = 다운샘플링 비활성화 (부피 정확도 유지)
 
 # Phase 2: Inference steps optimization
-# Stage1 (Sparse Structure): 테스트 결과 15 steps가 최적 (부피 오차 1.31%, 속도 1.47x)
-# Stage2 (SLAT): 8 steps가 최적 (부피 오차 ~4%, 속도 ~15-20% 향상)
-STAGE1_INFERENCE_STEPS = 15  # Speed: 15 (권장), Quality: 25
-STAGE2_INFERENCE_STEPS = 8   # Speed: 8 (권장), Quality: 12
+# Stage1 (Sparse Structure): 3D 구조 생성 품질
+# Stage2 (SLAT): 세부 디테일 품질
+# 상대 길이 정확도 향상을 위해 기본값 이상으로 설정
+STAGE1_INFERENCE_STEPS = 14  # 속도/정확도 균형 (12~16 사이 최적값)
+STAGE2_INFERENCE_STEPS = 8   # 디테일은 속도 우선
 
 # Phase 3: PLY output format
 # Binary is ~70% smaller and ~50% faster to write

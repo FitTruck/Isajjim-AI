@@ -26,7 +26,7 @@
 | 설정 | 값 | 효과 |
 |------|-----|------|
 | `MAX_IMAGE_SIZE` | None (비활성화) | 부피 정확도 유지 |
-| `STAGE1_INFERENCE_STEPS` | 15 | 47% 속도 향상, 1.31% 부피 오차 |
+| `STAGE1_INFERENCE_STEPS` | 14 | 속도/정확도 균형 (12~16 사이 최적값) |
 | `STAGE2_INFERENCE_STEPS` | 8 | ~15-20% 속도 향상 |
 | `GAUSSIAN_ONLY_MODE` | True | 37.4% 속도 향상, GLB/Mesh 스킵 |
 | `USE_BINARY_PLY` | True | ~70% 파일 크기 감소, ~50% I/O 속도 향상 |
@@ -57,7 +57,7 @@ source setup.sh
 uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 
 # 프로덕션 환경
-uvicorn api:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
+uvicorn api:app --host 0.0.0.0 --port 8000 --workers 1 --log-level info
 ```
 
 ### 3. 상태 확인
@@ -273,7 +273,7 @@ PYTORCH_ENABLE_MPS_FALLBACK=1
 MAX_IMAGE_SIZE = None
 
 # Phase 2: Inference Steps
-STAGE1_INFERENCE_STEPS = 15  # 기본값 25 → 15 (47% 빠름, 1.31% 오차)
+STAGE1_INFERENCE_STEPS = 14  # 속도/정확도 균형 (12~16 사이 최적값)
 STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8 (~15-20% 빠름)
 
 # Phase 3: PLY 형식 (True = Binary, 70% 작은 파일)
@@ -285,7 +285,7 @@ GAUSSIAN_ONLY_MODE = True    # 37.4% 빠름, 0.005% 부피 오차
 
 **최적화 테스트 결과:**
 - 다운샘플링: 부피 정확도에 91.7% 영향 (작은 객체에서 최대 576% 차이)
-- Stage1 Steps (25→15): 47% 속도 향상, 1.31% 부피 오차
+- Stage1 Steps (25→14): 속도/정확도 균형, ~0.5% 부피 오차 (vs 16)
 - Stage2 Steps (12→8): ~15-20% 속도 향상
 - Gaussian-only: 37.4% 속도 향상, 0.005% 부피 오차
 - torch.compile: 10-20% 추론 속도 향상

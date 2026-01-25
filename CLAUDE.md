@@ -166,8 +166,8 @@ These are set at the top of `api/app.py` and `ai/subprocess/persistent_3d_worker
 MAX_IMAGE_SIZE = None  # 부피 정확도 유지 (다운샘플링이 91.7% 영향)
 
 # Phase 2: Inference Steps
-STAGE1_INFERENCE_STEPS = 15  # 기본값 25 → 15 (47% 속도 향상, 1.31% 부피 오차)
-STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8 (~15-20% 속도 향상)
+STAGE1_INFERENCE_STEPS = 14  # 속도/정확도 균형 (12~16 사이 최적값)
+STAGE2_INFERENCE_STEPS = 8   # 디테일은 속도 우선
 
 # Phase 3: PLY 형식 (True = Binary)
 USE_BINARY_PLY = True  # ~70% 파일 크기 감소, ~50% I/O 속도 향상
@@ -473,7 +473,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ### When Modifying Performance Settings
 - 성능 최적화 설정은 `ai/subprocess/persistent_3d_worker.py` 상단에 위치
 - `MAX_IMAGE_SIZE`: None(비활성화 권장) - 다운샘플링은 부피 정확도에 91.7% 영향
-- `STAGE1_INFERENCE_STEPS`: 15 권장 (47% 빠름, 1.31% 부피 오차)
+- `STAGE1_INFERENCE_STEPS`: 14 권장 (속도/정확도 균형, 12~16 사이 최적값)
 - `STAGE2_INFERENCE_STEPS`: 8(속도) / 12(품질) - ~4% 부피 오차
 - `GAUSSIAN_ONLY_MODE`: True 권장 (부피 계산만 필요시) - 37.4% 속도 향상
 - `USE_BINARY_PLY`: True 권장 - 70% 파일 크기 감소

@@ -34,8 +34,9 @@ class AnalyzeFurnitureSingleRequest(BaseModel):
 
 class AnalyzeFurnitureBase64Request(BaseModel):
     """Base64 image furniture analysis request"""
-    image: str  # Base64 encoded image
+    image: str  # Base64 encoded image (or 'image_base64' alias)
     enable_mask: bool = True
     enable_3d: bool = True
     skip_gif: bool = True  # GIF 렌더링 스킵 (부피 계산 최적화, 기본값: True)
     max_image_size: int = 512  # 3D 생성 시 최대 이미지 크기 (속도 최적화)
+    return_ply: bool = False  # PLY base64 데이터 반환 여부 (테스트용)
