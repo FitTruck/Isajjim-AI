@@ -147,8 +147,8 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/github_deploy
+          chmod 600 ~/.ssh/github_deploy
 
           # Add VM host to known hosts (skip host key verification)
           ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
@@ -165,7 +165,7 @@ jobs:
       # Copy docker-compose.yml to VM
       - name: Copy docker-compose.yml to VM
         run: |
-          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          scp -i ~/.ssh/github_deploy -o StrictHostKeyChecking=no \
             docker-compose.yml \
             ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:~/sam3d-api/
 
@@ -176,7 +176,7 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/github_deploy -o StrictHostKeyChecking=no \
             ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'DEPLOY_SCRIPT'
 
           set -e
