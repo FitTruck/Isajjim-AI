@@ -61,6 +61,13 @@ def configure_cuda():
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
+# ============================================================================
+# Callback Configuration
+# ============================================================================
+CALLBACK_URL_TEMPLATE = "http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimateId}/callback"
+CALLBACK_TIMEOUT_SECONDS = 30
+CALLBACK_RETRY_COUNT = 1
+
 # Device
 device = get_device()
 configure_cuda()

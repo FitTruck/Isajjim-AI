@@ -1,0 +1,117 @@
+# =============================================================================
+# SAM3D API Docker Compose - Local Build
+#
+# Usage:
+#   docker compose -f docker-compose.local.yml build   # Build image
+#   docker compose -f docker-compose.local.yml up -d   # Start
+#   docker compose -f docker-compose.local.yml logs -f # View logs
+#   docker compose -f docker-compose.local.yml down    # Stop
+# =============================================================================
+
+services:
+  sam3d-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sam3d-api:local
+    container_name: sam3d-api
+
+    # =========================================================================
+    # GPU Configuration
+    # =========================================================================
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    # =========================================================================
+    # Network
+    # =========================================================================
+    ports:
+      - "8000:8000"
+
+    # =========================================================================
+    # Volume Mounts
+    # =========================================================================
+    volumes:
+      # sam-3d-objects repository (local)
+      - ./sam-3d-objects:/data/sam3d/sam-3d-objects:ro
+
+      # YOLO model (local)
+      - ./yoloe-26x-seg.pt:/data/sam3d/models/yoloe-26x-seg.pt:ro
+
+      # HuggingFace cache (persisted)
+      - hf_cache:/data/sam3d/huggingface
+      - torch_cache:/data/sam3d/torch
+
+      # Generated assets (persisted)
+      - ./assets:/app/assets
+
+    # =========================================================================
+    # Environment Variables
+    # =========================================================================
+    environment:
+      # --- CRITICAL: spconv configuration ---
+      - SPCONV_TUNE_DEVICE=0
+      - SPCONV_ALGO_TIME_LIMIT=100
+      - TORCH_CUDA_ARCH_LIST=all
+      - LIDRA_SKIP_INIT=true
+
+      # --- Thread limits ---
+      - OMP_NUM_THREADS=4
+      - OPENBLAS_NUM_THREADS=4
+      - MKL_NUM_THREADS=4
+      - VECLIB_MAXIMUM_THREADS=4
+      - NUMEXPR_NUM_THREADS=4
+
+      # --- CUDA settings ---
+      - CUDA_HOME=/usr/local/cuda
+
+      # --- HuggingFace ---
+      - HF_HOME=/data/sam3d/huggingface
+      - TRANSFORMERS_CACHE=/data/sam3d/huggingface/transformers
+      - TORCH_HOME=/data/sam3d/torch
+
+      # --- PyTorch ---
+      - PYTORCH_ENABLE_MPS_FALLBACK=1
+
+    # =========================================================================
+    # Restart Policy
+    # =========================================================================
+    restart: unless-stopped
+
+    # =========================================================================
+    # Health Check
+    # =========================================================================
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s  # Allow time for model loading + compile
+
+    # =========================================================================
+    # Logging
+    # =========================================================================
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  hf_cache:
+  torch_cache:
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    name: sam3d-network

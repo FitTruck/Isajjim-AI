@@ -7,19 +7,6 @@ from pydantic import BaseModel
 
 
 # ============================================================================
-# Generate 3D Models
-# ============================================================================
-
-class Generate3dRequest(BaseModel):
-    """3D generation request"""
-    image: str  # base64 encoded image
-    mask: str  # base64 encoded binary mask
-    seed: int = 42
-    skip_gif: bool = True  # GIF 렌더링 스킵 (부피 계산 최적화, 기본값: True)
-    max_image_size: int = 512  # 최대 이미지 크기 (속도 최적화)
-
-
-# ============================================================================
 # Furniture Analysis Models
 # ============================================================================
 
@@ -31,6 +18,7 @@ class ImageUrlItem(BaseModel):
 
 class AnalyzeFurnitureRequest(BaseModel):
     """Multi-image furniture analysis request (TDD Section 4.1)"""
+    estimate_id: int  # Required: 견적 ID (callback URL에 사용)
     image_urls: List[ImageUrlItem]
     enable_mask: bool = True
     enable_3d: bool = True

@@ -312,11 +312,13 @@ class PersistentWorker:
             load_start = time.time()
 
             # compile=True: 첫 warmup 시 torch.compile로 CUDA 커널 컴파일
-            # 워커 시작 시 ~20-30초 추가되지만, 이후 추론 ~10-20% 빠름
+            # 워커 시작 시 매우 오래 걸림 (4 GPU × 3 warmup → 10분+)
+            # 프로덕션에서는 True, 테스트에서는 False 권장
+            ENABLE_COMPILE = True  # True = 추론 10-20% 빠름, False = 빠른 시작 (테스트용)
             try:
-                self.sam3d_inference = Inference(config_path, compile=True, device="cuda")
+                self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cuda")
             except TypeError:
-                self.sam3d_inference = Inference(config_path, compile=True)
+                self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE)
 
             # Move models to GPU
             moved_count = 0

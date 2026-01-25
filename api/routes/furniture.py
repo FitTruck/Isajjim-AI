@@ -4,6 +4,7 @@ Furniture Analysis Routes
 /analyze-furniture, /analyze-furniture-single, /analyze-furniture-base64, /detect-furniture
 """
 
+import logging
 import os
 import io
 import base64
@@ -20,8 +21,10 @@ from api.models import (
     AnalyzeFurnitureSingleRequest,
     AnalyzeFurnitureBase64Request,
 )
+from api.services.callback import send_callback
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Lazy-load furniture pipeline
 _furniture_pipeline = None
@@ -72,6 +75,54 @@ def get_furniture_pipeline(device_id: Optional[int] = None):
     return _furniture_pipeline
 
 
+async def process_furniture_analysis_background(
+    estimate_id: int,
+    image_items: list,
+    enable_mask: bool,
+    enable_3d: bool,
+    max_concurrent: int,
+):
+    """
+    Background task for furniture analysis with callback.
+
+    Args:
+        estimate_id: 견적 ID (callback URL에 사용)
+        image_items: [(id, url), ...] 형식의 이미지 목록
+        enable_mask: 마스크 생성 여부
+        enable_3d: 3D 생성 여부
+        max_concurrent: 동시 처리 수
+    """
+    try:
+        logger.info(f"[Background] Starting analysis for estimate_id={estimate_id}")
+
+        pipeline = get_furniture_pipeline()
+
+        # Run pipeline
+        results = await pipeline.process_multiple_images_with_ids(
+            image_items,
+            enable_mask=enable_mask,
+            enable_3d=enable_3d,
+            max_concurrent=max_concurrent
+        )
+
+        # Generate response (TDD format)
+        response = pipeline.to_json_response_v2(results)
+
+        logger.info(f"[Background] Analysis completed for estimate_id={estimate_id}")
+
+        # Send callback with success result
+        await send_callback(estimate_id, result_data=response)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        error_msg = f"Furniture analysis failed: {str(e)}"
+        logger.error(f"[Background] {error_msg} for estimate_id={estimate_id}")
+
+        # Send callback with error
+        await send_callback(estimate_id, error=error_msg)
+
+
 @router.post("/analyze-furniture")
 async def analyze_furniture(
     request: AnalyzeFurnitureRequest,
@@ -79,6 +130,8 @@ async def analyze_furniture(
 ):
     """
     Firebase Storage image URLs to analyze furniture (TDD Section 4.1).
+
+    비동기 방식: 즉시 processing 응답 반환, 작업 완료 후 callback URL로 결과 전송
 
     Pipeline V2:
     1. Download images from Firebase Storage
@@ -89,11 +142,13 @@ async def analyze_furniture(
     6. trimesh relative volume calculation
 
     Returns:
-        {"results": [{"image_id": 101, "objects": [...]}, ...]}
+        {"success": true, "estimate_id": X, "status": "processing"}
+
+    Callback:
+        POST {CALLBACK_BASE_URL}/api/v1/estimates/{estimate_id}/callback
+        Body: {"results": [...]} or {"error": "..."}
     """
     try:
-        pipeline = get_furniture_pipeline()
-
         # Validate image URL count
         if len(request.image_urls) < 1:
             return JSONResponse(
@@ -110,17 +165,27 @@ async def analyze_furniture(
         # Convert to [(id, url), ...] format
         image_items = [(item.id, item.url) for item in request.image_urls]
 
-        # Run pipeline
-        results = await pipeline.process_multiple_images_with_ids(
-            image_items,
+        # Schedule background task
+        background_tasks.add_task(
+            process_furniture_analysis_background,
+            estimate_id=request.estimate_id,
+            image_items=image_items,
             enable_mask=request.enable_mask,
             enable_3d=request.enable_3d,
-            max_concurrent=request.max_concurrent
+            max_concurrent=request.max_concurrent,
         )
 
-        # Generate response (TDD format)
-        response = pipeline.to_json_response_v2(results)
-        return JSONResponse(response)
+        logger.info(
+            f"[analyze-furniture] Scheduled background task for estimate_id={request.estimate_id}, "
+            f"images={len(image_items)}"
+        )
+
+        # Return immediately
+        return JSONResponse({
+            "success": True,
+            "estimate_id": request.estimate_id,
+            "status": "processing"
+        })
 
     except Exception as e:
         import traceback

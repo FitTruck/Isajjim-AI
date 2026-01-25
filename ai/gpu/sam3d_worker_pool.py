@@ -64,7 +64,7 @@ class SAM3DWorkerPool:
         gpu_ids: Optional[List[int]] = None,
         worker_script: Optional[str] = None,
         python_executable: Optional[str] = None,
-        init_timeout: float = 120.0,
+        init_timeout: float = 600.0,
         task_timeout: float = 300.0
     ):
         """

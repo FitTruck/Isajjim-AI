@@ -31,10 +31,10 @@ if [ ! -d "/data/sam3d/sam-3d-objects/checkpoints/hf" ]; then
     exit 1
 fi
 
-# Check YOLO model
-if [ ! -f "/data/sam3d/models/yolov8l-world.pt" ]; then
+# Check YOLO model (YOLOE-seg)
+if [ ! -f "/data/sam3d/models/yoloe-26x-seg.pt" ]; then
     echo "ERROR: YOLO model not found!"
-    echo "Expected path: /data/sam3d/models/yolov8l-world.pt"
+    echo "Expected path: /data/sam3d/models/yoloe-26x-seg.pt"
     exit 1
 fi
 
@@ -56,19 +56,19 @@ cd /app
 
 # Remove existing symlinks/directories if they exist
 rm -rf ./sam-3d-objects 2>/dev/null || true
-rm -f ./yolov8l-world.pt 2>/dev/null || true
+rm -f ./yoloe-26x-seg.pt 2>/dev/null || true
 
 # Create symlinks
-# These paths are hardcoded in api.py and generate_3d_worker.py
+# These paths are hardcoded in api/app.py and persistent_3d_worker.py
 ln -sf /data/sam3d/sam-3d-objects ./sam-3d-objects
-ln -sf /data/sam3d/models/yolov8l-world.pt ./yolov8l-world.pt
+ln -sf /data/sam3d/models/yoloe-26x-seg.pt ./yoloe-26x-seg.pt
 
 # Create assets directory if not exists (for generated outputs)
 mkdir -p ./assets
 
 # Verify symlinks
 echo "Symlinks created:"
-ls -la ./sam-3d-objects ./yolov8l-world.pt
+ls -la ./sam-3d-objects ./yoloe-26x-seg.pt
 
 # Verify checkpoint access
 echo ""

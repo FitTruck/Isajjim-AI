@@ -35,7 +35,6 @@ from ai.processors import (
     YoloDetector,
     MovabilityChecker,
     VolumeCalculator,
-    SAM3DConverter
 )
 
 # GPU pool manager import
@@ -147,9 +146,6 @@ class FurniturePipeline:
 
         # Volume 계산기
         self.volume_calculator = VolumeCalculator()
-
-        # SAM-3D 변환기 - device_id 전달
-        self.sam3d_converter = SAM3DConverter(device_id=device_id)
 
         # 클래스 매핑 (동의어 → DB 키)
         self.class_map = self.movability_checker.class_map
@@ -266,90 +262,6 @@ class FurniturePipeline:
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     # =========================================================================
-    # External API: SAM-3D 3D 생성
-    # =========================================================================
-
-    async def generate_3d(
-        self,
-        image: Image.Image,
-        mask_b64: str,
-        seed: int = 42,
-        skip_gif: bool = True,
-        max_image_size: int = 512
-    ) -> Optional[Dict]:
-        """
-        SAM-3D API를 호출하여 3D 모델을 생성합니다.
-
-        Args:
-            image: 원본 이미지
-            mask_b64: Base64 인코딩된 마스크
-            seed: 랜덤 시드
-            skip_gif: GIF 렌더링 스킵 (부피 계산 최적화)
-            max_image_size: 최대 이미지 크기 (속도 최적화)
-
-        Returns:
-            {"task_id": str, "ply_b64": str, "glb_b64": str, ...}
-        """
-        if not self.enable_3d_generation or not HAS_AIOHTTP:
-            return None
-
-        try:
-            buffer = io.BytesIO()
-            image.save(buffer, format="PNG")
-            image_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-            async with aiohttp.ClientSession() as session:
-                # 3D 생성 요청 (최적화 옵션 포함)
-                async with session.post(
-                    f"{self.sam2_api_url}/generate-3d",
-                    json={
-                        "image": image_b64,
-                        "mask": mask_b64,
-                        "seed": seed,
-                        "skip_gif": skip_gif,
-                        "max_image_size": max_image_size
-                    },
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    if response.status != 200:
-                        return None
-
-                    result = await response.json()
-                    task_id = result.get("task_id")
-                    if not task_id:
-                        return None
-
-                # 결과 폴링
-                for _ in range(120):
-                    await asyncio.sleep(5)
-
-                    async with session.get(
-                        f"{self.sam2_api_url}/generate-3d-status/{task_id}",
-                        timeout=aiohttp.ClientTimeout(total=10)
-                    ) as status_response:
-                        if status_response.status != 200:
-                            continue
-
-                        status = await status_response.json()
-
-                        if status.get("status") == "completed":
-                            return {
-                                "task_id": task_id,
-                                "ply_b64": status.get("ply_b64"),
-                                "glb_b64": status.get("mesh_b64"),
-                                "gif_b64": status.get("gif_b64"),
-                                "mesh_url": status.get("mesh_url")
-                            }
-                        elif status.get("status") == "failed":
-                            return None
-
-                return None
-
-        except Exception as e:
-            print(f"[FurniturePipeline] 3D generation error: {e}")
-            return None
-
-    # =========================================================================
     # 치수 계산
     # =========================================================================
 
@@ -406,14 +318,9 @@ class FurniturePipeline:
         sam3d_pool = get_sam3d_worker_pool()
 
         if sam3d_pool is None or not sam3d_pool.is_ready():
-            # Worker Pool 미사용 - 기존 순차 처리
-            print("[FurniturePipeline] SAM3D Worker Pool not available, falling back to sequential")
-            results = {}
-            for obj_id, obj in objects_with_masks:
-                gen_result = await self.generate_3d(image, obj.mask_base64)
-                if gen_result:
-                    results[obj_id] = gen_result
-            return results
+            # Worker Pool 미사용 - 3D 생성 불가
+            print("[FurniturePipeline] SAM3D Worker Pool not available, skipping 3D generation")
+            return {}
 
         # Worker Pool 사용 - 병렬 처리
         print(f"[FurniturePipeline] Parallel 3D generation for {len(objects_with_masks)} objects")
@@ -503,18 +410,10 @@ class FurniturePipeline:
                         print(f"[FurniturePipeline] No YOLOE-seg mask for {obj.label}, skipping 3D")
                         obj.mask_base64 = None
 
-            # Stage 5-6: 3D 생성 (병렬 또는 순차)
+            # Stage 5-6: 3D 생성 (Worker Pool 사용)
             if enable_3d and self.enable_3d_generation and objects_with_masks:
-                if use_parallel_3d:
-                    # 병렬 3D 생성 (Worker Pool)
-                    gen_results = await self._parallel_3d_generation(image, objects_with_masks)
-                else:
-                    # 순차 3D 생성 (기존 방식)
-                    gen_results = {}
-                    for obj_id, obj in objects_with_masks:
-                        gen_result = await self.generate_3d(image, obj.mask_base64)
-                        if gen_result:
-                            gen_results[obj_id] = gen_result
+                # Worker Pool로 병렬 3D 생성 (use_parallel_3d 파라미터는 하위 호환성 유지)
+                gen_results = await self._parallel_3d_generation(image, objects_with_masks)
 
                 # 결과를 객체에 매핑
                 for obj in detected_objects:

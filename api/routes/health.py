@@ -1,14 +1,17 @@
 """
 Health Check Routes
 
-/health, /gpu-status endpoints
+/health, /gpu-status, /assets-list endpoints
 """
+
+import os
+from datetime import datetime
 
 import torch
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from api.config import device
+from api.config import device, ASSETS_DIR
 
 router = APIRouter()
 
@@ -59,3 +62,64 @@ async def gpu_status():
             "pipelines_initialized": 0,
             "gpus": {}
         })
+
+
+@router.get("/assets-list")
+async def list_assets():
+    """
+    List all available assets in the assets folder, sorted by creation date.
+    """
+    if not os.path.exists(ASSETS_DIR):
+        return JSONResponse({"files": [], "total_files": 0, "total_size_bytes": 0})
+
+    files = []
+    total_size = 0
+
+    try:
+        import json
+
+        for filename in os.listdir(ASSETS_DIR):
+            if filename.endswith(".metadata.json"):
+                continue
+
+            filepath = os.path.join(ASSETS_DIR, filename)
+            if os.path.isfile(filepath):
+                size = os.path.getsize(filepath)
+
+                created_at = None
+                metadata_path = os.path.join(ASSETS_DIR, f"{filename}.metadata.json")
+                if os.path.exists(metadata_path):
+                    try:
+                        with open(metadata_path, "r") as f:
+                            metadata = json.load(f)
+                            created_at = metadata.get("created_at")
+                    except Exception:
+                        pass
+
+                if not created_at:
+                    created_at = datetime.fromtimestamp(
+                        os.path.getmtime(filepath)
+                    ).isoformat()
+
+                files.append({
+                    "name": filename,
+                    "size_bytes": size,
+                    "url": f"/assets/{filename}",
+                    "created_at": created_at,
+                })
+                total_size += size
+
+        files.sort(key=lambda x: x["created_at"], reverse=True)
+
+    except Exception as e:
+        print(f"[API] Error listing assets: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to list assets: {str(e)}"},
+        )
+
+    return JSONResponse({
+        "files": files,
+        "total_files": len(files),
+        "total_size_bytes": total_size,
+    })

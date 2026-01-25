@@ -13,7 +13,6 @@ from fastapi.staticfiles import StaticFiles
 from api.config import ASSETS_DIR
 from api.routes import (
     health_router,
-    generate_3d_router,
     furniture_router,
 )
 
@@ -34,7 +33,6 @@ app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 # Include routers
 app.include_router(health_router, tags=["Health"])
-app.include_router(generate_3d_router, tags=["3D Generation"])
 app.include_router(furniture_router, tags=["Furniture Analysis"])
 
 
