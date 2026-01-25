@@ -144,7 +144,7 @@ Sam-3d-objects integration uses **fixed relative paths** (not environment variab
 - `./sam-3d-objects/notebook` - Required for inference imports
 - `./sam-3d-objects/checkpoints/hf/pipeline.yaml` - Pipeline configuration
 
-These paths are hardcoded in both `api.py` and `ai/subprocess/generate_3d_worker.py`.
+These paths are hardcoded in `ai/subprocess/persistent_3d_worker.py`.
 
 ### Environment Variable Setup
 
@@ -165,24 +165,33 @@ These are set at the top of `api/app.py` and `ai/subprocess/persistent_3d_worker
 # Phase 1: 이미지 다운샘플링 (None = 비활성화)
 MAX_IMAGE_SIZE = None  # 부피 정확도 유지 (다운샘플링이 91.7% 영향)
 
-# Phase 2: Inference Steps (8 = 속도, 12 = 품질)
-STAGE2_INFERENCE_STEPS = 8  # ~15-20% 속도 향상, ~4% 부피 오차
+# Phase 2: Inference Steps
+STAGE1_INFERENCE_STEPS = 15  # 기본값 25 → 15 (47% 속도 향상, 1.31% 부피 오차)
+STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8 (~15-20% 속도 향상)
 
 # Phase 3: PLY 형식 (True = Binary)
 USE_BINARY_PLY = True  # ~70% 파일 크기 감소, ~50% I/O 속도 향상
+
+# Phase 5: Gaussian-only 모드 (GLB/Mesh 스킵)
+GAUSSIAN_ONLY_MODE = True  # 37.4% 속도 향상, 0.005% 부피 오차
 ```
+
+**추가 최적화:**
+- `compile=True`: torch.compile로 CUDA 커널 컴파일 (10-20% 추론 속도 향상)
+- `in_place=True`: deepcopy 제거로 메모리/속도 최적화 (5-10% 향상)
 
 **성능 테스트 결과 (8 GPU, 8 이미지, 101 객체):**
 - 총 시간: ~3분 47초 (226초)
 - 객체당 평균: 2.24초
 - 부피 정확도: ~4% 오차 이내
 
-### Task Storage Pattern
+### Async Callback Pattern
 
-3D generation uses an in-memory dict (`generation_tasks`) to track async tasks:
-- POST /generate-3d returns task_id immediately (avoids gateway timeouts)
-- Client polls GET /generate-3d-status/{task_id} for results
-- Tasks store status (queued/processing/completed/failed), output files, and metadata
+`/analyze-furniture` 엔드포인트는 비동기 callback 패턴을 사용합니다:
+- POST 즉시 `{"success": true, "estimate_id": X, "status": "processing"}` 응답
+- 백그라운드에서 파이프라인 실행
+- 완료 시 callback URL로 결과 전송: `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
+- Callback 서비스: `api/services/callback.py`
 
 ## Common Commands
 
@@ -235,18 +244,16 @@ python main.py  # Analyzes images in imgs/ directory
 
 ## API Endpoints
 
-### Core Endpoints
+### Health & Status (api/routes/health.py)
 - `GET /health` - Health check with model status
 - `GET /gpu-status` - GPU pool status (available GPUs, pipeline initialization status)
-- `POST /generate-3d` - Async 3D generation (returns task_id)
-- `GET /generate-3d-status/{task_id}` - Poll 3D generation results
 - `GET /assets-list` - List stored PLY/GIF/GLB files
 - `GET /assets/{filename}` - Download static assets
 
-### Furniture Analysis Endpoints (AI Integration)
-- `POST /analyze-furniture` - Full pipeline: Firebase URLs → Detection → 3D → Volume (Multi-GPU parallel processing)
-- `POST /analyze-furniture-single` - Single image analysis
-- `POST /analyze-furniture-base64` - Base64 image input (no Firebase URL)
+### Furniture Analysis Endpoints (api/routes/furniture.py)
+- `POST /analyze-furniture` - Full pipeline: Firebase URLs → Detection → 3D → Volume (비동기 callback)
+- `POST /analyze-furniture-single` - Single image analysis (동기)
+- `POST /analyze-furniture-base64` - Base64 image input (동기)
 - `POST /detect-furniture` - Detection only (no 3D, fast response)
 
 All endpoints use base64 encoded images or Firebase Storage URLs.
@@ -322,22 +329,17 @@ curl http://localhost:8000/gpu-status
    - PLY base64를 받아서 부피 계산
 4. 여러 객체가 있으면 다른 워커에 병렬 분배
 
-### Legacy Subprocess 방식 (POST /generate-3d 직접 호출)
+### Persistent Worker 상세 동작
 
-1. Client sends image + mask to POST /generate-3d
-2. API generates task_id and starts background worker
-3. Background worker runs generate_3d_worker.py in a new process
-4. Subprocess:
-   - Loads Sam-3d-objects pipeline with fixed config path
-   - Creates synthetic pinhole pointmap (avoids MoGe intrinsics failure)
-   - Runs pipeline with decode_formats=["gaussian", "glb", "mesh"]
-   - Renders 360 rotating GIF using render_video()
-   - Exports PLY with RGB colors added from SH coefficients
-   - Attempts textured GLB export via to_glb() or native pipeline output
-   - Saves files with metadata to assets/ folder
-   - Returns URLs via stdout markers (GIF_DATA_START/END, MESH_URL_START/END, PLY_URL_START/END)
-5. API extracts URLs from subprocess stdout and updates task status
-6. Client polls /generate-3d-status/{task_id} to receive base64 encoded files
+각 워커의 처리 과정:
+1. stdin에서 TaskMessage JSON 수신
+2. 이미지와 마스크 base64 디코딩 → 임시 파일로 저장
+3. SAM-3D 파이프라인 실행:
+   - synthetic pinhole pointmap 생성
+   - decode_formats: Gaussian-only 모드에서는 `["gaussian"]`만
+   - 후처리 비활성화 (texture_baking, mesh_postprocess, layout_postprocess)
+4. PLY 저장 및 RGB 후처리 (SH coefficients에서 RGB 추출)
+5. stdout으로 ResultMessage JSON 반환
 
 ## Furniture Analysis Pipeline V2 (AI Integration)
 
@@ -376,6 +378,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ### Request Format (TDD 문서 Section 4.1)
 ```json
 {
+  "estimate_id": 123,
   "image_urls": [
     {"id": 101, "url": "https://firebase-storage-url-1.jpg/"},
     {"id": 102, "url": "https://firebase-storage-url-2.jpg/"}
@@ -384,11 +387,27 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ```
 
 **필드:**
+- `estimate_id`: 견적 ID (정수, 필수) - callback URL에 사용
 - `image_urls`: 이미지 URL 객체 배열 (1-20개)
   - `id`: 사용자 지정 이미지 ID (정수)
   - `url`: Firebase Storage URL (문자열)
 
 ### Response Format (TDD 문서 Section 4.1)
+
+**비동기 방식**: 즉시 processing 응답 반환, 작업 완료 후 callback URL로 결과 전송
+
+**즉시 응답:**
+```json
+{
+  "success": true,
+  "estimate_id": 123,
+  "status": "processing"
+}
+```
+
+**Callback URL:** `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
+
+**Callback Payload (성공):**
 ```json
 {
   "results": [
@@ -411,6 +430,16 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
   ]
 }
 ```
+
+**Callback Payload (실패):**
+```json
+{
+  "error": "에러 메시지"
+}
+```
+
+**Callback URL (하드코딩):**
+- `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
 
 **단위:**
 - `width`, `depth`, `height`: **상대 길이** (3D 메시 bounding box 기준, 단위 없음)
@@ -444,7 +473,9 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ### When Modifying Performance Settings
 - 성능 최적화 설정은 `ai/subprocess/persistent_3d_worker.py` 상단에 위치
 - `MAX_IMAGE_SIZE`: None(비활성화 권장) - 다운샘플링은 부피 정확도에 91.7% 영향
+- `STAGE1_INFERENCE_STEPS`: 15 권장 (47% 빠름, 1.31% 부피 오차)
 - `STAGE2_INFERENCE_STEPS`: 8(속도) / 12(품질) - ~4% 부피 오차
+- `GAUSSIAN_ONLY_MODE`: True 권장 (부피 계산만 필요시) - 37.4% 속도 향상
 - `USE_BINARY_PLY`: True 권장 - 70% 파일 크기 감소
 
 ### When Modifying Worker Pool
@@ -490,11 +521,20 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ## File Structure
 
 ```
-api.py                                  # Main FastAPI server (YOLOE + task management + AI integration)
+api/                                    # FastAPI 애플리케이션 (모듈화)
+  app.py                                # 메인 애플리케이션 및 라우터 등록
+  config.py                             # API 설정 (device, ASSETS_DIR)
+  models.py                             # Pydantic 요청/응답 모델
+  routes/                               # API 라우트
+    furniture.py                        # /analyze-furniture 엔드포인트
+    health.py                           # /health, /gpu-status, /assets 엔드포인트
+  services/                             # 서비스 레이어
+    callback.py                         # 비동기 Callback 서비스
 requirements.txt                        # Python dependencies
 setup.sh                                # Setup script (clones sam-3d-objects, creates conda env)
 assets/                                 # Static files served at /assets/ (PLY, GIF, GLB)
 docs/                                   # Documentation
+  PIPELINE_OPTIMIZATION.md              # 파이프라인 최적화 가이드
   qa/                                   # QA test reports
     QA_MULTI_GPU_TEST_REPORT.md         # Multi-GPU parallel processing test report
     QA_YOLOE_MIGRATION_REPORT.md        # YOLOE migration test report
@@ -507,20 +547,21 @@ ai/                                     # AI module (integrated with main API)
   __init__.py                           # Module entry point (exports FurniturePipeline, processors)
   config.py                             # YOLOE model settings, Multi-GPU settings
   gpu/                                  # GPU pool management module
-    __init__.py                         # Exports GPUPoolManager, get_gpu_pool
-    gpu_pool_manager.py                 # GPU pool manager implementation
+    __init__.py                         # Exports GPUPoolManager, SAM3DWorkerPool
+    gpu_pool_manager.py                 # YOLOE GPU pool manager implementation
+    sam3d_worker_pool.py                # SAM-3D Persistent Worker Pool
   processors/                           # AI Logic step-by-step processors
     __init__.py                         # Exports processor classes
     1_firebase_images_fetch.py          # Step 1: Fetch images from Firebase
     2_YOLO_detect.py                    # Step 2: YOLOE-seg object detection (with mask)
     4_DB_movability_check.py            # Step 4: 한국어 라벨 매핑
-    6_SAM3D_convert.py                  # Step 6: SAM-3D 3D conversion (YOLOE-seg mask 직접 사용)
     7_volume_calculate.py               # Step 7: Relative volume/dimension calculation
   pipeline/
     __init__.py                         # Exports FurniturePipeline
     furniture_pipeline.py               # Pipeline orchestrator V2 (YOLO mask direct use)
   subprocess/
-    generate_3d_worker.py               # Isolated 3D generation worker
+    persistent_3d_worker.py             # Persistent 3D Worker (성능 최적화 설정 포함)
+    worker_protocol.py                  # 워커-풀 통신 프로토콜
   data/
     __init__.py                         # Exports FURNITURE_DB
     knowledge_base.py                   # YOLO 클래스 매핑 + 한국어 라벨 정적 DB
@@ -531,7 +572,6 @@ ai/                                     # AI module (integrated with main API)
   imgs/                                 # Test images
   outputs/                              # Output results
 tests/                                  # Test files
-test_pipeline_qa.py                     # Pipeline V2 QA test script
 ```
 
 ## Known Issues and Solutions

@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |------|------|
-| Version | 2.1 |
-| Last Updated | 2026-01-21 |
+| Version | 2.2 |
+| Last Updated | 2026-01-25 |
 | Author | AI Team |
 | Status | Implemented |
 
@@ -202,22 +202,28 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 - dtype: `uint8`
 - Values: `0` (background), `255` (foreground)
 
-### 3.2 SAM-3D Converter
+### 3.2 SAM-3D Worker Pool
 
-**File:** `ai/processors/6_SAM3D_convert.py`
+**File:** `ai/gpu/sam3d_worker_pool.py`
 
 **Architecture:**
-- Subprocess isolation (spconv GPU 충돌 방지)
-- Worker script: `ai/subprocess/generate_3d_worker.py`
+- Persistent Worker Pool 패턴 (GPU당 1개 워커)
+- Worker script: `ai/subprocess/persistent_3d_worker.py`
+- JSON stdin/stdout 통신: `ai/subprocess/worker_protocol.py`
 
 **Input Requirements:**
-- Image: PNG file path
-- Mask: Grayscale PNG file path (0/255)
+- Image: Base64 encoded PNG
+- Mask: Base64 encoded grayscale PNG (0/255)
 
 **Output Files:**
-- PLY: Gaussian splat point cloud (ASCII format)
-- GLB: Textured 3D mesh
-- GIF: 360° rotating preview
+- PLY: Gaussian splat point cloud (Binary format, USE_BINARY_PLY=True)
+- GLB/Mesh: 비활성화 (GAUSSIAN_ONLY_MODE=True)
+
+**최적화 설정 (persistent_3d_worker.py):**
+- `STAGE1_INFERENCE_STEPS=15`: 47% 속도 향상
+- `STAGE2_INFERENCE_STEPS=8`: 15-20% 속도 향상
+- `GAUSSIAN_ONLY_MODE=True`: 37.4% 속도 향상
+- `compile=True`: 10-20% 추론 속도 향상
 
 ### 3.3 Furniture Pipeline
 
@@ -243,6 +249,7 @@ if obj.yolo_mask is not None:
 **Request:**
 ```json
 {
+  "estimate_id": 1,
   "image_urls": [
     {
       "id": 101,
@@ -259,9 +266,25 @@ if obj.yolo_mask is not None:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| image_urls | array[string] | Yes | Firebase Storage URL 리스트 (1-20개) |
+| estimate_id | int | Yes | 견적 ID (callback URL에 사용) |
+| image_urls | array[object] | Yes | 이미지 URL 객체 배열 (1-20개) |
+| image_urls[].id | int | Yes | 사용자 지정 이미지 ID |
+| image_urls[].url | string | Yes | Firebase Storage URL |
 
-**Response:**
+**Immediate Response (비동기 방식):**
+```json
+{
+  "success": true,
+  "estimate_id": 1,
+  "status": "processing"
+}
+```
+
+작업은 백그라운드에서 실행되며, 완료 시 callback URL로 결과가 전송됩니다.
+
+**Callback URL:** `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
+
+**Callback Payload (성공):**
 ```json
 {
   "results": [
@@ -307,7 +330,17 @@ if obj.yolo_mask is not None:
 }
 ```
 
+**Callback Payload (실패):**
+```json
+{
+  "error": "Furniture analysis failed: 에러 메시지"
+}
+```
+
 > Response 필드 상세는 **Section 2.4** 참조
+
+**Callback URL (하드코딩):**
+`http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
 
 ### 4.2 POST /analyze-furniture-single
 
@@ -603,10 +636,17 @@ await pool.initialize_pipelines(
 | Stage | Duration |
 |-------|----------|
 | Image Fetch | ~0.5s |
-| YOLOE-seg Detection | ~1.0s |
+| YOLOE-seg Detection | ~0.5-1.0s |
 | DB Matching | <0.1s |
-| SAM-3D (per object) | ~30-60s |
+| SAM-3D (per object, optimized) | ~7-8s |
 | Volume Calculation | ~0.5s |
+
+**최적화 적용 (2026-01-25):**
+- `STAGE1_INFERENCE_STEPS=15`: 47% 속도 향상, 1.31% 부피 오차
+- `STAGE2_INFERENCE_STEPS=8`: 15-20% 속도 향상
+- `GAUSSIAN_ONLY_MODE=True`: 37.4% 속도 향상
+- `compile=True`: 10-20% 추론 속도 향상
+- `in_place=True`: 5-10% 속도/메모리 향상
 
 ---
 
@@ -649,11 +689,17 @@ curl -X POST http://localhost:8000/analyze-furniture-single \
 ### 9.1 Python Packages
 
 ```
-ultralytics>=8.0.0      # YOLOE-seg
-torch>=2.0.0            # PyTorch
-trimesh                 # Volume calculation
-pillow                  # Image processing
-aiohttp                 # Async HTTP client
+fastapi                 # API 프레임워크
+uvicorn[standard]       # ASGI 서버
+pydantic                # 요청/응답 모델
+torch>=2.1.0            # PyTorch (DeCl requires >=2.1.0)
+torchvision>=0.16.0     # 이미지 처리
+ultralytics>=8.3.0      # YOLOE-seg 지원
+trimesh                 # 3D 메시/볼륨 계산
+pillow>=10.0.0          # 이미지 처리
+aiohttp                 # Async HTTP client (Firebase URL)
+omegaconf>=2.3.0        # SAM-3D 설정
+hydra-core>=1.3.2       # SAM-3D 설정
 ```
 
 ### 9.2 External Services
@@ -665,6 +711,25 @@ aiohttp                 # Async HTTP client
 
 ## 10. Changelog
 
+### V2.2 (2026-01-25)
+
+**Optimization Updates:**
+- `STAGE1_INFERENCE_STEPS`: 25 → 15 (47% 속도 향상, 1.31% 부피 오차)
+- `GAUSSIAN_ONLY_MODE`: True 활성화 (37.4% 속도 향상)
+- `compile=True`: torch.compile 활성화 (10-20% 추론 속도 향상)
+- `in_place=True`: deepcopy 제거 (5-10% 속도/메모리 향상)
+
+**File Structure Updates:**
+- `api/routes/generate_3d.py` 제거 (Worker Pool 방식으로 통합)
+- `api/services/tasks.py` 제거 (callback 방식으로 대체)
+- `ai/processors/6_SAM3D_convert.py` 제거 (Worker Pool 사용)
+- `ai/subprocess/generate_3d_worker.py` 제거 (persistent_3d_worker.py로 대체)
+
+### V2.1 (2026-01-21)
+
+**Performance Metrics:**
+- 8 GPU, 8 이미지, 101 객체: ~3분 47초 (객체당 2.24초)
+
 ### V2.0 (2026-01-18)
 
 **Major Changes:**
@@ -672,6 +737,8 @@ aiohttp                 # Async HTTP client
 - CLIP/SAHI 완전 제거
 - is_movable/dimensions 필드 제거 (백엔드 계산)
 - `_yolo_mask_to_base64()` 메서드 추가
+- Persistent Worker Pool 아키텍처 도입
+- 비동기 callback 패턴 도입
 
 **Rationale:**
 - YOLOE-seg 마스크가 객체 전체를 더 정확하게 커버 (테스트 결과)

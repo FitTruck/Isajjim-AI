@@ -25,9 +25,13 @@
 
 | 설정 | 값 | 효과 |
 |------|-----|------|
-| `MAX_IMAGE_SIZE` | None (비활성화) | 부피 정확도 유지 (~4% 오차) |
+| `MAX_IMAGE_SIZE` | None (비활성화) | 부피 정확도 유지 |
+| `STAGE1_INFERENCE_STEPS` | 15 | 47% 속도 향상, 1.31% 부피 오차 |
 | `STAGE2_INFERENCE_STEPS` | 8 | ~15-20% 속도 향상 |
+| `GAUSSIAN_ONLY_MODE` | True | 37.4% 속도 향상, GLB/Mesh 스킵 |
 | `USE_BINARY_PLY` | True | ~70% 파일 크기 감소, ~50% I/O 속도 향상 |
+| `compile=True` | torch.compile | 10-20% 추론 속도 향상 |
+| `in_place=True` | deepcopy 제거 | 5-10% 속도/메모리 향상 |
 
 > 설정 파일: `ai/subprocess/persistent_3d_worker.py`
 
@@ -127,6 +131,7 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Wo
 curl -X POST http://localhost:8000/analyze-furniture \
   -H 'Content-Type: application/json' \
   -d '{
+    "estimate_id": 123,
     "image_urls": [
       {"id": 101, "url": "https://firebase-url-1.jpg"},
       {"id": 102, "url": "https://firebase-url-2.jpg"}
@@ -134,7 +139,19 @@ curl -X POST http://localhost:8000/analyze-furniture \
   }'
 ```
 
-### 응답
+### 즉시 응답 (비동기 방식)
+
+```json
+{
+  "success": true,
+  "estimate_id": 123,
+  "status": "processing"
+}
+```
+
+### Callback 응답
+
+작업 완료 시 `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`으로 결과 전송:
 
 ```json
 {
@@ -197,12 +214,9 @@ sam3d-api/
 │   ├── models.py               # Pydantic 모델
 │   ├── routes/                 # API 라우트
 │   │   ├── furniture.py        # /analyze-furniture 엔드포인트
-│   │   ├── generate_3d.py      # /generate-3d 엔드포인트
-│   │   ├── health.py           # /health, /gpu-status 엔드포인트
-│   │   └── segment.py          # /segment 엔드포인트
+│   │   └── health.py           # /health, /gpu-status, /assets 엔드포인트
 │   └── services/               # 서비스 레이어
-│       ├── sam2.py             # SAM2 모델 서비스
-│       └── tasks.py            # 비동기 태스크 관리
+│       └── callback.py         # 비동기 Callback 서비스
 ├── requirements.txt            # Python 의존성
 ├── setup.sh                    # 환경 설정 스크립트
 ├── assets/                     # 생성된 PLY/GIF/GLB 에셋
@@ -258,16 +272,24 @@ PYTORCH_ENABLE_MPS_FALLBACK=1
 # Phase 1: 이미지 다운샘플링 (None = 비활성화, 부피 정확도 유지)
 MAX_IMAGE_SIZE = None
 
-# Phase 2: Inference Steps (8 = 속도 최적화, 12 = 품질 우선)
-STAGE2_INFERENCE_STEPS = 8
+# Phase 2: Inference Steps
+STAGE1_INFERENCE_STEPS = 15  # 기본값 25 → 15 (47% 빠름, 1.31% 오차)
+STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8 (~15-20% 빠름)
 
 # Phase 3: PLY 형식 (True = Binary, 70% 작은 파일)
 USE_BINARY_PLY = True
+
+# Phase 5: Gaussian-only 모드 (GLB/Mesh 스킵, 부피 계산만)
+GAUSSIAN_ONLY_MODE = True    # 37.4% 빠름, 0.005% 부피 오차
 ```
 
 **최적화 테스트 결과:**
 - 다운샘플링: 부피 정확도에 91.7% 영향 (작은 객체에서 최대 576% 차이)
-- Steps 감소: 부피 정확도에 ~4% 영향 (수용 가능)
+- Stage1 Steps (25→15): 47% 속도 향상, 1.31% 부피 오차
+- Stage2 Steps (12→8): ~15-20% 속도 향상
+- Gaussian-only: 37.4% 속도 향상, 0.005% 부피 오차
+- torch.compile: 10-20% 추론 속도 향상
+- in_place=True: 5-10% 속도/메모리 향상
 - Binary PLY: ~50% 빠른 I/O, ~70% 작은 파일 크기
 
 ### 모니터링

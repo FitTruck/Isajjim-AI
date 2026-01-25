@@ -353,10 +353,10 @@ skip_gif: bool = True  # 기본값: GIF 스킵
 ```python
 # ai/subprocess/persistent_3d_worker.py:58-62
 # Stage1 (Sparse Structure): 테스트 결과 15 steps가 최적
-STAGE1_INFERENCE_STEPS = 15  # 기본값 25 → 15
+STAGE1_INFERENCE_STEPS = 15  # 기본값 25 → 15 (47% 속도 향상, 1.31% 부피 오차)
 
 # Stage2 (SLAT): 8 steps가 최적
-STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8
+STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8 (~15-20% 속도 향상)
 ```
 
 #### Stage1 Steps 테스트 결과
@@ -365,7 +365,7 @@ STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8
 |-------|----------|----------|------|
 | 25 | baseline | 1.00x | - |
 | 20 | +5.47% | 1.23x | ⚠️ 주의 |
-| **15** | **+1.31%** | **1.47x** | ✅ **권장** |
+| **15** | **+1.31%** | **1.47x** | ✅ **권장 (현재 설정)** |
 | 12 | +11.04% | 1.65x | ❌ 비권장 |
 | 10 | +15.09% | 1.84x | ❌ 비권장 |
 
@@ -393,17 +393,17 @@ MAX_IMAGE_SIZE = None  # 비활성화
 ### 5.6 Gaussian-only 모드
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:67-70
-GAUSSIAN_ONLY_MODE = True  # GLB/Mesh 생성 스킵
+# ai/subprocess/persistent_3d_worker.py:68-71
+GAUSSIAN_ONLY_MODE = True  # GLB/Mesh 생성 스킵, decode_formats=["gaussian"]
 
 # 효과: 37.4% 속도 향상, 부피 오차 0.005% (무시 가능)
-# 부피 계산만 필요한 경우 권장
+# 부피 계산만 필요한 경우 권장 (현재 활성화됨)
 ```
 
 ### 5.7 in_place=True 최적화
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:457-461
+# ai/subprocess/persistent_3d_worker.py:455-458
 # deepcopy 제거로 메모리/속도 최적화
 scene_gs = self.make_scene(output, in_place=True)
 scene_gs = self.ready_gaussian_for_video_rendering(
@@ -416,12 +416,14 @@ scene_gs = self.ready_gaussian_for_video_rendering(
 ### 5.8 torch.compile 활성화
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:320-325
+# ai/subprocess/persistent_3d_worker.py:317-321
+ENABLE_COMPILE = True  # True = 추론 10-20% 빠름, False = 빠른 시작 (테스트용)
+
 # 워커 초기화 시 CUDA 커널 컴파일
-self.sam3d_inference = Inference(config_path, compile=True, device="cuda")
+self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cuda")
 
 # 효과:
-# - 초기화 시: warmup 3회로 ~20-30초 추가
+# - 초기화 시: warmup으로 추가 시간 소요
 # - 추론 시: CUDA 커널 재사용으로 ~10-20% 속도 향상
 # - Persistent Worker이므로 초기화 비용은 서버 시작 시 1회만 발생
 ```
@@ -728,17 +730,17 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 | **모델 로드 오버헤드** | 7-11초/요청 | 0초 | **100% 제거** |
 | **GPU 활용률** | 단일 GPU | N GPU 병렬 | **N배 향상** |
 
-#### 적용된 최적화 설정 (2026-01)
+#### 적용된 최적화 설정 (2026-01-25)
 
 ```python
 # ai/subprocess/persistent_3d_worker.py
-MAX_IMAGE_SIZE = None           # Phase 1: 다운샘플링 비활성화
-STAGE1_INFERENCE_STEPS = 15     # Phase 2: Stage1 (25→15, 47% 빠름, 1.3% 오차)
+MAX_IMAGE_SIZE = None           # Phase 1: 다운샘플링 비활성화 (부피 정확도 유지)
+STAGE1_INFERENCE_STEPS = 15     # Phase 2: Stage1 (25→15, 47% 빠름, 1.31% 오차)
 STAGE2_INFERENCE_STEPS = 8      # Phase 2: Stage2 (12→8, 15-20% 빠름)
 USE_BINARY_PLY = True           # Phase 3: Binary PLY (70% 작음, 50% 빠름)
-GAUSSIAN_ONLY_MODE = True       # Phase 5: Gaussian-only (37% 빠름)
-compile=True                    # torch.compile (10-20% 빠름)
-in_place=True                   # deepcopy 제거 (5-10% 빠름)
+GAUSSIAN_ONLY_MODE = True       # Phase 5: Gaussian-only (37.4% 빠름, 0.005% 오차)
+ENABLE_COMPILE = True           # torch.compile (10-20% 빠름)
+in_place=True                   # make_scene/ready_gaussian에서 deepcopy 제거 (5-10% 빠름)
 ```
 
 ---
@@ -749,7 +751,9 @@ in_place=True                   # deepcopy 제거 (5-10% 빠름)
 |------|------|
 | `ai/gpu/gpu_pool_manager.py` | YOLOE용 GPU Pool Manager (1단계) |
 | `ai/gpu/sam3d_worker_pool.py` | SAM-3D Persistent Worker Pool (2단계) |
-| `ai/subprocess/generate_3d_worker.py` | SAM-3D subprocess 워커 |
-| `ai/subprocess/persistent_3d_worker.py` | SAM-3D persistent 워커 |
+| `ai/subprocess/persistent_3d_worker.py` | SAM-3D Persistent 워커 (성능 최적화 설정 포함) |
+| `ai/subprocess/worker_protocol.py` | 워커-풀 통신 프로토콜 |
 | `ai/pipeline/furniture_pipeline.py` | V2 파이프라인 오케스트레이터 |
 | `ai/config.py` | Multi-GPU 설정 |
+| `api/routes/furniture.py` | /analyze-furniture 엔드포인트 |
+| `api/services/callback.py` | 비동기 Callback 서비스 |
