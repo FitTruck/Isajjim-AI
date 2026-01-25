@@ -51,6 +51,13 @@ test_img*.png
 test_mask*.png
 test_masked*.png
 
+# Coverage reports
+htmlcov/
+
+# Cache directories
+.pytest_cache/
+.ruff_cache/
+
 # TorchScript files (CLIP models - deprecated)
 *.ts
 
