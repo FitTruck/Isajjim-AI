@@ -51,9 +51,6 @@ test_img*.png
 test_mask*.png
 test_masked*.png
 
-# Claude Code
-.claude/
-
 # TorchScript files (CLIP models - deprecated)
 *.ts
 
