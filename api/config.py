@@ -64,7 +64,7 @@ os.makedirs(ASSETS_DIR, exist_ok=True)
 # ============================================================================
 # Callback Configuration
 # ============================================================================
-CALLBACK_URL_TEMPLATE = "http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimateId}/callback"
+CALLBACK_URL_TEMPLATE = "https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback"
 CALLBACK_TIMEOUT_SECONDS = 30
 CALLBACK_RETRY_COUNT = 1
 

@@ -54,7 +54,6 @@ async def startup_event():
 
             def create_pipeline(gpu_id: int) -> FurniturePipeline:
                 return FurniturePipeline(
-                    sam2_api_url="http://localhost:8000",
                     enable_3d_generation=True,
                     device_id=gpu_id,
                     gpu_pool=pool

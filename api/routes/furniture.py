@@ -62,7 +62,6 @@ def get_furniture_pipeline(device_id: Optional[int] = None):
                 gpu_pool = None
 
             _furniture_pipeline = FurniturePipeline(
-                sam2_api_url="http://localhost:8000",
                 enable_3d_generation=True,
                 device_id=device_id,
                 gpu_pool=gpu_pool
@@ -136,16 +135,16 @@ async def analyze_furniture(
     Pipeline V2:
     1. Download images from Firebase Storage
     2. YOLOE-seg object detection (bbox + class + segmentation)
-    3. DB matching for Korean labels
-    4. YOLOE-seg mask directly to SAM-3D (no SAM2)
-    5. SAM-3D 3D model generation
-    6. trimesh relative volume calculation
+    3. DB matching for labels (base_name)
+    4. YOLOE-seg mask directly to SAM-3D
+    5. SAM-3D 3D model generation (Persistent Worker Pool)
+    6. trimesh OBB-based relative volume calculation
 
     Returns:
         {"success": true, "estimate_id": X, "status": "processing"}
 
     Callback:
-        POST {CALLBACK_BASE_URL}/api/v1/estimates/{estimate_id}/callback
+        POST https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback
         Body: {"results": [...]} or {"error": "..."}
     """
     try:

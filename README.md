@@ -151,7 +151,7 @@ curl -X POST http://localhost:8000/analyze-furniture \
 
 ### Callback 응답
 
-작업 완료 시 `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`으로 결과 전송:
+작업 완료 시 `https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback`으로 결과 전송:
 
 ```json
 {

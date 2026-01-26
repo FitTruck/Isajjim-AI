@@ -297,7 +297,7 @@ if obj.yolo_mask is not None:
 
 작업은 백그라운드에서 실행되며, 완료 시 callback URL로 결과가 전송됩니다.
 
-**Callback URL:** `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
+**Callback URL:** `https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback`
 
 **Callback Payload (성공):**
 ```json
@@ -359,7 +359,7 @@ if obj.yolo_mask is not None:
 > Response 필드 상세는 **Section 2.4** 참조
 
 **Callback URL (하드코딩):**
-`http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
+`https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback`
 
 ### 4.2 POST /analyze-furniture-single
 

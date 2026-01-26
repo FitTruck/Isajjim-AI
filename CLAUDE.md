@@ -190,7 +190,7 @@ GAUSSIAN_ONLY_MODE = True  # 37.4% 속도 향상, 0.005% 부피 오차
 `/analyze-furniture` 엔드포인트는 비동기 callback 패턴을 사용합니다:
 - POST 즉시 `{"success": true, "estimate_id": X, "status": "processing"}` 응답
 - 백그라운드에서 파이프라인 실행
-- 완료 시 callback URL로 결과 전송: `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
+- 완료 시 callback URL로 결과 전송: `https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback`
 - Callback 서비스: `api/services/callback.py`
 
 ## Common Commands
@@ -405,7 +405,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 }
 ```
 
-**Callback URL:** `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
+**Callback URL:** `https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback`
 
 **Callback Payload (성공):**
 ```json
@@ -439,7 +439,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 ```
 
 **Callback URL (하드코딩):**
-- `http://api.isajjim.kro.kr:8080/api/v1/estimates/{estimate_id}/callback`
+- `https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback`
 
 **단위:**
 - `width`, `depth`, `height`: **상대 길이** (3D 메시 bounding box 기준, 단위 없음)

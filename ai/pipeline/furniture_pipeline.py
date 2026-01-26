@@ -112,20 +112,19 @@ class FurniturePipeline:
 
     def __init__(
         self,
-        sam2_api_url: str = "http://localhost:8000",  # 하위 호환성 유지
+        api_url: str = "http://localhost:8000",
         enable_3d_generation: bool = True,
         device_id: Optional[int] = None,
         gpu_pool: Optional[GPUPoolManager] = None
     ):
         """
         Args:
-            sam2_api_url: SAM-3D API 서버 URL (SAM2 제거, 이름 유지는 하위 호환성)
+            api_url: API 서버 URL (현재 사용 안함, 하위 호환성 유지)
             enable_3d_generation: 3D 생성 활성화 여부
             device_id: GPU 디바이스 ID (None이면 기본값 사용)
             gpu_pool: GPU 풀 매니저 (Multi-GPU 처리용)
         """
-        self.api_url = sam2_api_url.rstrip('/')
-        self.sam2_api_url = self.api_url  # 하위 호환성
+        self.api_url = api_url.rstrip('/')
         self.enable_3d_generation = enable_3d_generation
 
         # Multi-GPU 지원
@@ -540,7 +539,7 @@ class FurniturePipeline:
                                 # 다른 GPU면 새 파이프라인 생성 (비효율적이지만 폴백)
                                 print(f"[FurniturePipeline] Warning: Creating new pipeline for GPU {gpu_id} (not pre-initialized)")
                                 pipeline = FurniturePipeline(
-                                    sam2_api_url=self.sam2_api_url,
+                                    api_url=self.api_url,
                                     enable_3d_generation=self.enable_3d_generation,
                                     device_id=gpu_id,
                                     gpu_pool=pool
@@ -621,7 +620,7 @@ class FurniturePipeline:
                             else:
                                 print(f"[FurniturePipeline] Warning: Creating new pipeline for GPU {gpu_id} (not pre-initialized)")
                                 pipeline = FurniturePipeline(
-                                    sam2_api_url=self.sam2_api_url,
+                                    api_url=self.api_url,
                                     enable_3d_generation=self.enable_3d_generation,
                                     device_id=gpu_id,
                                     gpu_pool=pool
