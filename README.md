@@ -81,9 +81,9 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Wo
 |------|------|------|
 | 1 | `1_firebase_images_fetch.py` | Firebase Storage URL에서 이미지 다운로드 |
 | 2 | `2_YOLO_detect.py` | YOLOE-seg 객체 탐지 (bbox + class + mask) |
-| 3 | `4_DB_movability_check.py` | YOLO 클래스로 DB 매칭, 한국어 라벨 반환 |
+| 3 | `4_DB_movability_check.py` | YOLO 클래스로 DB 매칭, 영어 라벨 반환 (base_name) |
 | 4 | `6_SAM3D_convert.py` | YOLO 마스크 → SAM-3D 3D 모델 생성 |
-| 5 | `7_volume_calculate.py` | trimesh로 상대 부피/치수 계산 |
+| 5 | `7_volume_calculate.py` | trimesh OBB로 상대 부피/치수 계산 |
 
 ### V1 → V2 변경사항
 
@@ -93,7 +93,7 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Wo
 | SAHI/CLIP | 사용 | **제거** |
 | 마스크 생성 | SAM2 (center point) | **YOLO 마스크 직접 사용** |
 | API 호출 | 3회 | 2회 |
-| 부피 단위 | 절대값 (m³) | **상대값** (백엔드 계산) |
+| 부피 계산 | AABB + 절대값 | **OBB + 상대값** (백엔드에서 절대값 계산) |
 | 3D 워커 | 매 요청마다 subprocess | **Persistent Worker Pool** |
 | 병렬 처리 | 이미지별 순차 | **객체별 병렬 (Multi-GPU)** |
 

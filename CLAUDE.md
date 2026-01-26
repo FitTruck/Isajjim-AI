@@ -7,7 +7,7 @@ This guide is for Claude Code (claude.ai/code) when working with this repository
 A FastAPI-based service integrating:
 1. **YOLOE-seg** - Object detection with instance segmentation (V2 파이프라인)
 2. **Sam-3d-objects** - Facebook Research's 2D image to 3D object generation pipeline
-3. **AI Module** - Furniture detection and analysis system (Korean language support)
+3. **AI Module** - Furniture detection and analysis system
 4. **Multi-GPU Parallel Processing** - Round-robin GPU allocation via GPU pool manager
 
 The API accepts 2D images and generates 3D Gaussian Splats, PLY, GIF, and GLB meshes.
@@ -134,8 +134,8 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 
 7. **AI Processors (`ai/processors/`)**
    - Furniture detection using YOLOE-seg (Objects365 기반 365 classes)
-   - Korean language interface for moving services
-   - Furniture dimension Knowledge Base for volume calculation
+   - DB 매칭으로 영어 라벨 (base_name) 반환
+   - OBB (Oriented Bounding Box) 기반 부피/치수 계산
    - **V2 Pipeline**: Firebase URL → YOLOE-seg (mask 포함) → DB → SAM-3D → Volume (SAM2 제거)
 
 ### Fixed Path Dependencies
@@ -350,7 +350,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 1. **Image Fetch**: Download images from Firebase Storage URLs (5-10 images)
 2. **GPU Allocation**: Round-robin GPU allocation from GPUPoolManager
 3. **Object Detection**: YOLOE-seg for object detection (bbox + class + **segmentation mask**)
-4. **DB Matching**: YOLOE class directly matches with Knowledge Base → 한국어 라벨 반환
+4. **DB Matching**: YOLOE class directly matches with Knowledge Base → 영어 라벨 (base_name) 반환
 5. **Mask Direct Use**: YOLOE-seg 마스크를 SAM-3D에 직접 전달 (**SAM2 제거**)
 6. **3D Generation**: SAM-3D converts masked image to 3D model
 7. **Volume Calculation**: trimesh analyzes mesh for **relative dimensions only** (절대 부피는 백엔드에서 계산)
@@ -457,9 +457,9 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 - `ai/subprocess/persistent_3d_worker.py` - Persistent 3D Worker (성능 최적화 설정 포함)
 - `ai/subprocess/worker_protocol.py` - 워커-풀 통신 프로토콜
 - `ai/processors/2_YOLO_detect.py` - YOLOE-seg detector (Objects365 기반)
-- `ai/processors/4_DB_movability_check.py` - 한국어 라벨 매핑 (is_movable 제거됨)
-- `ai/processors/7_volume_calculate.py` - Mesh relative volume/dimensions (절대 부피는 백엔드 계산)
-- `ai/data/knowledge_base.py` - YOLO 클래스 매핑 + 한국어 라벨 + 프롬프트 저장용 정적 DB (dimensions/is_movable 제거됨)
+- `ai/processors/4_DB_movability_check.py` - DB 라벨 매핑 (is_movable 제거됨)
+- `ai/processors/7_volume_calculate.py` - OBB 기반 상대 부피/치수 계산 (절대 부피는 백엔드 계산)
+- `ai/data/knowledge_base.py` - YOLO 클래스 매핑 + 영어 라벨 (base_name) 정적 DB (dimensions/is_movable 제거됨)
 
 ## Code Modification Guidelines
 
@@ -554,8 +554,8 @@ ai/                                     # AI module (integrated with main API)
     __init__.py                         # Exports processor classes
     1_firebase_images_fetch.py          # Step 1: Fetch images from Firebase
     2_YOLO_detect.py                    # Step 2: YOLOE-seg object detection (with mask)
-    4_DB_movability_check.py            # Step 4: 한국어 라벨 매핑
-    7_volume_calculate.py               # Step 7: Relative volume/dimension calculation
+    4_DB_movability_check.py            # Step 4: DB 라벨 매핑
+    7_volume_calculate.py               # Step 7: OBB-based relative volume/dimension calculation
   pipeline/
     __init__.py                         # Exports FurniturePipeline
     furniture_pipeline.py               # Pipeline orchestrator V2 (YOLO mask direct use)
@@ -564,7 +564,7 @@ ai/                                     # AI module (integrated with main API)
     worker_protocol.py                  # 워커-풀 통신 프로토콜
   data/
     __init__.py                         # Exports FURNITURE_DB
-    knowledge_base.py                   # YOLO 클래스 매핑 + 한국어 라벨 정적 DB
+    knowledge_base.py                   # YOLO 클래스 매핑 + 영어 라벨 (base_name) 정적 DB
   utils/
     __init__.py                         # Exports utilities
     image_ops.py                        # Image processing utilities
