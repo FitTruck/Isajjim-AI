@@ -15,7 +15,7 @@ from PIL import Image
 # AI module imports
 from ai.config import Config
 from ai.utils.image_ops import ImageUtils
-from ai.data.knowledge_base import get_subtypes, get_db_key_from_label
+from ai.data.knowledge_base import get_subtypes, get_db_key_from_label, get_excluded_base_names
 
 try:
     from ultralytics import YOLOE
@@ -59,12 +59,6 @@ FURNITURE_CLASSES = {
 
     # 가구 (중우선순위)
     "Stool": {"base_name": "CHAIR_STOOL"},
-    "Bench": {"base_name": "BENCH"},
-    "Toilet": {"base_name": "TOILET"},
-    "Sink": {"base_name": "SINK"},
-    "Bathtub": {"base_name": "BATHTUB"},
-    "Bicycle": {"base_name": "BICYCLE"},
-    "Ladder": {"base_name": "LADDER"},
 
     # 추가 가정용품
     "Bookshelf": {"base_name": "BOOKSHELF"},
@@ -74,15 +68,14 @@ FURNITURE_CLASSES = {
     "Fan": {"base_name": "FAN"},
     "Vase": {"base_name": "POTTED_PLANT"},
     "Plant": {"base_name": "POTTED_PLANT"},
-    "Box": {"base_name": "BOX"},
 
     # 탐지는 하되 출력에서 제외되는 클래스 (EXCLUDED_FROM_OUTPUT 참조)
-    "Kitchen Island": {"base_name": "KITCHEN_ISLAND"},
     "Floor": {"base_name": "FLOOR"},
 }
 
 # 탐지는 수행하지만 최종 출력에서 제외할 클래스 목록
-EXCLUDED_FROM_OUTPUT = {"KITCHEN_ISLAND", "FLOOR"}
+# knowledge_base.py의 exclude_from_output: True 항목에서 동적으로 로드
+EXCLUDED_FROM_OUTPUT = get_excluded_base_names()
 
 
 def _empty_result() -> Dict:

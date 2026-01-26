@@ -22,7 +22,8 @@ FURNITURE_DB = {
         "subtypes": [
             {
                 "name": "CEILING_MOUNTED_AIR_CONDITIONER_VENT",
-                "prompt": "a ceiling mounted cassette air conditioner vent"
+                "prompt": "a ceiling mounted cassette air conditioner vent",
+                "exclude_from_output": True
             },
             {
                 "name": "WALL_MOUNTED_AIR_CONDITIONER",
@@ -54,42 +55,9 @@ FURNITURE_DB = {
         "synonyms": ["storage box", "storage container", "plastic box", "moving box"],
         "base_name": "STORAGE_BOX",
     },
-    "bench": {
-        "synonyms": ["bench", "wooden bench", "sitting bench", "entryway bench"],
-        "base_name": "BENCH",
-    },
-    "toilet": {
-        "synonyms": ["toilet", "toilet bowl", "bathroom toilet", "commode"],
-        "base_name": "TOILET",
-    },
-    "sink": {
-        "synonyms": ["sink", "kitchen sink", "bathroom sink", "wash basin"],
-        "base_name": "SINK",
-    },
-    "bathtub": {
-        "synonyms": ["bathtub", "bath tub", "tub", "soaking tub"],
-        "base_name": "BATHTUB",
-    },
-    "bicycle": {
-        "synonyms": ["bicycle", "bike", "cycle", "mountain bike", "road bike"],
-        "base_name": "BICYCLE",
-    },
-    "ladder": {
-        "synonyms": ["ladder", "step ladder", "folding ladder", "extension ladder"],
-        "base_name": "LADDER",
-    },
     "fan": {
         "synonyms": ["fan", "electric fan", "standing fan", "floor fan", "ceiling fan", "desk fan"],
         "base_name": "FAN",
-    },
-    "box": {
-        "synonyms": ["box", "cardboard box", "packing box"],
-        "base_name": "BOX",
-    },
-    "kitchen island": {
-        "synonyms": ["kitchen island", "island counter", "island table", "center island"],
-        "base_name": "KITCHEN_ISLAND",
-        "exclude_from_output": True,
     },
     "cabinet": {
         "synonyms": ["cabinet", "cabinet/shelf", "storage cabinet", "display cabinet"],
@@ -127,12 +95,21 @@ FURNITURE_DB = {
         "base_name": "REFRIGERATOR",
         "subtypes": [
             {
-                "name": "MOVABLE_REFRIGERATOR",
-                "prompt": "a standard free-standing refrigerator"
+                "name": "TOP_BOTTOM_REFRIGERATOR",
+                "prompt": "a small compact refrigerator with top and bottom doors divided by a horizontal line"
+            },
+            {
+                "name": "SIDE_BY_SIDE_REFRIGERATOR",
+                "prompt": "a large side-by-side refrigerator with left and right doors divided by a vertical line"
+            },
+            {
+                "name": "FOUR_DOOR_REFRIGERATOR",
+                "prompt": "a large family refrigerator with four doors in a grid layout"
             },
             {
                 "name": "BUILT_IN_REFRIGERATOR",
-                "prompt": "a built-in refrigerator flush with kitchen cabinets"
+                "prompt": "a built-in refrigerator flush with kitchen cabinets",
+                "exclude_from_output": True
             }
         ]
     },
@@ -142,7 +119,8 @@ FURNITURE_DB = {
         "subtypes": [
             {
                 "name": "BUILT_IN_WARDROBE",
-                "prompt": "a built-in wardrobe integrated into the wall without gaps"
+                "prompt": "a built-in wardrobe integrated into the wall without gaps",
+                "exclude_from_output": True
             },
             {
                 "name": "MOVABLE_WARDROBE",
@@ -178,51 +156,11 @@ FURNITURE_DB = {
     },
     "bed": {
         "synonyms": ["bed", "bed frame", "bunk bed"],
-        "base_name": "BED",
-        "subtypes": [
-            {
-                "name": "SINGLE_BED",
-                "prompt": "a single bed with a narrow mattress"
-            },
-            {
-                "name": "SUPER_SINGLE_BED",
-                "prompt": "a super single bed slightly wider than single"
-            },
-            {
-                "name": "DOUBLE_BED",
-                "prompt": "a double bed with full size mattress"
-            },
-            {
-                "name": "QUEEN_SIZE_BED",
-                "prompt": "a queen size bed with wide mattress"
-            },
-            {
-                "name": "KING_SIZE_BED",
-                "prompt": "a king size bed with extra wide mattress"
-            },
-            {
-                "name": "BUNK_BED",
-                "prompt": "a bunk bed with two levels stacked"
-            }
-        ]
+        "base_name": "BED"
     },
     "dining table": {
         "synonyms": ["dining table", "kitchen table"],
         "base_name": "DINING_TABLE",
-        "subtypes": [
-            {
-                "name": "TWO_PERSON_DINING_TABLE",
-                "prompt": "a small dining table for two people"
-            },
-            {
-                "name": "FOUR_PERSON_DINING_TABLE",
-                "prompt": "a rectangular dining table for four people"
-            },
-            {
-                "name": "SIX_PERSON_DINING_TABLE",
-                "prompt": "a large dining table for six people"
-            }
-        ]
     },
     "monitor": {
         "synonyms": ["monitor", "monitor/tv", "computer monitor", "pc monitor", "desktop monitor", "lcd monitor", "computer screen", "display monitor", "television", "tv", "flat screen tv", "wall mounted tv", "large screen tv"],
@@ -233,16 +171,20 @@ FURNITURE_DB = {
         "base_name": "DESK",
         "subtypes": [
             {
-                "name": "STANDARD_DESK",
-                "prompt": "a standard writing desk"
+                "name": "DESK_NO_DRAWER",
+                "prompt": "a simple desk without any drawers or pedestal"
+            },
+            {
+                "name": "DESK_SINGLE_PEDESTAL",
+                "prompt": "a desk with drawers on one side only"
+            },
+            {
+                "name": "DESK_DOUBLE_PEDESTAL",
+                "prompt": "a desk with drawers on both left and right sides"
             },
             {
                 "name": "L_SHAPED_DESK",
                 "prompt": "an L-shaped corner desk"
-            },
-            {
-                "name": "COMPUTER_DESK",
-                "prompt": "a computer desk with keyboard tray"
             }
         ]
     },
@@ -305,10 +247,6 @@ FURNITURE_DB = {
         "synonyms": ["tv stand", "tv console", "media console", "entertainment center", "tv cabinet", "tv unit"],
         "base_name": "TV_STAND",
         "subtypes": [
-            {
-                "name": "WALL_MOUNTED_TV_BRACKET",
-                "prompt": "a wall mounted tv bracket"
-            },
             {
                 "name": "TV_ENTERTAINMENT_CENTER_WITH_STORAGE",
                 "prompt": "a large tv entertainment center with storage"
@@ -429,6 +367,35 @@ def get_all_synonyms() -> List[str]:
     for info in FURNITURE_DB.values():
         synonyms.extend(info.get("synonyms", []))
     return synonyms
+
+
+def get_excluded_base_names() -> set:
+    """
+    exclude_from_output: True인 항목의 base_name 목록을 반환합니다.
+
+    Returns:
+        제외할 base_name 세트 (예: {"KITCHEN_ISLAND", "FLOOR"})
+    """
+    excluded = set()
+    for info in FURNITURE_DB.values():
+        if info.get("exclude_from_output", False):
+            excluded.add(info.get("base_name", ""))
+    return excluded
+
+
+def get_excluded_subtype_names() -> set:
+    """
+    subtype 중 exclude_from_output: True인 항목의 name 목록을 반환합니다.
+
+    Returns:
+        제외할 subtype name 세트 (예: {"CEILING_MOUNTED_AIR_CONDITIONER_VENT"})
+    """
+    excluded = set()
+    for info in FURNITURE_DB.values():
+        for subtype in info.get("subtypes", []):
+            if subtype.get("exclude_from_output", False):
+                excluded.add(subtype.get("name", ""))
+    return excluded
 
 
 # =============================================================================

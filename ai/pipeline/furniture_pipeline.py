@@ -44,6 +44,9 @@ from ai.gpu import SAM3DWorkerPool, get_sam3d_worker_pool
 # Config import
 from ai.config import Config
 
+# Knowledge base import for subtype exclusion
+from ai.data.knowledge_base import get_excluded_subtype_names
+
 try:
     import aiohttp
     HAS_AIOHTTP = True
@@ -676,9 +679,14 @@ class FurniturePipeline:
         }
         """
         all_objects = []
+        excluded_subtypes = get_excluded_subtype_names()
 
         for result in results:
             for obj in result.objects:
+                # Skip excluded subtypes
+                if obj.subtype_name and obj.subtype_name in excluded_subtypes:
+                    continue
+
                 if obj.relative_dimensions:
                     dims = obj.relative_dimensions
                     bbox = dims.get("bounding_box", {})
@@ -717,11 +725,16 @@ class FurniturePipeline:
         }
         """
         results_list = []
+        excluded_subtypes = get_excluded_subtype_names()
 
         for result in results:
             objects_list = []
 
             for obj in result.objects:
+                # Skip excluded subtypes
+                if obj.subtype_name and obj.subtype_name in excluded_subtypes:
+                    continue
+
                 if obj.relative_dimensions:
                     dims = obj.relative_dimensions
                     bbox = dims.get("bounding_box", {})

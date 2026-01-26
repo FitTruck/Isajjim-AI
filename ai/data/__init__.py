@@ -12,7 +12,9 @@ from .knowledge_base import (
     is_movable,
     get_dimensions,
     get_dimensions_for_subtype,
-    estimate_size_variant
+    estimate_size_variant,
+    get_excluded_base_names,
+    get_excluded_subtype_names
 )
 
 __all__ = [
@@ -28,5 +30,7 @@ __all__ = [
     'is_movable',
     'get_dimensions',
     'get_dimensions_for_subtype',
-    'estimate_size_variant'
+    'estimate_size_variant',
+    'get_excluded_base_names',
+    'get_excluded_subtype_names'
 ]
