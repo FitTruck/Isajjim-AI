@@ -1,13 +1,14 @@
 """
-Volume Calculator Module
+Dimension Calculator Module
 
-SAM-3D에서 생성된 3D 메시/Gaussian Splat에서 부피와 치수를 계산합니다.
+SAM-3D에서 생성된 3D 메시/Gaussian Splat에서 치수(width, depth, height)를 계산합니다.
 trimesh 라이브러리를 사용하여 메시 분석을 수행합니다.
 
-2026-01 Update: AABB → OBB (Oriented Bounding Box) 변경
+2026-01 Update:
+- AABB → OBB (Oriented Bounding Box) 변경
 - PLY(Point Cloud)가 회전되어 있어서 AABB가 부정확한 치수 반환
 - OBB를 사용하면 객체의 실제 방향에 맞춘 정확한 치수 계산
-- trimesh.bounding_box_oriented 사용
+- volume 필드 제거 (백엔드에서 절대 부피 계산)
 """
 
 import numpy as np
@@ -28,22 +29,24 @@ except ImportError:
     HAS_TORCH = False
 
 
-class VolumeCalculator:
+class DimensionCalculator:
     """
-    3D 객체의 부피와 치수를 계산하는 클래스
+    3D 객체의 치수(width, depth, height)를 계산하는 클래스
 
     OBB (Oriented Bounding Box) 사용:
     - 객체가 회전되어 있어도 정확한 치수 계산
     - AABB 대비 최대 300%+ 정확도 향상 (특히 회전된 객체)
+
+    Note: volume 필드는 제거됨 (백엔드에서 절대 부피 계산)
     """
 
     def __init__(self):
         if not HAS_TRIMESH:
-            print("[VolumeCalculator] Warning: trimesh not installed")
+            print("[DimensionCalculator] Warning: trimesh not installed")
 
     def calculate_from_ply(self, ply_path: str) -> Optional[Dict]:
         """
-        PLY 파일에서 부피와 치수를 계산합니다.
+        PLY 파일에서 치수를 계산합니다.
         OBB (Oriented Bounding Box)를 사용하여 회전된 객체도 정확히 측정.
 
         Args:
@@ -51,7 +54,6 @@ class VolumeCalculator:
 
         Returns:
             {
-                "volume": float,
                 "bounding_box": {"width": float, "depth": float, "height": float},
                 "centroid": [x, y, z],
                 "surface_area": float
@@ -61,7 +63,7 @@ class VolumeCalculator:
             return None
 
         if not os.path.exists(ply_path):
-            print(f"[VolumeCalculator] PLY file not found: {ply_path}")
+            print(f"[DimensionCalculator] PLY file not found: {ply_path}")
             return None
 
         try:
@@ -72,19 +74,19 @@ class VolumeCalculator:
             if isinstance(mesh, trimesh.PointCloud):
                 points = mesh.vertices
                 if len(points) < 4:
-                    print("[VolumeCalculator] Not enough points for OBB")
+                    print("[DimensionCalculator] Not enough points for OBB")
                     return self._calculate_from_points(points)
                 return self._analyze_pointcloud_obb(mesh)
 
             return self._analyze_mesh(mesh)
 
         except Exception as e:
-            print(f"[VolumeCalculator] Error loading PLY: {e}")
+            print(f"[DimensionCalculator] Error loading PLY: {e}")
             return None
 
     def calculate_from_glb(self, glb_path: str) -> Optional[Dict]:
         """
-        GLB 파일에서 부피와 치수를 계산합니다.
+        GLB 파일에서 치수를 계산합니다.
 
         Args:
             glb_path: GLB 파일 경로
@@ -96,7 +98,7 @@ class VolumeCalculator:
             return None
 
         if not os.path.exists(glb_path):
-            print(f"[VolumeCalculator] GLB file not found: {glb_path}")
+            print(f"[DimensionCalculator] GLB file not found: {glb_path}")
             return None
 
         try:
@@ -111,7 +113,7 @@ class VolumeCalculator:
                         meshes.append(geometry)
 
                 if not meshes:
-                    print("[VolumeCalculator] No meshes found in GLB scene")
+                    print("[DimensionCalculator] No meshes found in GLB scene")
                     return None
 
                 # 모든 메시를 하나로 합침
@@ -121,12 +123,12 @@ class VolumeCalculator:
                 return self._analyze_mesh(scene_or_mesh)
 
         except Exception as e:
-            print(f"[VolumeCalculator] Error loading GLB: {e}")
+            print(f"[DimensionCalculator] Error loading GLB: {e}")
             return None
 
     def calculate_from_gaussian_splat(self, gaussian_splat) -> Optional[Dict]:
         """
-        Gaussian Splat 객체에서 부피와 치수를 계산합니다.
+        Gaussian Splat 객체에서 치수를 계산합니다.
         OBB (Oriented Bounding Box) 사용.
 
         Args:
@@ -158,7 +160,7 @@ class VolumeCalculator:
                 return self._calculate_from_points(points)
 
         except Exception as e:
-            print(f"[VolumeCalculator] Error processing Gaussian Splat: {e}")
+            print(f"[DimensionCalculator] Error processing Gaussian Splat: {e}")
             return None
 
     def _map_obb_to_dimensions(self, obb) -> tuple:
@@ -227,14 +229,10 @@ class VolumeCalculator:
             # 좌표계 기반으로 width/depth/height 매핑
             width, depth, height = self._map_obb_to_dimensions(obb)
 
-            # 부피 계산 (OBB 부피)
-            volume = float(np.prod(obb.primitive.extents))
-
             # 중심점 계산
             centroid = pointcloud.centroid.tolist() if hasattr(pointcloud, 'centroid') else [0, 0, 0]
 
             return {
-                "volume": volume,
                 "bounding_box": {
                     "width": width,
                     "depth": depth,
@@ -245,14 +243,14 @@ class VolumeCalculator:
             }
 
         except Exception as e:
-            print(f"[VolumeCalculator] OBB calculation failed, fallback to convex hull: {e}")
+            print(f"[DimensionCalculator] OBB calculation failed, fallback to convex hull: {e}")
             # Fallback: convex hull로 mesh 생성 후 분석
             hull = trimesh.convex.convex_hull(pointcloud.vertices)
             return self._analyze_mesh(hull)
 
     def _analyze_mesh(self, mesh: 'trimesh.Trimesh') -> Dict:
         """
-        trimesh 객체를 분석하여 부피와 치수를 계산합니다.
+        trimesh 객체를 분석하여 치수를 계산합니다.
         OBB (Oriented Bounding Box) + 좌표계 기반 매핑 사용.
         """
         # OBB 계산 (회전된 객체도 정확히 측정)
@@ -262,27 +260,14 @@ class VolumeCalculator:
             # 좌표계 기반으로 width/depth/height 매핑
             width, depth, height = self._map_obb_to_dimensions(obb)
 
-            obb_volume = float(np.prod(obb.primitive.extents))
-
         except Exception as e:
-            print(f"[VolumeCalculator] OBB failed, using AABB: {e}")
+            print(f"[DimensionCalculator] OBB failed, using AABB: {e}")
             # Fallback to AABB (좌표계 기반)
             bounds = mesh.bounds
             dimensions = bounds[1] - bounds[0]
             width = float(dimensions[0])   # X → width
             depth = float(dimensions[2])   # Z → depth
             height = float(dimensions[1])  # Y → height
-            obb_volume = width * depth * height
-
-        # 실제 부피 계산 (mesh가 watertight인 경우)
-        try:
-            if mesh.is_watertight:
-                volume = float(mesh.volume)
-            else:
-                # watertight가 아닌 경우 OBB 부피 사용
-                volume = obb_volume
-        except Exception:
-            volume = obb_volume
 
         # 중심점 계산
         centroid = mesh.centroid.tolist() if hasattr(mesh, 'centroid') else [0, 0, 0]
@@ -294,7 +279,6 @@ class VolumeCalculator:
             surface_area = 0.0
 
         return {
-            "volume": volume,
             "bounding_box": {
                 "width": width,
                 "depth": depth,
@@ -312,7 +296,6 @@ class VolumeCalculator:
         """
         if len(points) == 0:
             return {
-                "volume": 0,
                 "bounding_box": {"width": 0, "depth": 0, "height": 0},
                 "centroid": [0, 0, 0],
                 "surface_area": 0
@@ -357,10 +340,7 @@ class VolumeCalculator:
                 height = dims[1]  # Y
                 depth = dims[2]   # Z
 
-                volume = float(np.prod(obb_dims))
-
                 return {
-                    "volume": volume,
                     "bounding_box": {"width": width, "depth": depth, "height": height},
                     "centroid": centroid.tolist(),
                     "surface_area": 0
@@ -376,13 +356,15 @@ class VolumeCalculator:
         width = float(dimensions[0])   # X → width
         depth = float(dimensions[2])   # Z → depth
         height = float(dimensions[1])  # Y → height
-        volume = width * depth * height
 
         centroid = points.mean(axis=0).tolist()
 
         return {
-            "volume": volume,
             "bounding_box": {"width": width, "depth": depth, "height": height},
             "centroid": centroid,
             "surface_area": 0
         }
+
+
+# 하위 호환성을 위한 별칭
+VolumeCalculator = DimensionCalculator

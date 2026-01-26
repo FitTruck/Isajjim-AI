@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |------|------|
-| Version | 2.3 |
+| Version | 2.4 |
 | Last Updated | 2026-01-26 |
 | Author | AI Team |
 | Status | Implemented |
@@ -113,10 +113,9 @@ SAM3DConverter.convert(image_path, mask_path) → SAM3DResult {
 }
 ```
 
-#### Stage 6: Volume Calculation (OBB-based)
+#### Stage 6: Dimension Calculation (OBB-based)
 ```python
-VolumeCalculator.calculate_from_ply(ply_path) → {
-    "volume": float,           # OBB bounding box volume
+DimensionCalculator.calculate_from_ply(ply_path) → {
     "bounding_box": {
         "width": float,        # OBB X-axis extent (이미지 가로)
         "depth": float,        # OBB Z-axis extent (깊이)
@@ -126,6 +125,8 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
     "surface_area": float
 }
 ```
+
+> **Note**: `volume` 필드는 제거됨 (백엔드에서 절대 부피 계산)
 
 **OBB (Oriented Bounding Box) 사용 이유:**
 - PLY(Point Cloud)가 회전되어 있어서 AABB가 부정확한 치수 반환
@@ -142,27 +143,24 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
       "objects": [
         {
           "label": "sofa",
-          "type": null,
+          "type": "THREE_SEATER_SOFA",
           "width": 200.0,
           "depth": 90.0,
-          "height": 85.0,
-          "volume": 1.53
+          "height": 85.0
         },
         {
           "label": "table",
           "type": null,
           "width": 120.0,
           "depth": 60.0,
-          "height": 45.0,
-          "volume": 0.324
+          "height": 45.0
         },
         {
           "label": "lamp",
           "type": null,
           "width": 30.0,
           "depth": 30.0,
-          "height": 150.0,
-          "volume": 0.135
+          "height": 150.0
         }
       ]
     },
@@ -171,11 +169,10 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
       "objects": [
         {
           "label": "chair",
-          "type": null,
+          "type": "STANDARD_CHAIR",
           "width": 45.0,
           "depth": 50.0,
-          "height": 90.0,
-          "volume": 0.2025
+          "height": 90.0
         }
       ]
     }
@@ -187,15 +184,16 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 
 | Field | Type | Unit | Description |
 |-------|------|------|-------------|
-| label | string | - | 탐지된 객체 라벨 (YOLO 클래스명) |
+| label | string | - | 탐지된 객체 라벨 (YOLO 클래스명 → base_name) |
+| type | string/null | - | 세부 유형 (예: "THREE_SEATER_SOFA") 또는 null |
 | width | float | 상대 길이 | OBB X-axis extent (이미지 가로 방향) |
 | depth | float | 상대 길이 | OBB Z-axis extent (깊이 방향) |
 | height | float | 상대 길이 | OBB Y-axis extent (이미지 세로 방향) |
-| volume | float | 상대 부피 | OBB 부피 (절대 부피는 백엔드 계산) |
 
 > **Note**: SAM-3D가 생성하는 3D 모델은 실제 물리적 크기 정보가 없습니다.
 > OBB (Oriented Bounding Box)를 사용하여 회전된 객체도 정확히 측정합니다.
-> 절대 부피/치수는 백엔드에서 Knowledge Base의 실제 치수와 비율을 조합하여 계산합니다.
+> 절대 치수/부피는 백엔드에서 Knowledge Base의 실제 치수와 비율을 조합하여 계산합니다.
+> `volume` 필드는 V2.4에서 제거되었습니다.
 
 ---
 

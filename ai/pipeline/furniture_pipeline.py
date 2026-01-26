@@ -34,7 +34,7 @@ from ai.processors import (
     ImageFetcher,
     YoloDetector,
     MovabilityChecker,
-    VolumeCalculator,
+    DimensionCalculator,
 )
 
 # GPU pool manager import
@@ -86,7 +86,6 @@ class PipelineResult:
     image_id: str
     image_url: str
     objects: List[DetectedObject] = field(default_factory=list)
-    total_volume_liters: float = 0.0
     processing_time_seconds: float = 0.0
     status: str = "pending"
     error: Optional[str] = None
@@ -146,8 +145,8 @@ class FurniturePipeline:
         # Stage 3: is_movable 판단
         self.movability_checker = MovabilityChecker()
 
-        # Volume 계산기
-        self.volume_calculator = VolumeCalculator()
+        # 치수 계산기
+        self.dimension_calculator = DimensionCalculator()
 
         # 클래스 매핑 (동의어 → DB 키)
         self.class_map = self.movability_checker.class_map
@@ -285,9 +284,9 @@ class FurniturePipeline:
         relative_dims = None
 
         if ply_path and os.path.exists(ply_path):
-            relative_dims = self.volume_calculator.calculate_from_ply(ply_path)
+            relative_dims = self.dimension_calculator.calculate_from_ply(ply_path)
         elif glb_path and os.path.exists(glb_path):
-            relative_dims = self.volume_calculator.calculate_from_glb(glb_path)
+            relative_dims = self.dimension_calculator.calculate_from_glb(glb_path)
 
         if relative_dims is None:
             return None, None
@@ -483,12 +482,8 @@ class FurniturePipeline:
 
                             os.unlink(ply_path)
 
-            # 결과 집계 (상대 부피 사용 - 절대 부피는 백엔드에서 계산)
+            # 결과 집계
             result.objects = detected_objects
-            result.total_volume_liters = sum(
-                o.relative_dimensions.get("volume", 0)
-                for o in detected_objects if o.relative_dimensions
-            )
             result.status = "completed"
 
         except Exception as e:
@@ -670,13 +665,15 @@ class FurniturePipeline:
             "objects": [
                 {
                     "label": "box",
-                    "width": 30.5,      # mm
-                    "depth": 20.0,      # mm
-                    "height": 15.2,     # mm
-                    "volume": 0.00926   # m³
+                    "type": "STORAGE_BOX",
+                    "width": 30.5,
+                    "depth": 20.0,
+                    "height": 15.2
                 }
             ]
         }
+
+        Note: volume 필드는 제거됨 (백엔드에서 절대 부피 계산)
         """
         all_objects = []
         excluded_subtypes = get_excluded_subtype_names()
@@ -691,17 +688,12 @@ class FurniturePipeline:
                     dims = obj.relative_dimensions
                     bbox = dims.get("bounding_box", {})
 
-                    # VolumeCalculator returns normalized values (relative dimensions)
-                    # Absolute volume is calculated by backend using knowledge base
-                    volume = dims.get("volume", 0)
-
                     all_objects.append({
                         "label": obj.label,
                         "type": obj.subtype_name,
                         "width": round(bbox.get("width", 0), 2),
                         "depth": round(bbox.get("depth", 0), 2),
-                        "height": round(bbox.get("height", 0), 2),
-                        "volume": round(volume, 6)
+                        "height": round(bbox.get("height", 0), 2)
                     })
 
         return {"objects": all_objects}
@@ -716,13 +708,15 @@ class FurniturePipeline:
                 {
                     "image_id": 101,
                     "objects": [
-                        {"label": "sofa", "width": 200.0, "depth": 90.0, "height": 85.0, "volume": 1.53},
+                        {"label": "sofa", "type": "THREE_SEATER_SOFA", "width": 200.0, "depth": 90.0, "height": 85.0},
                         ...
                     ]
                 },
                 ...
             ]
         }
+
+        Note: volume 필드는 제거됨 (백엔드에서 절대 부피 계산)
         """
         results_list = []
         excluded_subtypes = get_excluded_subtype_names()
@@ -739,17 +733,12 @@ class FurniturePipeline:
                     dims = obj.relative_dimensions
                     bbox = dims.get("bounding_box", {})
 
-                    # VolumeCalculator returns normalized values (relative dimensions)
-                    # Absolute volume is calculated by backend using knowledge base
-                    volume = dims.get("volume", 0)
-
                     objects_list.append({
                         "label": obj.label,
                         "type": obj.subtype_name,
                         "width": round(bbox.get("width", 0), 2),
                         "depth": round(bbox.get("depth", 0), 2),
-                        "height": round(bbox.get("height", 0), 2),
-                        "volume": round(volume, 6)
+                        "height": round(bbox.get("height", 0), 2)
                     })
 
             results_list.append({

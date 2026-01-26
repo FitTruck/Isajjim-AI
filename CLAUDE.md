@@ -135,8 +135,8 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 7. **AI Processors (`ai/processors/`)**
    - Furniture detection using YOLOE-seg (Objects365 기반 365 classes)
    - DB 매칭으로 영어 라벨 (base_name) 반환
-   - OBB (Oriented Bounding Box) 기반 부피/치수 계산
-   - **V2 Pipeline**: Firebase URL → YOLOE-seg (mask 포함) → DB → SAM-3D → Volume (SAM2 제거)
+   - OBB (Oriented Bounding Box) 기반 치수 계산 (volume 제거)
+   - **V2 Pipeline**: Firebase URL → YOLOE-seg (mask 포함) → DB → SAM-3D → Dimension (SAM2 제거)
 
 ### Fixed Path Dependencies
 
@@ -353,7 +353,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 4. **DB Matching**: YOLOE class directly matches with Knowledge Base → 영어 라벨 (base_name) 반환
 5. **Mask Direct Use**: YOLOE-seg 마스크를 SAM-3D에 직접 전달 (**SAM2 제거**)
 6. **3D Generation**: SAM-3D converts masked image to 3D model
-7. **Volume Calculation**: trimesh analyzes mesh for **relative dimensions only** (절대 부피는 백엔드에서 계산)
+7. **Dimension Calculation**: trimesh analyzes mesh for **relative dimensions only** (width, depth, height)
 
 ### Key Changes (V1 → V2)
 | 항목 | V1 | V2 |
@@ -365,7 +365,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 | 분류 단계 | YOLO → CLIP → DB | YOLO → DB (직접) |
 | DB 매칭 | CLIP 결과로 서브타입 매칭 | YOLO 클래스로 직접 매칭 |
 | API 호출 수 | 3회 (YOLO→SAM2→SAM3D) | 2회 (YOLO→SAM3D) |
-| **부피 계산** | AI에서 절대 부피 계산 | **상대 부피만 반환 (절대 부피는 백엔드)** |
+| **부피 계산** | AI에서 절대 부피 계산 | **치수만 반환 (부피는 백엔드에서 계산)** |
 | **is_movable** | DB에서 is_movable 결정 | **제거 (모든 탐지 객체는 이동 대상)** |
 | **dimensions** | DB에 치수 정보 저장 | **제거 (절대 부피는 백엔드 계산)** |
 
@@ -416,10 +416,10 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
       "objects": [
         {
           "label": "sofa",
+          "type": "THREE_SEATER_SOFA",
           "width": 200.0,
           "depth": 90.0,
-          "height": 85.0,
-          "volume": 1.53
+          "height": 85.0
         }
       ]
     },
@@ -441,13 +441,14 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 **Callback URL (하드코딩):**
 - `https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback`
 
-**단위:**
-- `width`, `depth`, `height`: **상대 길이** (3D 메시 bounding box 기준, 단위 없음)
-- `volume`: **상대 부피** (bounding box 부피, 단위 없음)
+**필드:**
+- `label`: 탐지된 객체 라벨 (영어, base_name)
+- `type`: 세부 유형 (예: "THREE_SEATER_SOFA") 또는 null
+- `width`, `depth`, `height`: **상대 치수** (3D 메시 OBB 기준, 단위 없음)
 
-> 절대 부피/치수 계산은 백엔드에서 Knowledge Base 실제 치수와 비율을 조합하여 계산
+> 절대 치수/부피 계산은 백엔드에서 Knowledge Base 실제 치수와 비율을 조합하여 계산
 
-**Note**: `is_movable`, `dimensions`, `ratio`는 V2 파이프라인에서 제거되었습니다.
+**Note**: `is_movable`, `dimensions`, `ratio`, `volume`은 V2 파이프라인에서 제거되었습니다.
 절대 부피 계산은 백엔드에서 Knowledge Base를 사용합니다.
 
 ### Key Components
@@ -458,7 +459,7 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 - `ai/subprocess/worker_protocol.py` - 워커-풀 통신 프로토콜
 - `ai/processors/2_YOLO_detect.py` - YOLOE-seg detector (Objects365 기반)
 - `ai/processors/4_DB_movability_check.py` - DB 라벨 매핑 (is_movable 제거됨)
-- `ai/processors/7_volume_calculate.py` - OBB 기반 상대 부피/치수 계산 (절대 부피는 백엔드 계산)
+- `ai/processors/7_volume_calculate.py` - DimensionCalculator: OBB 기반 상대 치수 계산 (volume 제거)
 - `ai/data/knowledge_base.py` - YOLO 클래스 매핑 + 영어 라벨 (base_name) 정적 DB (dimensions/is_movable 제거됨)
 
 ## Code Modification Guidelines

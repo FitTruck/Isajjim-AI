@@ -39,7 +39,8 @@ from .processors import (
     YoloDetector,
     YoloWorldDetector,  # 하위 호환성 별칭
     MovabilityChecker,
-    VolumeCalculator
+    DimensionCalculator,
+    VolumeCalculator  # 하위 호환성 별칭
 )
 
 __all__ = [
@@ -52,5 +53,6 @@ __all__ = [
     'YoloDetector',
     'YoloWorldDetector',  # 하위 호환성 별칭
     'MovabilityChecker',
-    'VolumeCalculator'
+    'DimensionCalculator',
+    'VolumeCalculator'  # 하위 호환성 별칭
 ]
