@@ -75,9 +75,8 @@ class DetectedObject:
     glb_url: Optional[str] = None
     gif_url: Optional[str] = None
 
-    # 치수 정보
+    # 치수 정보 (절대 치수는 백엔드에서 계산)
     relative_dimensions: Optional[Dict] = None
-    absolute_dimensions: Optional[Dict] = None
 
 
 @dataclass
@@ -271,28 +270,20 @@ class FurniturePipeline:
 
     def calculate_dimensions(
         self,
-        obj: DetectedObject,
         ply_path: Optional[str] = None,
         glb_path: Optional[str] = None
-    ) -> Tuple[Optional[Dict], Optional[Dict]]:
+    ) -> Optional[Dict]:
         """
-        3D 모델에서 치수를 계산하고 DB와 대조합니다.
+        3D 모델에서 치수를 계산합니다.
 
         Returns:
-            (relative_dimensions, absolute_dimensions)
+            relative_dimensions (절대 치수는 백엔드에서 계산)
         """
-        relative_dims = None
-
         if ply_path and os.path.exists(ply_path):
-            relative_dims = self.dimension_calculator.calculate_from_ply(ply_path)
+            return self.dimension_calculator.calculate_from_ply(ply_path)
         elif glb_path and os.path.exists(glb_path):
-            relative_dims = self.dimension_calculator.calculate_from_glb(glb_path)
-
-        if relative_dims is None:
-            return None, None
-
-        # 절대 치수 계산은 백엔드에서 처리 - 상대 치수만 반환
-        return relative_dims, None
+            return self.dimension_calculator.calculate_from_glb(glb_path)
+        return None
 
     # =========================================================================
     # 통합 처리
@@ -472,15 +463,11 @@ class FurniturePipeline:
                         obj.glb_url = gen_result.get("mesh_url")
 
                         if gen_result.get("ply_b64"):
-                            with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as tmp:
+                            # tempfile 자동 정리 (with 블록 종료 시 삭제)
+                            with tempfile.NamedTemporaryFile(suffix=".ply", delete=True) as tmp:
                                 tmp.write(base64.b64decode(gen_result["ply_b64"]))
-                                ply_path = tmp.name
-
-                            rel_dims, abs_dims = self.calculate_dimensions(obj, ply_path=ply_path)
-                            obj.relative_dimensions = rel_dims
-                            obj.absolute_dimensions = abs_dims
-
-                            os.unlink(ply_path)
+                                tmp.flush()  # 디스크에 쓰기 완료 보장
+                                obj.relative_dimensions = self.calculate_dimensions(ply_path=tmp.name)
 
             # 결과 집계
             result.objects = detected_objects
@@ -508,67 +495,11 @@ class FurniturePipeline:
         Multi-GPU 모드에서는 각 이미지를 다른 GPU에 라운드로빈 방식으로 분배합니다.
         사전 초기화된 파이프라인이 있으면 재사용하여 모델 로드 오버헤드를 방지합니다.
         """
-        # GPU 풀 가져오기
-        pool = self.gpu_pool or get_gpu_pool()
-
-        # max_concurrent가 None이면 GPU 수만큼 설정
-        if max_concurrent is None:
-            max_concurrent = len(pool.gpu_ids) if pool.gpu_ids else 3
-
-        semaphore = asyncio.Semaphore(max_concurrent)
-
-        async def process_with_gpu(url: str) -> PipelineResult:
-            """GPU를 할당받아 이미지 처리 - 사전 초기화된 파이프라인 사용"""
-            async with semaphore:
-                try:
-                    # 사전 초기화된 파이프라인이 있는지 확인
-                    if pool.has_pipeline(pool.gpu_ids[0] if pool.gpu_ids else 0):
-                        # 사전 초기화된 파이프라인 사용
-                        async with pool.pipeline_context(task_id=url[:50]) as (gpu_id, pipeline):
-                            print(f"[FurniturePipeline] Processing on GPU {gpu_id} (pre-initialized)")
-                            return await pipeline.process_single_image(url, enable_mask, enable_3d)
-                    else:
-                        # 사전 초기화가 안 된 경우 기존 방식 사용
-                        async with pool.gpu_context(task_id=url[:50]) as gpu_id:
-                            if self.device_id == gpu_id:
-                                # 같은 GPU면 self 재사용
-                                return await self.process_single_image(url, enable_mask, enable_3d)
-                            else:
-                                # 다른 GPU면 새 파이프라인 생성 (비효율적이지만 폴백)
-                                print(f"[FurniturePipeline] Warning: Creating new pipeline for GPU {gpu_id} (not pre-initialized)")
-                                pipeline = FurniturePipeline(
-                                    api_url=self.api_url,
-                                    enable_3d_generation=self.enable_3d_generation,
-                                    device_id=gpu_id,
-                                    gpu_pool=pool
-                                )
-                                return await pipeline.process_single_image(url, enable_mask, enable_3d)
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-                    return PipelineResult(
-                        image_id=str(uuid.uuid4()),
-                        image_url=url,
-                        status="failed",
-                        error=str(e)
-                    )
-
-        tasks = [process_with_gpu(url) for url in image_urls]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        processed_results = []
-        for i, r in enumerate(results):
-            if isinstance(r, Exception):
-                processed_results.append(PipelineResult(
-                    image_id=str(uuid.uuid4()),
-                    image_url=image_urls[i],
-                    status="failed",
-                    error=str(r)
-                ))
-            else:
-                processed_results.append(r)
-
-        return processed_results
+        # 내부적으로 process_multiple_images_with_ids 사용 (중복 코드 제거)
+        image_items = [(i, url) for i, url in enumerate(image_urls)]
+        return await self.process_multiple_images_with_ids(
+            image_items, enable_mask, enable_3d, max_concurrent
+        )
 
     async def process_multiple_images_with_ids(
         self,
