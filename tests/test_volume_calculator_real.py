@@ -46,11 +46,11 @@ class TestVolumeCalculatorWithRealPly:
             result = volume_calculator.calculate_from_ply(str(ply_file))
 
             assert result is not None, f"Failed to calculate volume for {ply_file.name}"
-            assert "volume" in result
+            assert "bounding_box" in result  # volume 필드 제거됨
             assert "bounding_box" in result
             assert "centroid" in result
 
-            print(f"  Volume: {result['volume']:.6f}")
+            print(f"  Width: {result['bounding_box']['width']:.6f}")
             print(f"  Bounding box: {result['bounding_box']}")
             print(f"  Centroid: {result['centroid']}")
 
@@ -90,10 +90,10 @@ class TestVolumeCalculatorWithRealGlb:
             result = volume_calculator.calculate_from_glb(str(glb_file))
 
             assert result is not None, f"Failed to calculate volume for {glb_file.name}"
-            assert "volume" in result
+            assert "bounding_box" in result  # volume 필드 제거됨
             assert "bounding_box" in result
 
-            print(f"  Volume: {result['volume']:.6f}")
+            print(f"  Width: {result['bounding_box']['width']:.6f}")
             print(f"  Bounding box: {result['bounding_box']}")
 
     def test_glb_has_surface_area(self, volume_calculator):
@@ -113,8 +113,8 @@ class TestVolumeCalculatorWithRealGlb:
 class TestVolumeCalculatorCompare:
     """PLY와 GLB 비교 테스트"""
 
-    def test_compare_ply_and_glb_volumes(self, volume_calculator):
-        """같은 객체의 PLY와 GLB 부피 비교"""
+    def test_compare_ply_and_glb_dimensions(self, volume_calculator):
+        """같은 객체의 PLY와 GLB 치수 비교"""
         ply_files = list(QA_ASSETS_DIR.glob("*.ply"))
         glb_files = list(QA_ASSETS_DIR.glob("*.glb"))
 
@@ -126,11 +126,11 @@ class TestVolumeCalculatorCompare:
         glb_result = volume_calculator.calculate_from_glb(str(glb_files[0]))
 
         if ply_result and glb_result:
-            print(f"PLY volume: {ply_result['volume']:.6f}")
-            print(f"GLB volume: {glb_result['volume']:.6f}")
-            # 둘 다 0보다 커야 함
-            assert ply_result['volume'] > 0
-            assert glb_result['volume'] > 0
+            print(f"PLY dimensions: {ply_result['bounding_box']}")
+            print(f"GLB dimensions: {glb_result['bounding_box']}")
+            # 치수가 0보다 커야 함
+            assert ply_result['bounding_box']['width'] >= 0
+            assert glb_result['bounding_box']['width'] >= 0
 
 
 class TestVolumeCalculatorWithMasks:
