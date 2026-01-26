@@ -24,7 +24,7 @@ Directory Structure:
 
 Usage:
     from ai.pipeline import FurniturePipeline
-    from ai.processors import SAM3DConverter, VolumeCalculator
+    from ai.processors import VolumeCalculator
 
     pipeline = FurniturePipeline()
     results = await pipeline.process_multiple_images(image_urls)
@@ -39,8 +39,6 @@ from .processors import (
     YoloDetector,
     YoloWorldDetector,  # 하위 호환성 별칭
     MovabilityChecker,
-    SAM3DConverter,
-    SAM3DResult,
     VolumeCalculator
 )
 
@@ -54,7 +52,5 @@ __all__ = [
     'YoloDetector',
     'YoloWorldDetector',  # 하위 호환성 별칭
     'MovabilityChecker',
-    'SAM3DConverter',
-    'SAM3DResult',
     'VolumeCalculator'
 ]

@@ -689,7 +689,7 @@ class FurniturePipeline:
 
                     all_objects.append({
                         "label": obj.label,
-                        "type": obj.subtype_name or "",
+                        "type": obj.subtype_name,
                         "width": round(bbox.get("width", 0), 2),
                         "depth": round(bbox.get("depth", 0), 2),
                         "height": round(bbox.get("height", 0), 2),
@@ -732,7 +732,7 @@ class FurniturePipeline:
 
                     objects_list.append({
                         "label": obj.label,
-                        "type": obj.subtype_name or "",
+                        "type": obj.subtype_name,
                         "width": round(bbox.get("width", 0), 2),
                         "depth": round(bbox.get("depth", 0), 2),
                         "height": round(bbox.get("height", 0), 2),
