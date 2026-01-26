@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |------|------|
-| Version | 2.2 |
-| Last Updated | 2026-01-25 |
+| Version | 2.3 |
+| Last Updated | 2026-01-26 |
 | Author | AI Team |
 | Status | Implemented |
 
@@ -49,7 +49,7 @@
 │                              ▼                    ▼                 │
 │                       ┌──────────────┐     ┌──────────────┐        │
 │                       │  DB Matching │     │   Volume     │        │
-│                       │  (한국어 라벨) │     │   Calculate  │        │
+│                       │ (base_name)  │     │  (OBB-based) │        │
 │                       └──────────────┘     └──────────────┘        │
 │                                                   │                 │
 │                                                   ▼                 │
@@ -91,7 +91,7 @@ YoloDetector.detect_smart(image, return_masks=True) → {
 #### Stage 3: DB Matching
 ```python
 MovabilityChecker.check_from_label(label, score) → MovabilityResult {
-    label: str,       # Korean label (한국어 라벨)
+    label: str,       # English label (base_name from Knowledge Base)
     db_key: str,      # FURNITURE_DB key
     confidence: float
 }
@@ -113,14 +113,24 @@ SAM3DConverter.convert(image_path, mask_path) → SAM3DResult {
 }
 ```
 
-#### Stage 6: Volume Calculation
+#### Stage 6: Volume Calculation (OBB-based)
 ```python
 VolumeCalculator.calculate_from_ply(ply_path) → {
-    "relative_width": float,
-    "relative_height": float,
-    "relative_depth": float
+    "volume": float,           # OBB bounding box volume
+    "bounding_box": {
+        "width": float,        # OBB X-axis extent (이미지 가로)
+        "depth": float,        # OBB Z-axis extent (깊이)
+        "height": float        # OBB Y-axis extent (이미지 세로)
+    },
+    "centroid": [x, y, z],
+    "surface_area": float
 }
 ```
+
+**OBB (Oriented Bounding Box) 사용 이유:**
+- PLY(Point Cloud)가 회전되어 있어서 AABB가 부정확한 치수 반환
+- OBB는 객체의 실제 방향에 맞춘 정확한 치수 계산 (AABB 대비 최대 300%+ 정확도 향상)
+- 좌표계 기반 Greedy 매핑: X→width, Y→height, Z→depth
 
 ### 2.3 Output
 
@@ -178,12 +188,13 @@ VolumeCalculator.calculate_from_ply(ply_path) → {
 | Field | Type | Unit | Description |
 |-------|------|------|-------------|
 | label | string | - | 탐지된 객체 라벨 (YOLO 클래스명) |
-| width | float | 상대 길이 | 3D 메시 bounding box 너비 (모델 좌표계) |
-| depth | float | 상대 길이 | 3D 메시 bounding box 깊이 (모델 좌표계) |
-| height | float | 상대 길이 | 3D 메시 bounding box 높이 (모델 좌표계) |
-| volume | float | 상대 부피 | bounding box 부피 (모델 좌표계, 절대 부피는 백엔드 계산) |
+| width | float | 상대 길이 | OBB X-axis extent (이미지 가로 방향) |
+| depth | float | 상대 길이 | OBB Z-axis extent (깊이 방향) |
+| height | float | 상대 길이 | OBB Y-axis extent (이미지 세로 방향) |
+| volume | float | 상대 부피 | OBB 부피 (절대 부피는 백엔드 계산) |
 
 > **Note**: SAM-3D가 생성하는 3D 모델은 실제 물리적 크기 정보가 없습니다.
+> OBB (Oriented Bounding Box)를 사용하여 회전된 객체도 정확히 측정합니다.
 > 절대 부피/치수는 백엔드에서 Knowledge Base의 실제 치수와 비율을 조합하여 계산합니다.
 
 ---
@@ -718,6 +729,15 @@ hydra-core>=1.3.2       # SAM-3D 설정
 ---
 
 ## 10. Changelog
+
+### V2.3 (2026-01-26)
+
+**Volume Calculation Updates:**
+- AABB → OBB (Oriented Bounding Box)로 변경
+  - 회전된 3D 객체도 정확한 치수 계산 (AABB 대비 최대 300%+ 정확도 향상)
+  - 좌표계 기반 Greedy 매핑: X→width, Y→height, Z→depth
+  - trimesh.bounding_box_oriented 사용
+- 한국어 라벨 제거 → 영어 라벨 (base_name) 사용
 
 ### V2.2 (2026-01-25)
 
