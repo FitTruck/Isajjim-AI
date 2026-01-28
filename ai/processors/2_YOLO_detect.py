@@ -385,10 +385,14 @@ class YoloDetector:
                 device=self._device
             )[0]
 
+            print(f"[YoloDetector] Setting {len(YOLO_CLASS_NAMES)} furniture classes from knowledge_base...")
             # 원래 클래스로 복원
             self.model.set_classes(YOLO_CLASS_NAMES)
 
             if len(results.boxes) == 0:
+                # 원래 클래스로 복원 후 반환
+                furniture_class_names = list(FURNITURE_CLASSES.keys())
+                self.model.set_classes(furniture_class_names)
                 return None
 
             # 가장 높은 confidence의 결과 선택
@@ -397,7 +401,14 @@ class YoloDetector:
 
             best_idx = scores.argmax()
             best_class = classes[best_idx]
-            best_prompt = self.model.names[int(best_class)]
+
+            # subtype_prompts 리스트에서 직접 인덱스로 접근
+            # (model.names를 사용하면 클래스 복원 후 인덱스가 엉망이 됨)
+            best_prompt = subtype_prompts[best_class]
+
+            # 원래 클래스로 복원
+            furniture_class_names = list(FURNITURE_CLASSES.keys())
+            self.model.set_classes(furniture_class_names)
 
             # prompt -> subtype name 매핑
             return subtype_map.get(best_prompt)

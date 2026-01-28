@@ -3,6 +3,9 @@ import numpy as np
 from PIL import Image, ImageOps
 
 class ImageUtils:
+    # CLAHE 객체 캐싱 (매번 생성하지 않고 재사용)
+    _clahe = None
+
     @staticmethod
     def load_image(image_path):
         try:
@@ -28,11 +31,12 @@ class ImageUtils:
         # Lab 색공간으로 변환 (L: Lightness 채널만 조절하기 위함)
         lab = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
-        
-        # CLAHE 객체 생성 (Clip Limit: 대비 제한 임계값)
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-        cl = clahe.apply(l)
-        
+
+        # CLAHE 객체 캐싱 (매번 생성하지 않고 재사용)
+        if ImageUtils._clahe is None:
+            ImageUtils._clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+        cl = ImageUtils._clahe.apply(l)
+
         # 채널 병합 및 변환
         limg = cv2.merge((cl, a, b))
         final = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)

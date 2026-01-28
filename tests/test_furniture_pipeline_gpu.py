@@ -35,7 +35,7 @@ FURNITURE_IMAGE = TEST_IMAGES_DIR / "furniture-998265.jpg"
 def pipeline():
     """FurniturePipeline 인스턴스 (모듈 스코프로 한 번만 생성)"""
     pipe = FurniturePipeline(
-        sam2_api_url="http://localhost:8000",
+        api_url="http://localhost:8000",
         enable_3d_generation=False,  # 3D 생성은 비활성화 (테스트 속도)
         device_id=0
     )
@@ -50,7 +50,7 @@ class TestFurniturePipelineInit:
         assert pipeline is not None
         assert pipeline.detector is not None
         assert pipeline.movability_checker is not None
-        assert pipeline.volume_calculator is not None
+        assert pipeline.dimension_calculator is not None
 
     def test_class_map_loaded(self, pipeline):
         """클래스 매핑이 로드되었는지 확인"""
@@ -261,7 +261,8 @@ class TestFurniturePipelineToJsonResponse:
                     "depth": 0.75,
                     "height": 0.45
                 },
-                "volume": 0.3375  # relative volume
+                "centroid": [0.5, 0.375, 0.225],
+                "surface_area": 2.8
             }
         )
 
@@ -279,12 +280,12 @@ class TestFurniturePipelineToJsonResponse:
         assert len(json_resp["objects"]) == 1
 
         obj_data = json_resp["objects"][0]
-        # TDD 문서: 5개 필드만 (label, width, depth, height, volume)
+        # TDD 문서: 4개 필드만 (label, width, depth, height) - volume 제거됨
         assert obj_data["label"] == "침대"
         assert obj_data["width"] == 1.0
         assert obj_data["depth"] == 0.75
         assert obj_data["height"] == 0.45
-        assert obj_data["volume"] == 0.3375  # relative (no conversion)
+        assert "volume" not in obj_data  # volume 필드 제거됨
         assert "ratio" not in obj_data
 
     def test_json_response_without_dimensions(self, pipeline):
@@ -317,7 +318,8 @@ class TestFurniturePipelineToJsonResponseV2:
             db_key="sofa",
             relative_dimensions={
                 "bounding_box": {"width": 1.0, "depth": 0.45, "height": 0.425},
-                "volume": 0.19125  # relative volume
+                "centroid": [0.5, 0.225, 0.2125],
+                "surface_area": 2.0
             }
         )
         obj2 = DetectedObject(
@@ -326,7 +328,8 @@ class TestFurniturePipelineToJsonResponseV2:
             db_key="chair",
             relative_dimensions={
                 "bounding_box": {"width": 0.5, "depth": 0.56, "height": 1.0},
-                "volume": 0.28  # relative volume
+                "centroid": [0.25, 0.28, 0.5],
+                "surface_area": 1.8
             }
         )
 
@@ -357,7 +360,7 @@ class TestFurniturePipelineToJsonResponseV2:
         assert len(first_result["objects"]) == 1
         assert first_result["objects"][0]["label"] == "소파"
         assert first_result["objects"][0]["width"] == 1.0
-        assert first_result["objects"][0]["volume"] == 0.19125  # relative (no conversion)
+        assert "volume" not in first_result["objects"][0]  # volume 제거됨
 
         # 두 번째 이미지 결과 검증
         second_result = json_resp["results"][1]
@@ -390,7 +393,8 @@ class TestFurniturePipelineToJsonResponseV2:
             db_key="bed",
             relative_dimensions={
                 "bounding_box": {"width": 2000.0, "depth": 1500.0, "height": 450.0},
-                "volume": 1.35e9
+                "centroid": [1000, 750, 225],
+                "surface_area": 5000
             }
         )
         obj_without_dims = DetectedObject(

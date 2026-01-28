@@ -8,7 +8,7 @@ AI Logic 단계별 모듈 (V2 Pipeline):
 4. DB 대조하여 한국어 라벨 매핑
 5. (SAM2 제거됨 - YOLOE-seg 마스크 직접 사용)
 6. SAM-3D Worker Pool로 3D 변환 (Legacy subprocess 방식 제거됨)
-7. 상대 부피/치수 계산 (절대 부피는 백엔드)
+7. 치수(width, depth, height) 계산 (부피는 백엔드에서 계산)
 """
 
 import importlib
@@ -29,7 +29,8 @@ YoloWorldDetector = _stage2.YoloWorldDetector  # 하위 호환성 별칭
 MovabilityChecker = _stage4.MovabilityChecker
 MovabilityResult = _stage4.MovabilityResult
 LabelMappingResult = _stage4.LabelMappingResult  # V2 별칭
-VolumeCalculator = _stage7.VolumeCalculator
+DimensionCalculator = _stage7.DimensionCalculator
+VolumeCalculator = _stage7.VolumeCalculator  # 하위 호환성 별칭
 
 __all__ = [
     # Step 1-4: Detection
@@ -39,6 +40,7 @@ __all__ = [
     'MovabilityChecker',
     'MovabilityResult',
     'LabelMappingResult',  # V2 별칭
-    # Step 7: Volume (SAM-3D는 Worker Pool 통해 직접 사용)
-    'VolumeCalculator'
+    # Step 7: Dimension (SAM-3D는 Worker Pool 통해 직접 사용)
+    'DimensionCalculator',
+    'VolumeCalculator'  # 하위 호환성 별칭
 ]

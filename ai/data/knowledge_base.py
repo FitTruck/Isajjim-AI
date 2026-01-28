@@ -14,7 +14,6 @@ from typing import Optional, List, Dict
 # =============================================================================
 # Furniture Database
 # =============================================================================
-
 FURNITURE_DB = {
     "air conditioner": {
         "synonyms": ["air conditioner", "ac unit", "climate control unit"],
@@ -298,6 +297,7 @@ FURNITURE_DB = {
         "base_name": "EXERCISE_BIKE"
     },
 }
+
 
 
 # =============================================================================

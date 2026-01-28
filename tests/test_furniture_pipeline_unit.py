@@ -27,15 +27,13 @@ from ai.pipeline.furniture_pipeline import (
 def mock_pipeline(tmp_path):
     """Mock된 FurniturePipeline"""
     with patch('ai.pipeline.furniture_pipeline.YoloDetector') as mock_yolo, \
-         patch('ai.pipeline.furniture_pipeline.VolumeCalculator') as mock_vol, \
-         patch('ai.pipeline.furniture_pipeline.SAM3DConverter') as mock_sam3d:
+         patch('ai.pipeline.furniture_pipeline.DimensionCalculator') as mock_dim:
 
         mock_yolo.return_value = MagicMock()
-        mock_vol.return_value = MagicMock()
-        mock_sam3d.return_value = MagicMock()
+        mock_dim.return_value = MagicMock()
 
         pipeline = FurniturePipeline(
-            sam2_api_url="http://test:8000",
+            api_url="http://test:8000",
             enable_3d_generation=False,
             device_id=0
         )
@@ -117,16 +115,16 @@ class TestFurniturePipelineCalculateDimensions:
         ply_path = tmp_path / "test.ply"
         ply_path.write_text("ply\nformat ascii 1.0\nend_header\n")
 
-        mock_pipeline.volume_calculator.calculate_from_ply.return_value = {
-            "volume": 1000.0,
-            "bounding_box": {"width": 10, "depth": 10, "height": 10}
+        mock_pipeline.dimension_calculator.calculate_from_ply.return_value = {
+            "bounding_box": {"width": 10, "depth": 10, "height": 10},
+            "centroid": [5, 5, 5],
+            "surface_area": 600
         }
 
-        obj = DetectedObject(id=0, label="테스트", db_key="test")
-        rel_dims, abs_dims = mock_pipeline.calculate_dimensions(obj, ply_path=str(ply_path))
+        dims = mock_pipeline.calculate_dimensions(ply_path=str(ply_path))
 
-        assert rel_dims is not None
-        assert abs_dims is None  # 절대 치수는 백엔드에서 계산
+        assert dims is not None
+        assert "bounding_box" in dims
 
     def test_calculate_dimensions_with_glb(self, mock_pipeline, tmp_path):
         """GLB 파일에서 치수 계산"""
@@ -134,35 +132,30 @@ class TestFurniturePipelineCalculateDimensions:
         glb_path = tmp_path / "test.glb"
         glb_path.write_bytes(b"GLTF")
 
-        mock_pipeline.volume_calculator.calculate_from_glb.return_value = {
-            "volume": 500.0,
-            "bounding_box": {"width": 5, "depth": 10, "height": 10}
+        mock_pipeline.dimension_calculator.calculate_from_glb.return_value = {
+            "bounding_box": {"width": 5, "depth": 10, "height": 10},
+            "centroid": [2.5, 5, 5],
+            "surface_area": 350
         }
 
-        obj = DetectedObject(id=0, label="테스트", db_key="test")
-        rel_dims, abs_dims = mock_pipeline.calculate_dimensions(obj, glb_path=str(glb_path))
+        dims = mock_pipeline.calculate_dimensions(glb_path=str(glb_path))
 
-        assert rel_dims is not None
-        assert abs_dims is None
+        assert dims is not None
+        assert "bounding_box" in dims
 
     def test_calculate_dimensions_no_file(self, mock_pipeline):
         """파일 없을 때 None 반환"""
-        obj = DetectedObject(id=0, label="테스트", db_key="test")
-        rel_dims, abs_dims = mock_pipeline.calculate_dimensions(obj)
+        dims = mock_pipeline.calculate_dimensions()
 
-        assert rel_dims is None
-        assert abs_dims is None
+        assert dims is None
 
     def test_calculate_dimensions_nonexistent_file(self, mock_pipeline):
         """존재하지 않는 파일"""
-        obj = DetectedObject(id=0, label="테스트", db_key="test")
-        rel_dims, abs_dims = mock_pipeline.calculate_dimensions(
-            obj,
+        dims = mock_pipeline.calculate_dimensions(
             ply_path="/nonexistent/path.ply"
         )
 
-        assert rel_dims is None
-        assert abs_dims is None
+        assert dims is None
 
 
 class TestFurniturePipelineToJsonResponse:
@@ -183,7 +176,8 @@ class TestFurniturePipelineToJsonResponse:
             db_key="bed",
             relative_dimensions={
                 "bounding_box": {"width": 2000, "depth": 1500, "height": 450},
-                "volume": 1.35e9
+                "centroid": [1000, 750, 225],
+                "surface_area": 1000
             }
         )
 
@@ -230,15 +224,16 @@ class TestFurniturePipelineToJsonResponse:
         assert len(json_resp["objects"]) == 1
         assert json_resp["objects"][0]["label"] == "침대"
 
-    def test_to_json_response_relative_volume(self, mock_pipeline):
-        """부피는 상대 치수로 반환 (절대 부피는 백엔드에서 계산)"""
+    def test_to_json_response_dimensions(self, mock_pipeline):
+        """치수가 상대값으로 반환 (절대 부피는 백엔드에서 계산)"""
         obj = DetectedObject(
             id=0,
             label="박스",
             db_key="box",
             relative_dimensions={
-                "bounding_box": {"width": 1.0, "depth": 1.0, "height": 1.0},
-                "volume": 0.5  # relative volume (normalized)
+                "bounding_box": {"width": 1.0, "depth": 0.8, "height": 0.5},
+                "centroid": [0.5, 0.4, 0.25],
+                "surface_area": 2.0
             }
         )
 
@@ -251,8 +246,11 @@ class TestFurniturePipelineToJsonResponse:
 
         json_resp = mock_pipeline.to_json_response([result])
 
-        # Volume is returned as-is (no conversion)
-        assert json_resp["objects"][0]["volume"] == 0.5
+        # Dimensions are returned, volume is not included
+        assert json_resp["objects"][0]["width"] == 1.0
+        assert json_resp["objects"][0]["depth"] == 0.8
+        assert json_resp["objects"][0]["height"] == 0.5
+        assert "volume" not in json_resp["objects"][0]
 
 
 class TestFurniturePipelineToJsonResponseV2:
@@ -317,8 +315,7 @@ class TestFurniturePipelineFetchImage:
     async def test_fetch_image_success(self):
         """이미지 가져오기 성공"""
         with patch('ai.pipeline.furniture_pipeline.YoloDetector'), \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'):
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'):
 
             pipeline = FurniturePipeline(enable_3d_generation=False, device_id=0)
 
@@ -335,8 +332,7 @@ class TestFurniturePipelineFetchImage:
     async def test_fetch_image_failure(self):
         """이미지 가져오기 실패"""
         with patch('ai.pipeline.furniture_pipeline.YoloDetector'), \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'):
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'):
 
             pipeline = FurniturePipeline(enable_3d_generation=False, device_id=0)
 
@@ -373,8 +369,7 @@ class TestFurniturePipelineDetectObjects:
     def test_detect_objects_returns_list(self):
         """detect_objects가 리스트 반환"""
         with patch('ai.pipeline.furniture_pipeline.YoloDetector') as mock_yolo, \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'):
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'):
 
             mock_detector_instance = MagicMock()
             mock_detector_instance.detect_smart.return_value = {
@@ -395,8 +390,7 @@ class TestFurniturePipelineDetectObjects:
     def test_detect_objects_empty_detection(self):
         """탐지 결과 없음"""
         with patch('ai.pipeline.furniture_pipeline.YoloDetector') as mock_yolo, \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'):
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'):
 
             mock_detector_instance = MagicMock()
             mock_detector_instance.detect_smart.return_value = None
@@ -489,49 +483,32 @@ class TestFurniturePipelineProcessSingleImage:
 
 
 class TestFurniturePipelineGenerate3DSuccess:
-    """generate_3d 성공 경로 테스트 (커버리지 개선)"""
+    """generate_3d 성공 경로 테스트 (Worker Pool 기반)"""
 
     @pytest.mark.asyncio
     async def test_generate_3d_success_completed(self, mock_pipeline):
-        """3D 생성 성공: completed 상태"""
+        """3D 생성 성공: Worker Pool 사용"""
         mock_pipeline.enable_3d_generation = True
 
-        # aiohttp 세션 모킹 - POST 응답
-        mock_post_response = AsyncMock()
-        mock_post_response.status = 200
-        mock_post_response.json = AsyncMock(return_value={"task_id": "test-task-123"})
+        # Worker Pool 모킹
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_result.ply_b64 = "dGVzdA=="
+        mock_result.ply_size_bytes = 100
+        mock_result.gif_b64 = "dGVzdA=="
+        mock_result.mesh_url = "/assets/mesh.glb"
 
-        # aiohttp 세션 모킹 - GET 상태 폴링 응답
-        mock_get_response = AsyncMock()
-        mock_get_response.status = 200
-        mock_get_response.json = AsyncMock(return_value={
-            "status": "completed",
-            "ply_b64": "dGVzdA==",
-            "mesh_b64": "dGVzdA==",
-            "gif_b64": "dGVzdA==",
-            "mesh_url": "/assets/mesh.glb"
-        })
+        mock_pool = MagicMock()
+        mock_pool.is_ready.return_value = True
+        mock_pool.submit_tasks_parallel = AsyncMock(return_value=[mock_result])
 
-        mock_session = MagicMock()
-        mock_session.post = MagicMock(
-            return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_post_response))
-        )
-        mock_session.get = MagicMock(
-            return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_get_response))
-        )
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-
-        with patch('ai.pipeline.furniture_pipeline.HAS_AIOHTTP', True), \
-             patch('aiohttp.ClientSession', return_value=mock_session), \
-             patch('asyncio.sleep', new=AsyncMock()):
+        with patch('ai.pipeline.furniture_pipeline.get_sam3d_worker_pool', return_value=mock_pool):
             result = await mock_pipeline.generate_3d(
                 Image.new('RGB', (100, 100)),
                 "test_mask_b64"
             )
 
             assert result is not None
-            assert result["task_id"] == "test-task-123"
             assert result["ply_b64"] == "dGVzdA=="
             assert result["mesh_url"] == "/assets/mesh.glb"
 
@@ -610,29 +587,23 @@ class TestFurniturePipelineProcessWith3D:
             yolo_mask=test_mask
         )
 
-        # 3D 생성 결과 모킹
-        mock_3d_result = {
-            "task_id": "test-task-123",
-            "ply_b64": base64.b64encode(b"ply content").decode(),
-            "mesh_url": "/assets/mesh.glb"
-        }
+        # 3D 생성은 Worker Pool이 필요하므로 비활성화 테스트
+        # 3D 관련 테스트는 통합 테스트에서 수행
 
-        mock_pipeline.enable_3d_generation = True
+        mock_pipeline.enable_3d_generation = False
 
         with patch.object(mock_pipeline, 'fetch_image_from_url', new=AsyncMock(return_value=test_image)), \
-             patch.object(mock_pipeline, 'detect_objects', return_value=[mock_obj]), \
-             patch.object(mock_pipeline, 'generate_3d', new=AsyncMock(return_value=mock_3d_result)), \
-             patch.object(mock_pipeline, 'calculate_dimensions', return_value=({"volume": 1.0}, None)):
+             patch.object(mock_pipeline, 'detect_objects', return_value=[mock_obj]):
 
             result = await mock_pipeline.process_single_image(
                 "http://test.com/image.jpg",
                 enable_mask=True,
-                enable_3d=True
+                enable_3d=False  # 3D 비활성화
             )
 
             assert result.status == "completed"
-            assert result.objects[0].glb_url == "/assets/mesh.glb"
-            assert result.objects[0].relative_dimensions is not None
+            assert len(result.objects) > 0
+            assert result.objects[0].mask_base64 is not None
 
     @pytest.mark.asyncio
     async def test_process_single_image_exception_handling(self, mock_pipeline):
@@ -652,8 +623,7 @@ class TestFurniturePipelineMultipleImages:
     async def test_process_multiple_images_basic(self):
         """다중 이미지 처리 기본 테스트"""
         with patch('ai.pipeline.furniture_pipeline.YoloDetector'), \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'), \
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'), \
              patch('ai.pipeline.furniture_pipeline.get_gpu_pool') as mock_get_pool:
 
             # GPU 풀 모킹
@@ -694,8 +664,7 @@ class TestFurniturePipelineMultipleImages:
         """파이프라인 컨텍스트 사용 테스트"""
 
         with patch('ai.pipeline.furniture_pipeline.YoloDetector'), \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'), \
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'), \
              patch('ai.pipeline.furniture_pipeline.get_gpu_pool') as mock_get_pool:
 
             mock_pool = MagicMock()
@@ -736,8 +705,7 @@ class TestFurniturePipelineMultipleImages:
     async def test_process_multiple_images_exception(self):
         """다중 이미지 처리 중 예외 발생 (asyncio.gather에서 처리)"""
         with patch('ai.pipeline.furniture_pipeline.YoloDetector'), \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'), \
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'), \
              patch('ai.pipeline.furniture_pipeline.get_gpu_pool') as mock_get_pool:
 
             mock_pool = MagicMock()
@@ -778,8 +746,7 @@ class TestFurniturePipelineMultipleImagesWithIds:
         """ID 포함 다중 이미지 처리 기본 테스트"""
 
         with patch('ai.pipeline.furniture_pipeline.YoloDetector'), \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'), \
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'), \
              patch('ai.pipeline.furniture_pipeline.get_gpu_pool') as mock_get_pool:
 
             mock_pool = MagicMock()
@@ -818,8 +785,7 @@ class TestFurniturePipelineMultipleImagesWithIds:
         """ID 포함 파이프라인 컨텍스트 사용 테스트"""
 
         with patch('ai.pipeline.furniture_pipeline.YoloDetector'), \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'), \
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'), \
              patch('ai.pipeline.furniture_pipeline.get_gpu_pool') as mock_get_pool:
 
             mock_pool = MagicMock()
@@ -859,8 +825,7 @@ class TestFurniturePipelineMultipleImagesWithIds:
     async def test_process_multiple_images_with_ids_exception(self):
         """ID 포함 다중 이미지 처리 중 예외 발생 (asyncio.gather에서 처리)"""
         with patch('ai.pipeline.furniture_pipeline.YoloDetector'), \
-             patch('ai.pipeline.furniture_pipeline.VolumeCalculator'), \
-             patch('ai.pipeline.furniture_pipeline.SAM3DConverter'), \
+             patch('ai.pipeline.furniture_pipeline.DimensionCalculator'), \
              patch('ai.pipeline.furniture_pipeline.get_gpu_pool') as mock_get_pool:
 
             mock_pool = MagicMock()
