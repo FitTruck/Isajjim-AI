@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>트럭 적재 시뮬레이션</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    #container {
+      display: flex;
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    /* 사이드바 (가구 목록) */
+    #sidebar {
+      width: 140px;
+      background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+      padding: 12px 8px;
+      overflow-y: auto;
+      border-right: 1px solid #dee2e6;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #sidebar h3 {
+      font-size: 14px;
+      color: #495057;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #dee2e6;
+      margin-bottom: 4px;
+    }
+
+    .furniture-item {
+      padding: 10px 8px;
+      background: white;
+      border-radius: 10px;
+      cursor: pointer;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: all 0.2s ease;
+      border: 2px solid transparent;
+    }
+
+    .furniture-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .furniture-item.placed {
+      opacity: 0.4;
+      cursor: not-allowed;
+      border-color: #28a745;
+    }
+
+    .furniture-item.selected {
+      border-color: #007bff;
+      background: #e7f1ff;
+    }
+
+    .furniture-icon { font-size: 28px; margin-bottom: 4px; }
+    .furniture-name { font-size: 11px; color: #495057; font-weight: 500; }
+    .furniture-size { font-size: 9px; color: #868e96; margin-top: 2px; }
+
+    /* 캔버스 컨테이너 */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    /* 상단 컨트롤 */
+    #top-controls {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #truck-selector { display: flex; gap: 6px; }
+
+    .truck-btn {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.9);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .truck-btn:hover { background: white; transform: scale(1.05); }
+    .truck-btn.active { background: #007bff; color: white; }
+
+    #action-buttons { display: flex; gap: 8px; }
+
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; }
+    .btn-secondary { background: rgba(255,255,255,0.9); color: #495057; }
+    .btn-danger { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+    /* 하단 통계 */
+    #stats-panel {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 16px;
+      display: flex;
+      gap: 32px;
+      backdrop-filter: blur(10px);
+      z-index: 100;
+    }
+
+    .stat-item { text-align: center; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #4dabf7; }
+    .stat-value.warning { color: #ffc107; }
+    .stat-value.danger { color: #ff6b6b; }
+    .stat-label { font-size: 11px; color: #adb5bd; margin-top: 4px; }
+
+    /* 선택된 가구 정보 - 높이 조절 추가 */
+    #selected-info {
+      position: absolute;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 12px 20px;
+      border-radius: 12px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      z-index: 100;
+    }
+
+    #selected-info.visible { display: flex; }
+    #selected-info .name { font-weight: 600; color: #212529; }
+    #selected-info .size { font-size: 12px; color: #868e96; }
+    #selected-info .height-info { font-size: 11px; color: #007bff; font-weight: 500; }
+
+    .control-btn {
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .control-btn:hover { background: #f8f9fa; }
+    .control-btn.danger { background: #ff6b6b; color: white; border: none; }
+
+    .height-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .height-btn {
+      padding: 4px 10px;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .height-btn:hover { background: #e7f1ff; border-color: #007bff; }
+
+    /* 도움말 */
+    #help-tooltip {
+      position: absolute;
+      top: 60px;
+      right: 12px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.6;
+      max-width: 220px;
+      display: none;
+      z-index: 100;
+    }
+
+    #help-tooltip.visible { display: block; }
+
+    /* 로딩 */
+    #loading {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.95);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+    }
+
+    #loading.hidden { display: none; }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    #loading-text { margin-top: 16px; color: #495057; font-size: 14px; }
+
+    /* 모드 표시 */
+    #mode-indicator {
+      position: absolute;
+      top: 60px;
+      left: 12px;
+      background: rgba(0,0,0,0.7);
+      color: #4dabf7;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-text">시뮬레이터 로딩 중...</div>
+  </div>
+
+  <div id="container">
+    <div id="sidebar">
+      <h3>가구 목록</h3>
+      <div id="furniture-list"></div>
+    </div>
+
+    <div id="canvas-container">
+      <div id="top-controls">
+        <div id="truck-selector">
+          <button class="truck-btn" data-truck="1ton">1톤</button>
+          <button class="truck-btn active" data-truck="2.5ton">2.5톤</button>
+          <button class="truck-btn" data-truck="5ton">5톤</button>
+        </div>
+        <div id="action-buttons">
+          <button class="btn btn-secondary" onclick="toggleHelp()">?</button>
+          <button class="btn btn-secondary" onclick="resetCamera()">카메라</button>
+          <button class="btn btn-secondary" onclick="autoPlace()">로컬 BLF</button>
+          <button class="btn btn-primary" onclick="serverOptimize()">서버 최적화</button>
+          <button class="btn btn-danger" onclick="clearAll()">초기화</button>
+        </div>
+      </div>
+
+      <div id="mode-indicator">XZ 이동 | W/S: 높이 조절</div>
+
+      <div id="help-tooltip">
+        <b>조작 방법</b><br>
+        - 가구 클릭: 트럭에 배치<br>
+        - 드래그: 가구 XZ 이동<br>
+        - W / S 키: 높이 올리기/내리기<br>
+        - R 키: 90도 회전<br>
+        - Delete: 제거<br>
+        - 두 손가락: 카메라 회전/줌
+      </div>
+
+      <div id="selected-info">
+        <div>
+          <div class="name" id="selected-name">소파</div>
+          <div class="size" id="selected-size">200 x 90 x 85 cm</div>
+          <div class="height-info" id="selected-height">높이: 0 cm</div>
+        </div>
+        <div class="height-controls">
+          <button class="height-btn" onclick="moveSelectedUp()">W</button>
+          <button class="height-btn" onclick="moveSelectedDown()">S</button>
+        </div>
+        <button class="control-btn" onclick="rotateSelected()">90°</button>
+        <button class="control-btn danger" onclick="removeSelected()">X</button>
+      </div>
+
+      <div id="stats-panel">
+        <div class="stat-item">
+          <div class="stat-value" id="load-percent">0</div>
+          <div class="stat-label">적재율 %</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="placed-count">0</div>
+          <div class="stat-label">배치됨</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="total-count">0</div>
+          <div class="stat-label">전체</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="weight-total">0</div>
+          <div class="stat-label">무게 kg</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { DragControls } from 'three/addons/controls/DragControls.js';
+    import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+
+    // ==================== 전역 상태 ====================
+    let scene, camera, renderer, orbitControls, dragControls;
+    let truckMesh, truckFloor, truckWalls = [];
+    let furnitureData = [];
+    let furnitureObjects = [];
+    let placedFurniture = [];
+    let selectedObject = null;
+    let estimateId = null;
+
+    const plyLoader = new PLYLoader();
+    const HEIGHT_STEP = 0.1; // 높이 조절 단위 (10cm)
+
+    const TRUCK_SPECS = {
+      "1ton": { name: "1톤", width: 1.7, depth: 2.8, height: 1.7, maxWeight: 1000 },
+      "2.5ton": { name: "2.5톤", width: 2.0, depth: 4.3, height: 1.9, maxWeight: 2500 },
+      "5ton": { name: "5톤", width: 2.3, depth: 6.2, height: 2.4, maxWeight: 5000 },
+    };
+
+    let currentTruck = TRUCK_SPECS["2.5ton"];
+
+    // ==================== 초기화 ====================
+    function init() {
+      const container = document.getElementById('canvas-container');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x1a1a2e);
+
+      camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(6, 5, 6);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+      directionalLight.position.set(10, 15, 10);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.mapSize.width = 2048;
+      directionalLight.shadow.mapSize.height = 2048;
+      scene.add(directionalLight);
+
+      // Ground
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(20, 20),
+        new THREE.MeshStandardMaterial({ color: 0x2d2d44, roughness: 0.8 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -0.01;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      const gridHelper = new THREE.GridHelper(20, 20, 0x444466, 0x333355);
+      scene.add(gridHelper);
+
+      // Controls
+      orbitControls = new OrbitControls(camera, renderer.domElement);
+      orbitControls.enableDamping = true;
+      orbitControls.dampingFactor = 0.05;
+      orbitControls.target.set(0, 1, 0);
+      orbitControls.maxPolarAngle = Math.PI / 2 - 0.1;
+
+      createTruck(currentTruck);
+      setupEventListeners();
+      animate();
+
+      const params = new URLSearchParams(window.location.search);
+      estimateId = params.get('estimate_id');
+
+      if (estimateId) {
+        loadSimulationData(estimateId);
+      } else {
+        loadSampleData();
+      }
+    }
+
+    // ==================== 트럭 생성 ====================
+    function createTruck(spec) {
+      if (truckMesh) scene.remove(truckMesh);
+      if (truckFloor) scene.remove(truckFloor);
+      truckWalls.forEach(w => scene.remove(w));
+      truckWalls = [];
+
+      const { width, depth, height } = spec;
+
+      // 트럭 프레임
+      const geometry = new THREE.BoxGeometry(width, height, depth);
+      const edges = new THREE.EdgesGeometry(geometry);
+      truckMesh = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x00ff88 }));
+      truckMesh.position.set(0, height / 2, 0);
+      scene.add(truckMesh);
+
+      // 바닥
+      truckFloor = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, depth),
+        new THREE.MeshStandardMaterial({ color: 0x00ff88, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+      );
+      truckFloor.rotation.x = -Math.PI / 2;
+      truckFloor.position.y = 0.005;
+      scene.add(truckFloor);
+
+      // 벽면
+      const wallMaterial = new THREE.MeshStandardMaterial({
+        color: 0x00ff88, transparent: true, opacity: 0.08, side: THREE.DoubleSide
+      });
+
+      const backWall = new THREE.Mesh(new THREE.PlaneGeometry(width, height), wallMaterial);
+      backWall.position.set(0, height / 2, -depth / 2);
+      scene.add(backWall);
+      truckWalls.push(backWall);
+
+      const sideWallL = new THREE.Mesh(new THREE.PlaneGeometry(depth, height), wallMaterial);
+      sideWallL.rotation.y = Math.PI / 2;
+      sideWallL.position.set(-width / 2, height / 2, 0);
+      scene.add(sideWallL);
+      truckWalls.push(sideWallL);
+
+      const sideWallR = sideWallL.clone();
+      sideWallR.position.x = width / 2;
+      scene.add(sideWallR);
+      truckWalls.push(sideWallR);
+    }
+
+    // ==================== 데이터 로드 ====================
+    async function loadSimulationData(estId) {
+      setLoading(true, '가구 데이터 로딩 중...');
+      try {
+        const response = await fetch(`/simulation/data/${estId}`);
+        if (!response.ok) throw new Error('Failed');
+        const data = await response.json();
+
+        if (data.truck) {
+          currentTruck = data.truck;
+          createTruck(currentTruck);
+        }
+
+        furnitureData = data.furniture || [];
+        await loadFurnitureItems(furnitureData);
+        updateUI();
+        setLoading(false);
+      } catch (error) {
+        console.error('Error:', error);
+        loadSampleData();
+      }
+    }
+
+    async function loadSampleData() {
+      // API 호출로 실제 PLY 파일 포함된 데이터 가져오기
+      try {
+        const res = await fetch('/simulation/data/123');
+        const data = await res.json();
+        furnitureData = data.furniture || [];
+        await loadFurnitureItems(furnitureData);
+        updateUI();
+        setLoading(false);
+      } catch (err) {
+        console.error('API 호출 실패, 박스 데이터 사용:', err);
+        // 폴백: 박스만
+        furnitureData = [
+          { id: 'sofa_001', label: 'sofa', label_ko: '3인 소파', width: 2.0, depth: 0.9, height: 0.85, weight: 45, color: '#4a90d9' },
+          { id: 'table_001', label: 'table', label_ko: '식탁', width: 1.6, depth: 0.9, height: 0.75, weight: 35, color: '#8b4513' },
+          { id: 'chair_001', label: 'chair', label_ko: '의자', width: 0.45, depth: 0.45, height: 0.9, weight: 5, color: '#2e8b57' },
+        ];
+        await loadFurnitureItems(furnitureData);
+        updateUI();
+        setLoading(false);
+      }
+    }
+
+    async function loadFurnitureItems(items) {
+      furnitureObjects = [];
+      let loadedCount = 0;
+
+      for (const item of items) {
+        setLoading(true, `가구 로딩 중... (${++loadedCount}/${items.length})`);
+        const mesh = await createFurnitureMesh(item);
+        furnitureObjects.push(mesh);
+      }
+
+      createSidebar(items);
+      document.getElementById('total-count').textContent = items.length;
+    }
+
+    async function createFurnitureMesh(item) {
+      return new Promise((resolve) => {
+        const { width, height, depth, color, ply_url } = item;
+
+        if (ply_url) {
+          plyLoader.load(
+            ply_url,
+            (geometry) => {
+              geometry.computeBoundingBox();
+              const bbox = geometry.boundingBox;
+              const size = new THREE.Vector3();
+              bbox.getSize(size);
+
+              // 중심 맞추기
+              geometry.center();
+
+              const scale = Math.min(width / size.x, height / size.y, depth / size.z);
+
+              // 포인트 클라우드로 렌더링 (Gaussian Splat PLY)
+              const material = new THREE.PointsMaterial({
+                size: 0.005,
+                vertexColors: geometry.hasAttribute('color'),
+                sizeAttenuation: true,
+              });
+
+              const points = new THREE.Points(geometry, material);
+              points.scale.setScalar(scale);
+              points.userData = { ...item, placed: false, baseY: height / 2, isPoints: true };
+              points.visible = false;
+
+              scene.add(points);
+              console.log(`PLY 포인트 클라우드 로드 성공: ${item.label} (${geometry.attributes.position.count} points)`);
+              resolve(points);
+            },
+            (progress) => {
+              if (progress.total) {
+                const pct = Math.round((progress.loaded / progress.total) * 100);
+                setLoading(true, `${item.label} 로딩... ${pct}%`);
+              }
+            },
+            (error) => {
+              console.warn(`PLY 로드 실패: ${item.label}, 박스로 대체`, error);
+              resolve(createBoxMesh(item));
+            }
+          );
+        } else {
+          resolve(createBoxMesh(item));
+        }
+      });
+    }
+
+    function createBoxMesh(item) {
+      const { width, height, depth, color } = item;
+
+      const geometry = new THREE.BoxGeometry(width, height, depth);
+      const material = new THREE.MeshStandardMaterial({
+        color: color || 0x888888,
+        roughness: 0.7,
+        metalness: 0.1,
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData = { ...item, placed: false, baseY: height / 2 };
+      mesh.visible = false;
+
+      scene.add(mesh);
+      return mesh;
+    }
+
+    // ==================== UI ====================
+    function createSidebar(items) {
+      const container = document.getElementById('furniture-list');
+      container.innerHTML = '';
+
+      items.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'furniture-item';
+        div.id = `item-${index}`;
+        div.innerHTML = `
+          <div class="furniture-icon">${getEmoji(item.label)}</div>
+          <div class="furniture-name">${item.label_ko || item.label}</div>
+          <div class="furniture-size">${(item.width * 100).toFixed(0)}x${(item.depth * 100).toFixed(0)}</div>
+        `;
+        div.onclick = () => placeFurniture(index);
+        container.appendChild(div);
+      });
+    }
+
+    function getEmoji(label) {
+      const l = label.toLowerCase();
+      if (l.includes('sofa')) return '🛋️';
+      if (l.includes('chair')) return '🪑';
+      if (l.includes('table')) return '🍽️';
+      if (l.includes('desk')) return '🖥️';
+      if (l.includes('bed')) return '🛏️';
+      if (l.includes('wardrobe') || l.includes('closet')) return '🚪';
+      if (l.includes('cabinet')) return '🗄️';
+      return '📦';
+    }
+
+    function updateUI() {
+      updateStats();
+      updateSelectedInfo();
+    }
+
+    function updateStats() {
+      const truckVolume = currentTruck.width * currentTruck.depth * currentTruck.height;
+      let placedVolume = 0;
+      let totalWeight = 0;
+
+      placedFurniture.forEach((mesh) => {
+        const { width, depth, height, weight } = mesh.userData;
+        placedVolume += width * depth * height;
+        totalWeight += weight || 0;
+      });
+
+      const loadPercent = Math.round((placedVolume / truckVolume) * 100);
+
+      const loadEl = document.getElementById('load-percent');
+      loadEl.textContent = loadPercent;
+      loadEl.className = 'stat-value' + (loadPercent > 90 ? ' danger' : loadPercent > 70 ? ' warning' : '');
+
+      document.getElementById('placed-count').textContent = placedFurniture.length;
+
+      const weightEl = document.getElementById('weight-total');
+      weightEl.textContent = totalWeight;
+      weightEl.className = 'stat-value' + (totalWeight > currentTruck.maxWeight ? ' danger' : '');
+
+      sendStateToApp();
+    }
+
+    function updateSelectedInfo() {
+      const infoPanel = document.getElementById('selected-info');
+
+      if (selectedObject) {
+        infoPanel.classList.add('visible');
+        document.getElementById('selected-name').textContent = selectedObject.userData.label_ko || selectedObject.userData.label;
+        document.getElementById('selected-size').textContent =
+          `${(selectedObject.userData.width * 100).toFixed(0)} x ${(selectedObject.userData.depth * 100).toFixed(0)} x ${(selectedObject.userData.height * 100).toFixed(0)} cm`;
+
+        // 바닥으로부터의 높이 계산
+        const floorY = selectedObject.position.y - selectedObject.userData.height / 2;
+        document.getElementById('selected-height').textContent = `바닥에서 높이: ${(floorY * 100).toFixed(0)} cm`;
+      } else {
+        infoPanel.classList.remove('visible');
+      }
+    }
+
+    function setLoading(show, text = '로딩 중...') {
+      document.getElementById('loading').classList.toggle('hidden', !show);
+      document.getElementById('loading-text').textContent = text;
+    }
+
+    // ==================== 가구 배치 ====================
+    function placeFurniture(index) {
+      const mesh = furnitureObjects[index];
+      if (!mesh || mesh.userData.placed) return;
+
+      mesh.userData.placed = true;
+      mesh.visible = true;
+      mesh.position.set(0, mesh.userData.height / 2, 0);
+
+      placedFurniture.push(mesh);
+      document.getElementById(`item-${index}`).classList.add('placed');
+
+      setupDragControls();
+      updateStats();
+      selectObject(mesh);
+    }
+
+    function setupDragControls() {
+      if (dragControls) dragControls.dispose();
+
+      dragControls = new DragControls(placedFurniture, camera, renderer.domElement);
+
+      dragControls.addEventListener('dragstart', (event) => {
+        orbitControls.enabled = false;
+        selectObject(event.object);
+      });
+
+      dragControls.addEventListener('drag', (event) => {
+        const obj = event.object;
+        // XZ 평면에서만 이동 (Y는 키보드로)
+        // 현재 Y 위치 유지
+        const currentY = obj.position.y;
+        clampToTruck(obj);
+        obj.position.y = currentY; // Y 복원
+        updateSelectedInfo();
+      });
+
+      dragControls.addEventListener('dragend', () => {
+        orbitControls.enabled = true;
+        updateStats();
+      });
+    }
+
+    function clampToTruck(obj) {
+      const { width, depth, height } = obj.userData;
+      const hw = currentTruck.width / 2 - width / 2;
+      const hd = currentTruck.depth / 2 - depth / 2;
+
+      obj.position.x = Math.max(-hw, Math.min(hw, obj.position.x));
+      obj.position.z = Math.max(-hd, Math.min(hd, obj.position.z));
+
+      // Y 범위 제한: 바닥 ~ 트럭 천장
+      const minY = height / 2;
+      const maxY = currentTruck.height - height / 2;
+      obj.position.y = Math.max(minY, Math.min(maxY, obj.position.y));
+    }
+
+    function selectObject(obj) {
+      // 이전 선택 해제
+      if (selectedObject && selectedObject !== obj) {
+        selectedObject.material.emissive?.setHex(0x000000);
+      }
+
+      selectedObject = obj;
+
+      furnitureObjects.forEach((m, i) => {
+        document.getElementById(`item-${i}`)?.classList.remove('selected');
+      });
+
+      if (obj) {
+        const index = furnitureObjects.indexOf(obj);
+        document.getElementById(`item-${index}`)?.classList.add('selected');
+
+        // 선택 표시 (발광)
+        if (obj.material.emissive) {
+          obj.material.emissive.setHex(0x333333);
+        }
+      }
+
+      updateSelectedInfo();
+    }
+
+    // ==================== 높이 조절 ====================
+    window.moveSelectedUp = function() {
+      if (!selectedObject) return;
+      selectedObject.position.y += HEIGHT_STEP;
+      clampToTruck(selectedObject);
+      updateSelectedInfo();
+      updateStats();
+    };
+
+    window.moveSelectedDown = function() {
+      if (!selectedObject) return;
+      selectedObject.position.y -= HEIGHT_STEP;
+      clampToTruck(selectedObject);
+      updateSelectedInfo();
+      updateStats();
+    };
+
+    // ==================== 액션 ====================
+    window.rotateSelected = function() {
+      if (!selectedObject) return;
+      selectedObject.rotation.y += Math.PI / 2;
+
+      // 치수 스왑
+      const temp = selectedObject.userData.width;
+      selectedObject.userData.width = selectedObject.userData.depth;
+      selectedObject.userData.depth = temp;
+
+      clampToTruck(selectedObject);
+      updateSelectedInfo();
+    };
+
+    window.removeSelected = function() {
+      if (!selectedObject) return;
+
+      const index = furnitureObjects.indexOf(selectedObject);
+      if (index >= 0) {
+        document.getElementById(`item-${index}`)?.classList.remove('placed');
+        selectedObject.userData.placed = false;
+        selectedObject.visible = false;
+
+        const placedIndex = placedFurniture.indexOf(selectedObject);
+        if (placedIndex >= 0) placedFurniture.splice(placedIndex, 1);
+
+        selectObject(null);
+        setupDragControls();
+        updateStats();
+      }
+    };
+
+    // ==================== BLF 자동 배치 알고리즘 ====================
+    window.autoPlace = function() {
+      // 1. 미배치 가구를 부피 내림차순 정렬
+      const unplacedItems = [];
+      furnitureObjects.forEach((mesh, index) => {
+        if (!mesh.userData.placed) {
+          const { width, depth, height } = mesh.userData;
+          unplacedItems.push({
+            mesh,
+            index,
+            volume: width * depth * height,
+            width, depth, height
+          });
+        }
+      });
+
+      // 부피가 큰 것부터 배치 (Decreasing First Fit)
+      unplacedItems.sort((a, b) => b.volume - a.volume);
+
+      // 2. Height Map 초기화 (그리드 기반 높이 추적)
+      const GRID_SIZE = 0.05; // 5cm 그리드
+      const gridW = Math.ceil(currentTruck.width / GRID_SIZE);
+      const gridD = Math.ceil(currentTruck.depth / GRID_SIZE);
+      const heightMap = Array(gridW).fill(null).map(() => Array(gridD).fill(0));
+
+      // 이미 배치된 가구로 heightMap 초기화
+      placedFurniture.forEach(mesh => {
+        const { width, depth, height } = mesh.userData;
+        const pos = mesh.position;
+        updateHeightMap(heightMap, pos.x, pos.z, width, depth, pos.y + height / 2, GRID_SIZE, currentTruck);
+      });
+
+      // 3. BLF 알고리즘으로 각 가구 배치 (회전 최적화 포함)
+      for (const item of unplacedItems) {
+        const bestPos = findBLFPositionWithRotation(
+          item.width, item.depth, item.height,
+          heightMap, GRID_SIZE, currentTruck
+        );
+
+        if (bestPos) {
+          const { mesh, index } = item;
+          mesh.userData.placed = true;
+          mesh.visible = true;
+          mesh.position.set(bestPos.x, bestPos.y + item.height / 2, bestPos.z);
+
+          // 회전 적용
+          if (bestPos.rotated) {
+            mesh.rotation.y = Math.PI / 2;
+            // userData도 업데이트 (드래그 시 치수 참조용)
+            mesh.userData.width = bestPos.width;
+            mesh.userData.depth = bestPos.depth;
+          }
+
+          placedFurniture.push(mesh);
+          document.getElementById(`item-${index}`).classList.add('placed');
+
+          // heightMap 업데이트 (회전 적용된 치수 사용)
+          updateHeightMap(heightMap, bestPos.x, bestPos.z, bestPos.width, bestPos.depth, bestPos.y + item.height, GRID_SIZE, currentTruck);
+        }
+      }
+
+      setupDragControls();
+      updateStats();
+
+      // 적재율 표시
+      const loadPercent = document.getElementById('load-percent').textContent;
+      console.log(`BLF 자동 배치 완료: 적재율 ${loadPercent}%`);
+    };
+
+    // ==================== 서버 최적화 (py3dbp) ====================
+    window.serverOptimize = async function() {
+      // 미배치 가구 수집
+      const unplacedItems = [];
+      furnitureObjects.forEach((mesh, index) => {
+        if (!mesh.userData.placed) {
+          unplacedItems.push({
+            id: mesh.userData.id,
+            index: index,
+            width: mesh.userData.width,
+            depth: mesh.userData.depth,
+            height: mesh.userData.height
+          });
+        }
+      });
+
+      if (unplacedItems.length === 0) {
+        alert('배치할 가구가 없습니다.');
+        return;
+      }
+
+      // 트럭 타입 결정
+      const truckType = document.querySelector('.truck-btn.active')?.dataset.truck || '2.5ton';
+
+      setLoading(true, '서버 최적화 계산 중...');
+
+      try {
+        const response = await fetch('/simulation/optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            truck_type: truckType,
+            items: unplacedItems.map(item => ({
+              id: item.id,
+              width: item.width,
+              depth: item.depth,
+              height: item.height
+            })),
+            algorithm: 'auto'
+          })
+        });
+
+        if (!response.ok) throw new Error('Optimization failed');
+
+        const result = await response.json();
+        console.log('서버 최적화 결과:', result);
+
+        // 결과 적용
+        for (const placement of result.placements) {
+          const item = unplacedItems.find(i => i.id === placement.id);
+          if (!item) continue;
+
+          const mesh = furnitureObjects[item.index];
+          mesh.userData.placed = true;
+          mesh.visible = true;
+          mesh.position.set(placement.x, placement.y + placement.height / 2, placement.z);
+
+          // 회전 적용
+          if (placement.rotated) {
+            mesh.rotation.y = Math.PI / 2;
+            mesh.userData.width = placement.width;
+            mesh.userData.depth = placement.depth;
+          }
+
+          placedFurniture.push(mesh);
+          document.getElementById(`item-${item.index}`).classList.add('placed');
+        }
+
+        setupDragControls();
+        updateStats();
+
+        // 결과 알림
+        const algo = result.algorithm === 'py3dbp' ? 'py3dbp (고급)' : 'BLF';
+        alert(`${algo} 최적화 완료!\n적재율: ${result.load_percent}%\n배치: ${result.placements.length}개\n미배치: ${result.unplaced_ids.length}개`);
+
+      } catch (error) {
+        console.error('서버 최적화 실패:', error);
+        alert('서버 최적화 실패. 로컬 BLF를 사용해주세요.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // BLF with rotation: 0°와 90° 모두 시도하여 더 좋은 위치 선택
+    function findBLFPositionWithRotation(itemW, itemD, itemH, heightMap, gridSize, truck) {
+      // 원래 방향
+      const pos0 = findBLFPosition(itemW, itemD, itemH, heightMap, gridSize, truck);
+      // 90° 회전
+      const pos90 = findBLFPosition(itemD, itemW, itemH, heightMap, gridSize, truck);
+
+      if (!pos0 && !pos90) return null;
+      if (!pos0) return { ...pos90, rotated: true, width: itemD, depth: itemW };
+      if (!pos90) return { ...pos0, rotated: false, width: itemW, depth: itemD };
+
+      // BLF 우선순위로 비교: Y(낮은) → Z(뒤) → X(왼쪽)
+      if (pos0.y < pos90.y) return { ...pos0, rotated: false, width: itemW, depth: itemD };
+      if (pos90.y < pos0.y) return { ...pos90, rotated: true, width: itemD, depth: itemW };
+      if (pos0.z < pos90.z) return { ...pos0, rotated: false, width: itemW, depth: itemD };
+      if (pos90.z < pos0.z) return { ...pos90, rotated: true, width: itemD, depth: itemW };
+      if (pos0.x <= pos90.x) return { ...pos0, rotated: false, width: itemW, depth: itemD };
+      return { ...pos90, rotated: true, width: itemD, depth: itemW };
+    }
+
+    // BLF: 가장 낮은 Y → 가장 뒤(Z가 작은) → 가장 왼쪽(X가 작은) 위치 찾기
+    function findBLFPosition(itemW, itemD, itemH, heightMap, gridSize, truck) {
+      const gridW = heightMap.length;
+      const gridD = heightMap[0].length;
+      const itemGridW = Math.ceil(itemW / gridSize);
+      const itemGridD = Math.ceil(itemD / gridSize);
+
+      let bestPos = null;
+      let bestY = Infinity;
+      let bestZ = Infinity;
+      let bestX = Infinity;
+
+      // 모든 그리드 위치 탐색
+      for (let gz = 0; gz <= gridD - itemGridD; gz++) {
+        for (let gx = 0; gx <= gridW - itemGridW; gx++) {
+          // 이 위치에서 가구를 놓을 때 필요한 최소 Y (지지면 높이)
+          let maxHeightAtPos = 0;
+          for (let dx = 0; dx < itemGridW; dx++) {
+            for (let dz = 0; dz < itemGridD; dz++) {
+              maxHeightAtPos = Math.max(maxHeightAtPos, heightMap[gx + dx][gz + dz]);
+            }
+          }
+
+          // 트럭 높이 초과 체크
+          if (maxHeightAtPos + itemH > truck.height) continue;
+
+          // BLF 우선순위: Y(낮은) → Z(뒤) → X(왼쪽)
+          if (maxHeightAtPos < bestY ||
+              (maxHeightAtPos === bestY && gz < bestZ) ||
+              (maxHeightAtPos === bestY && gz === bestZ && gx < bestX)) {
+            bestY = maxHeightAtPos;
+            bestZ = gz;
+            bestX = gx;
+            bestPos = {
+              x: -truck.width / 2 + gx * gridSize + itemW / 2,
+              y: maxHeightAtPos,
+              z: -truck.depth / 2 + gz * gridSize + itemD / 2
+            };
+          }
+        }
+      }
+
+      return bestPos;
+    }
+
+    // Height Map 업데이트
+    function updateHeightMap(heightMap, cx, cz, itemW, itemD, newHeight, gridSize, truck) {
+      const gridW = heightMap.length;
+      const gridD = heightMap[0].length;
+
+      // 중심 좌표를 그리드 인덱스로 변환
+      const startGx = Math.floor((cx - itemW / 2 + truck.width / 2) / gridSize);
+      const startGz = Math.floor((cz - itemD / 2 + truck.depth / 2) / gridSize);
+      const endGx = Math.ceil((cx + itemW / 2 + truck.width / 2) / gridSize);
+      const endGz = Math.ceil((cz + itemD / 2 + truck.depth / 2) / gridSize);
+
+      for (let gx = Math.max(0, startGx); gx < Math.min(gridW, endGx); gx++) {
+        for (let gz = Math.max(0, startGz); gz < Math.min(gridD, endGz); gz++) {
+          heightMap[gx][gz] = Math.max(heightMap[gx][gz], newHeight);
+        }
+      }
+    }
+
+    window.clearAll = function() {
+      placedFurniture.forEach((mesh) => {
+        mesh.userData.placed = false;
+        mesh.visible = false;
+      });
+      placedFurniture = [];
+
+      furnitureObjects.forEach((_, index) => {
+        document.getElementById(`item-${index}`)?.classList.remove('placed');
+      });
+
+      selectObject(null);
+      setupDragControls();
+      updateStats();
+    };
+
+    window.resetCamera = function() {
+      camera.position.set(6, 5, 6);
+      orbitControls.target.set(0, 1, 0);
+    };
+
+    window.toggleHelp = function() {
+      document.getElementById('help-tooltip').classList.toggle('visible');
+    };
+
+    // 트럭 변경
+    document.querySelectorAll('.truck-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.truck-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        currentTruck = TRUCK_SPECS[btn.dataset.truck];
+        createTruck(currentTruck);
+
+        placedFurniture.forEach(clampToTruck);
+        updateStats();
+      });
+    });
+
+    // ==================== 이벤트 ====================
+    function setupEventListeners() {
+      window.addEventListener('keydown', (e) => {
+        if (!selectedObject) return;
+
+        switch (e.key.toLowerCase()) {
+          case 'w':
+            moveSelectedUp();
+            break;
+          case 's':
+            moveSelectedDown();
+            break;
+          case 'r':
+            rotateSelected();
+            break;
+          case 'delete':
+          case 'backspace':
+            removeSelected();
+            break;
+          case 'escape':
+            selectObject(null);
+            break;
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        const container = document.getElementById('canvas-container');
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      });
+
+      renderer.domElement.addEventListener('click', (e) => {
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const rect = renderer.domElement.getBoundingClientRect();
+
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(placedFurniture);
+
+        if (intersects.length === 0) {
+          selectObject(null);
+        }
+      });
+    }
+
+    // ==================== 통신 ====================
+    function sendStateToApp() {
+      const state = {
+        type: 'stateUpdate',
+        estimateId,
+        truck: currentTruck,
+        loadPercent: document.getElementById('load-percent').textContent,
+        items: placedFurniture.map((obj) => ({
+          id: obj.userData.id,
+          label: obj.userData.label,
+          position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
+          rotation: obj.rotation.y,
+        })),
+      };
+
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(state));
+      }
+    }
+
+    window.initSimulation = function(data) {
+      estimateId = data.estimate_id;
+      if (data.truck) {
+        currentTruck = data.truck;
+        createTruck(currentTruck);
+      }
+      if (data.furniture) {
+        furnitureData = data.furniture;
+        loadFurnitureItems(furnitureData);
+      }
+      setLoading(false);
+    };
+
+    // ==================== 애니메이션 ====================
+    function animate() {
+      requestAnimationFrame(animate);
+      orbitControls.update();
+      renderer.render(scene, camera);
+    }
+
+    init();
+  </script>
+</body>
+</html>
