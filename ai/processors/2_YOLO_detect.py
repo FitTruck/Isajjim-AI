@@ -15,7 +15,13 @@ from PIL import Image
 # AI module imports
 from ai.config import Config
 from ai.utils.image_ops import ImageUtils
-from ai.data.knowledge_base import get_subtypes, get_db_key_from_label, get_excluded_base_names
+from ai.data.knowledge_base import (
+    get_subtypes,
+    get_db_key_from_label,
+    get_excluded_base_names,
+    get_yolo_class_mapping,
+    get_all_yolo_classes,
+)
 
 try:
     from ultralytics import YOLOE
@@ -37,41 +43,12 @@ except ImportError:
     HAS_TORCH = False
 
 
-# Objects365 기반 가구/가정용품 클래스 목록 (탐지 대상)
-FURNITURE_CLASSES = {
-    # 가구 (고우선순위)
-    "Bed": {"base_name": "BED"},
-    "Sofa": {"base_name": "SOFA"},
-    "Chair": {"base_name": "CHAIR_STOOL"},
-    "Desk": {"base_name": "DESK"},
-    "Dining Table": {"base_name": "DINING_TABLE"},
-    "Coffee Table": {"base_name": "COFFEE_TABLE"},
-    "Nightstand": {"base_name": "NIGHTSTAND"},
-    "Cabinet/shelf": {"base_name": "CABINET"},
-    "Refrigerator": {"base_name": "REFRIGERATOR"},
-    "Washing Machine": {"base_name": "WASHING_MACHINE"},
-    "Microwave": {"base_name": "MICROWAVE"},
-    "Oven": {"base_name": "OVEN"},
-    "Air Conditioner": {"base_name": "AIR_CONDITIONER"},
-    "Monitor/TV": {"base_name": "MONITOR_TV"},
-    "Mirror": {"base_name": "MIRROR"},
-    "Storage box": {"base_name": "STORAGE_BOX"},
+# knowledge_base.py에서 YOLO 클래스 매핑을 동적으로 가져옴
+# 이를 통해 knowledge_base.py가 단일 진실 소스(Single Source of Truth)가 됨
+FURNITURE_CLASSES = get_yolo_class_mapping()
 
-    # 가구 (중우선순위)
-    "Stool": {"base_name": "CHAIR_STOOL"},
-
-    # 추가 가정용품
-    "Bookshelf": {"base_name": "BOOKSHELF"},
-    "Wardrobe": {"base_name": "WARDROBE"},
-    "Drawer": {"base_name": "DRAWER"},
-    "Television": {"base_name": "MONITOR_TV"},
-    "Fan": {"base_name": "FAN"},
-    "Vase": {"base_name": "POTTED_PLANT"},
-    "Plant": {"base_name": "POTTED_PLANT"},
-
-    # 탐지는 하되 출력에서 제외되는 클래스 (EXCLUDED_FROM_OUTPUT 참조)
-    "Floor": {"base_name": "FLOOR"},
-}
+# YOLOE set_classes()에 전달할 클래스 목록
+YOLO_CLASS_NAMES = get_all_yolo_classes()
 
 # 탐지는 수행하지만 최종 출력에서 제외할 클래스 목록
 # knowledge_base.py의 exclude_from_output: True 항목에서 동적으로 로드
@@ -168,9 +145,8 @@ class YoloDetector:
         print(f"[YoloDetector] Loading YOLOE-seg on {self._device}: {self.model_path}")
         self.model = YOLOE(self.model_path)
 
-        furniture_class_names = list(FURNITURE_CLASSES.keys())
-        print(f"[YoloDetector] Setting {len(furniture_class_names)} furniture classes...")
-        self.model.set_classes(furniture_class_names)
+        print(f"[YoloDetector] Setting {len(YOLO_CLASS_NAMES)} furniture classes from knowledge_base...")
+        self.model.set_classes(YOLO_CLASS_NAMES)
 
         if "cuda" in self._device:
             self.model.to(self._device)
@@ -323,10 +299,10 @@ class YoloDetector:
         """
         탐지 결과에서 가구/가정용품 클래스만 필터링합니다.
 
-        Note: YOLOE가 이미 FURNITURE_CLASSES만 탐지하도록 설정되어 있어
+        Note: YOLOE가 이미 YOLO_CLASS_NAMES만 탐지하도록 설정되어 있어
               이 함수는 보통 불필요하지만, 하위 호환성을 위해 유지됩니다.
         """
-        furniture_names = {name.lower() for name in FURNITURE_CLASSES.keys()}
+        furniture_names = {name.lower() for name in YOLO_CLASS_NAMES}
         return _filter_by_labels(detection_result, furniture_names, include=True)
 
     def filter_excluded_classes(self, detection_result: Dict) -> Dict:
@@ -410,8 +386,7 @@ class YoloDetector:
             )[0]
 
             # 원래 클래스로 복원
-            furniture_class_names = list(FURNITURE_CLASSES.keys())
-            self.model.set_classes(furniture_class_names)
+            self.model.set_classes(YOLO_CLASS_NAMES)
 
             if len(results.boxes) == 0:
                 return None
@@ -431,8 +406,7 @@ class YoloDetector:
             print(f"[YoloDetector] Subtype detection failed: {e}")
             # 에러 시 원래 클래스로 복원
             try:
-                furniture_class_names = list(FURNITURE_CLASSES.keys())
-                self.model.set_classes(furniture_class_names)
+                self.model.set_classes(YOLO_CLASS_NAMES)
             except Exception:
                 pass
             return None

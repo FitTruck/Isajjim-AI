@@ -18,6 +18,7 @@ from typing import Optional, List, Dict
 FURNITURE_DB = {
     "air conditioner": {
         "synonyms": ["air conditioner", "ac unit", "climate control unit"],
+        "yolo_classes": ["Air Conditioner"],  # Objects365 클래스명
         "base_name": "AIR_CONDITIONER",
         "subtypes": [
             {
@@ -37,51 +38,58 @@ FURNITURE_DB = {
     },
     "coffee table": {
         "synonyms": ["coffee table", "living room table", "center table", "low table"],
+        "yolo_classes": ["Coffee Table"],
         "base_name": "COFFEE_TABLE",
     },
-    "microwave": {
-        "synonyms": ["microwave", "microwave oven", "countertop microwave"],
-        "base_name": "MICROWAVE",
-    },
-    "oven": {
-        "synonyms": ["oven", "kitchen oven", "built-in oven", "wall oven"],
-        "base_name": "OVEN",
+    "microwave/oven": {
+        "synonyms": ["microwave", "microwave oven", "countertop microwave", "oven", "kitchen oven", "built-in oven", "wall oven"],
+        "yolo_classes": ["Microwave", "Oven"],  # 두 Objects365 클래스가 같은 base_name으로 매핑
+        "base_name": "MICROWAVE_OVEN",
     },
     "mirror": {
         "synonyms": ["mirror", "wall mirror", "standing mirror", "full length mirror", "vanity mirror"],
+        "yolo_classes": ["Mirror"],
         "base_name": "MIRROR",
     },
     "storage box": {
         "synonyms": ["storage box", "storage container", "plastic box", "moving box"],
+        "yolo_classes": ["Storage box"],
         "base_name": "STORAGE_BOX",
     },
     "fan": {
         "synonyms": ["fan", "electric fan", "standing fan", "floor fan", "ceiling fan", "desk fan"],
+        "yolo_classes": ["Fan"],
         "base_name": "FAN",
     },
     "cabinet": {
         "synonyms": ["cabinet", "cabinet/shelf", "storage cabinet", "display cabinet"],
+        "yolo_classes": ["Cabinet/shelf"],  # Objects365 클래스명
         "base_name": "CABINET",
     },
-    "kitchen cabinet": {
+    "dish cabinet": {
         "synonyms": ["cupboard", "dish cupboard", "dish cabinet", "kitchen cupboard", "pantry cabinet", "wall cabinet", "overhead storage", "kitchen cabinet", "kitchen storage", "white cabinet", "black cabinet", "gray cabinet", "brown cabinet"],
-        "base_name": "KITCHEN_CABINET",
+        "yolo_classes": ["Glass-Top Dish Cabinet"],  # 커스텀 클래스 (open-vocabulary)
+        "base_name": "DISH_CABINET",
     },
     "drawer": {
         "synonyms": ["drawer", "chest of drawers", "dresser", "drawer unit", "brown drawer", "wooden drawer", "low chest of drawers", "low chest"],
+        "yolo_classes": ["Drawer"],
         "base_name": "DRAWER",
     },
     "nightstand": {
         "synonyms": ["nightstand", "bedside table", "bedside cabinet", "night table", "bedside drawer", "wooden nightstand", "brown nightstand", "brown cabinet", "oak nightstand", "oak cabinet", "bedside chest"],
+        "yolo_classes": ["Nightstand"],
         "base_name": "NIGHTSTAND",
         "min_confidence": 0.5
     },
     "bookshelf": {
         "synonyms": ["bookshelf", "bookcase", "library shelf"],
+        "yolo_classes": ["Bookshelf"],
         "base_name": "BOOKSHELF",
     },
     "display shelf": {
         "synonyms": ["close shelf", "wooden shelf", "display shelf", "open shelf", "minimalist rack", "metal frame shelf", "open display stand", "tiered display stand", "slim metal rack", "thin display rack", "floor shelf", "metal shelf", "minimalist shelf"],
+        "yolo_classes": ["Open Display Shelf"],  # 커스텀 클래스 (open-vocabulary)
         "base_name": "DISPLAY_SHELF",
         "subtypes": [
             {
@@ -92,6 +100,7 @@ FURNITURE_DB = {
     },
     "refrigerator": {
         "synonyms": ["refrigerator", "fridge", "freezer"],
+        "yolo_classes": ["Refrigerator"],
         "base_name": "REFRIGERATOR",
         "subtypes": [
             {
@@ -115,6 +124,7 @@ FURNITURE_DB = {
     },
     "wardrobe": {
         "synonyms": ["wardrobe", "closet", "armoire", "clothes closet"],
+        "yolo_classes": ["Wardrobe"],
         "base_name": "WARDROBE",
         "subtypes": [
             {
@@ -134,6 +144,7 @@ FURNITURE_DB = {
     },
     "sofa": {
         "synonyms": ["sofa", "couch", "settee"],
+        "yolo_classes": ["Sofa"],
         "base_name": "SOFA",
         "subtypes": [
             {
@@ -156,18 +167,22 @@ FURNITURE_DB = {
     },
     "bed": {
         "synonyms": ["bed", "bed frame", "bunk bed"],
+        "yolo_classes": ["Bed"],
         "base_name": "BED"
     },
     "dining table": {
         "synonyms": ["dining table", "kitchen table"],
+        "yolo_classes": ["Dining Table"],
         "base_name": "DINING_TABLE",
     },
     "monitor": {
         "synonyms": ["monitor", "monitor/tv", "computer monitor", "pc monitor", "desktop monitor", "lcd monitor", "computer screen", "display monitor", "television", "tv", "flat screen tv", "wall mounted tv", "large screen tv"],
+        "yolo_classes": ["Monitor/TV", "Television"],  # 두 클래스가 같은 base_name으로 매핑
         "base_name": "MONITOR_TV"
     },
     "desk": {
         "synonyms": ["desk", "office desk", "computer desk", "writing desk"],
+        "yolo_classes": ["Desk"],
         "base_name": "DESK",
         "subtypes": [
             {
@@ -189,7 +204,8 @@ FURNITURE_DB = {
         ]
     },
     "chair": {
-        "synonyms": ["chair", "office chair", "dining chair", "armchair", "stool", "round stool", "circular stool"],
+        "synonyms": ["chair", "office chair", "dining chair", "armchair", "stool", "round stool", "circular stool", "rolling chair", "swivel chair", "desk chair", "computer chair", "gaming chair", "executive chair"],
+        "yolo_classes": ["Chair", "Stool", "Office Chair", "Swivel Chair"],  # 바퀴 달린 의자 포함
         "base_name": "CHAIR_STOOL",
         "subtypes": [
             {
@@ -199,11 +215,16 @@ FURNITURE_DB = {
             {
                 "name": "ROUND_STOOL",
                 "prompt": "a round stool with a circular seat and thin slim legs"
+            },
+            {
+                "name": "ROLLING_OFFICE_CHAIR",
+                "prompt": "an office chair with wheels and armrests"
             }
         ]
     },
     "washing machine": {
         "synonyms": ["washing machine", "washer", "laundry machine"],
+        "yolo_classes": ["Washing Machine"],
         "base_name": "WASHING_MACHINE",
         "subtypes": [
             {
@@ -218,19 +239,13 @@ FURNITURE_DB = {
     },
     "floor": {
         "synonyms": ["floor", "wood grain floor", "hardwood flooring with patterns", "tiled floor", "solid floor texture"],
+        "yolo_classes": ["Floor"],
         "base_name": "FLOOR",
         "exclude_from_output": True,
     },
-    "potted plant": {
-        "synonyms": ["potted plant", "plant", "vase", "flower pot", "houseplant", "indoor plant", "vase with flowers"],
-        "base_name": "POTTED_PLANT"
-    },
-    "kimchi refrigerator": {
-        "synonyms": ["kimchi refrigerator", "kimchi fridge", "secondary fridge", "small refrigerator"],
-        "base_name": "KIMCHI_REFRIGERATOR"
-    },
     "vanity table": {
         "synonyms": ["vanity table", "dressing table", "makeup table", "vanity desk", "vanity mirror table"],
+        "yolo_classes": ["Vanity Table", "Dressing Table"],  # 커스텀 클래스 (open-vocabulary)
         "base_name": "VANITY_TABLE",
         "subtypes": [
             {
@@ -244,21 +259,13 @@ FURNITURE_DB = {
         ]
     },
     "tv stand": {
-        "synonyms": ["tv stand", "tv console", "media console", "entertainment center", "tv cabinet", "tv unit"],
+        "synonyms": ["tv stand", "tv console", "media console", "tv cabinet", "tv unit", "low tv stand"],
+        "yolo_classes": ["TV Stand", "TV Cabinet"],  # 커스텀 클래스 (open-vocabulary)
         "base_name": "TV_STAND",
-        "subtypes": [
-            {
-                "name": "TV_ENTERTAINMENT_CENTER_WITH_STORAGE",
-                "prompt": "a large tv entertainment center with storage"
-            },
-            {
-                "name": "LOW_TV_STAND",
-                "prompt": "a low tv stand console table"
-            }
-        ]
     },
     "piano": {
         "synonyms": ["piano", "upright piano", "grand piano", "digital piano", "keyboard piano"],
+        "yolo_classes": ["Piano"],
         "base_name": "PIANO",
         "subtypes": [
             {
@@ -277,14 +284,17 @@ FURNITURE_DB = {
     },
     "massage chair": {
         "synonyms": ["massage chair", "recliner massage chair", "electric massage chair"],
+        "yolo_classes": ["capsule-type Massage Chair"],  # 커스텀 클래스 (open-vocabulary)
         "base_name": "MASSAGE_CHAIR"
     },
     "treadmill": {
         "synonyms": ["treadmill", "running machine", "exercise treadmill"],
+        "yolo_classes": ["Treadmill"],
         "base_name": "TREADMILL"
     },
     "exercise bike": {
         "synonyms": ["exercise bike", "stationary bike", "spin bike", "indoor cycling bike"],
+        "yolo_classes": ["Exercise Bike", "Stationary Bike"],  # 커스텀 클래스 (open-vocabulary)
         "base_name": "EXERCISE_BIKE"
     },
 }
@@ -367,6 +377,48 @@ def get_all_synonyms() -> List[str]:
     for info in FURNITURE_DB.values():
         synonyms.extend(info.get("synonyms", []))
     return synonyms
+
+
+def get_yolo_class_mapping() -> Dict[str, Dict]:
+    """
+    YOLO 클래스명 → base_name 매핑 딕셔너리를 반환합니다.
+
+    YOLO_detect.py에서 FURNITURE_CLASSES를 동적으로 생성할 때 사용합니다.
+
+    Returns:
+        {
+            "Bed": {"base_name": "BED", "db_key": "bed"},
+            "Sofa": {"base_name": "SOFA", "db_key": "sofa"},
+            ...
+        }
+    """
+    mapping = {}
+    for db_key, info in FURNITURE_DB.items():
+        base_name = info.get("base_name", db_key.upper().replace(" ", "_"))
+        yolo_classes = info.get("yolo_classes", [])
+
+        for yolo_class in yolo_classes:
+            mapping[yolo_class] = {
+                "base_name": base_name,
+                "db_key": db_key
+            }
+
+    return mapping
+
+
+def get_all_yolo_classes() -> List[str]:
+    """
+    탐지에 사용할 모든 YOLO 클래스명 목록을 반환합니다.
+
+    YOLOE의 set_classes()에 전달할 클래스 목록입니다.
+
+    Returns:
+        ["Bed", "Sofa", "Chair", ...]
+    """
+    classes = []
+    for info in FURNITURE_DB.values():
+        classes.extend(info.get("yolo_classes", []))
+    return classes
 
 
 def get_excluded_base_names() -> set:
