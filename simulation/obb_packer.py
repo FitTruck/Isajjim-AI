@@ -518,15 +518,8 @@ def extreme_points_pack(
     truck_h = truck_dims["height"]
     truck_volume = truck_w * truck_d * truck_h
 
-    # 그리디 정렬: 바닥면적 → 부피 (넓고 큰 것 먼저 = 안정적 적재)
-    # 바닥면적이 넓은 것이 먼저 배치되면 그 위에 쌓기 좋음
-    sorted_items = sorted(
-        items,
-        key=lambda x: (
-            -(x.normalized_dims[0] * x.normalized_dims[1]),  # 바닥면적 (내림차순)
-            -x.volume  # 부피 (내림차순)
-        )
-    )
+    # 부피 순 정렬 (큰 것 먼저)
+    sorted_items = sorted(items, key=lambda x: x.volume, reverse=True)
 
     # 초기 EP: 뒤쪽-왼쪽-바닥 코너
     extreme_points = [ExtremePoint(x=-truck_w / 2, y=0, z=-truck_d / 2)]
@@ -838,8 +831,8 @@ def _pack_with_py3dbp(
         for item in b.unfitted_items:
             unplaced_ids.append(item.name)
 
-    # 중력 패스: 안쪽(Z-)과 바닥(Y=0), 왼쪽(X-)으로 밀착
-    placed_items = _apply_gravity_pass(placed_items, truck_w, truck_d, truck_h)
+    # 중력 패스 비활성화 - py3dbp 결과 그대로 사용
+    # placed_items = _apply_gravity_pass(placed_items, truck_w, truck_d, truck_h)
 
     volume_utilization = (placed_volume / truck_volume) * 100 if truck_volume > 0 else 0
 
@@ -1101,36 +1094,25 @@ def optimize_obb(
     # 단위 변환 (m → cm)
     scale = 100 if unit == "m" else 1
 
-    # py3dbp 사용 (Big-to-Small, Deep-first 정렬로 벽면부터 채움)
-    if PY3DBP_AVAILABLE:
-        if truck_type and truck_type in TRUCK_PRESETS_CM:
-            truck_dims = TRUCK_PRESETS_CM[truck_type]
-            result = _pack_with_py3dbp(items, truck_dims, scale)
-            result.truck_type = truck_type
-        else:
-            # 자동 선택: 가장 작은 트럭부터 시도
-            truck_type, result = _find_best_truck_py3dbp(items, scale)
-    else:
-        # py3dbp 미설치 시 기존 알고리즘 사용
-        logger.warning("py3dbp 미설치, 기존 EP 알고리즘 사용")
-        obb_items = []
-        for item in items:
-            dims = (
-                item["width"] * scale,
-                item["depth"] * scale,
-                item["height"] * scale
-            )
-            obb_items.append(OBBItem(id=item["id"], original_dims=dims))
+    # EP 알고리즘 사용 (py3dbp보다 적재율 높음)
+    obb_items = []
+    for item in items:
+        dims = (
+            item["width"] * scale,
+            item["depth"] * scale,
+            item["height"] * scale
+        )
+        obb_items.append(OBBItem(id=item["id"], original_dims=dims))
 
-        if truck_type and truck_type in TRUCK_PRESETS_CM:
-            result = extreme_points_pack(
-                obb_items, TRUCK_PRESETS_CM[truck_type], support_ratio, allow_tilt, corner_first
-            )
-            result.truck_type = truck_type
-        else:
-            truck_type, result = select_smallest_fitting_truck(
-                obb_items, support_ratio, allow_tilt, corner_first
-            )
+    if truck_type and truck_type in TRUCK_PRESETS_CM:
+        result = extreme_points_pack(
+            obb_items, TRUCK_PRESETS_CM[truck_type], support_ratio, allow_tilt, corner_first
+        )
+        result.truck_type = truck_type
+    else:
+        truck_type, result = select_smallest_fitting_truck(
+            obb_items, support_ratio, allow_tilt, corner_first
+        )
 
     # 단위 역변환 (cm → m) 필요시
     if unit == "m":
