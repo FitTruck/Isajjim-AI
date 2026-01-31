@@ -287,6 +287,7 @@
           <button class="btn btn-primary" onclick="serverOptimize()">BLF</button>
           <button class="btn btn-primary" onclick="serverOptimizeOBB()" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);">OBB</button>
           <button class="btn btn-danger" onclick="clearAll()">초기화</button>
+          <span id="align-status" style="padding: 8px 12px; border-radius: 8px; font-size: 12px; background: #17a2b8; color: white; margin-left: 8px;">정렬됨</span>
         </div>
       </div>
 
@@ -462,6 +463,29 @@
         loadSimulationData(estimateId);
       } else {
         loadSampleData();
+      }
+
+      // 정렬 상태 확인
+      checkAlignmentStatus();
+    }
+
+    // 정렬 상태 확인
+    async function checkAlignmentStatus() {
+      try {
+        const res = await fetch('/simulation/alignment-status');
+        const status = await res.json();
+        const badge = document.getElementById('align-status');
+        if (badge) {
+          if (status.open3d_available) {
+            badge.textContent = 'OBB 정렬 활성';
+            badge.style.background = '#28a745';
+          } else {
+            badge.textContent = 'PLY 정렬됨';
+            badge.style.background = '#17a2b8';
+          }
+        }
+      } catch (e) {
+        console.log('정렬 상태 확인 실패:', e);
       }
     }
 
