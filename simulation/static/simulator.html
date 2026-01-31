@@ -638,8 +638,10 @@
             // 중심 맞추기
             geometry.center();
 
-            // PLY 스케일 배율 - 균일 스케일링 (모델 비율 유지)
-            const scale = Math.min(width / size.x, height / size.y, depth / size.z);
+            // PLY 스케일 - 각 축별로 히트박스 치수에 맞게 스케일링 (타이트하게)
+            const scaleX = width / size.x;
+            const scaleY = height / size.y;
+            const scaleZ = depth / size.z;
 
             // 그룹 생성 (히트박스 + 포인트클라우드)
             const group = new THREE.Group();
@@ -653,20 +655,26 @@
               sizeAttenuation: true,
             });
             const points = new THREE.Points(geometry, pointsMaterial);
-            points.scale.setScalar(scale);  // 균일 스케일링 (비율 유지)
+            points.scale.set(scaleX, scaleY, scaleZ);  // 비균일 스케일링 (히트박스에 딱 맞게)
             points.frustumCulled = false; // frustum culling 비활성화 (사라짐 방지)
             group.add(points);
 
-            // 투명 히트박스 (드래그/클릭용)
+            // 히트박스 (드래그/클릭용) - 반투명하게 표시하여 배치 영역 확인
             const hitboxGeometry = new THREE.BoxGeometry(width, height, depth);
             const hitboxMaterial = new THREE.MeshBasicMaterial({
               transparent: true,
-              opacity: 0.0,
+              opacity: 0.15,
               depthWrite: false,
+              color: color || 0x4488ff,
             });
             const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
             hitbox.userData.isHitbox = true;
             group.add(hitbox);
+
+            // 히트박스 엣지 (경계선)
+            const hitboxEdges = new THREE.EdgesGeometry(hitboxGeometry);
+            const hitboxLine = new THREE.LineSegments(hitboxEdges, new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.5, transparent: true }));
+            group.add(hitboxLine);
 
             group.visible = false;
             scene.add(group);
@@ -869,9 +877,11 @@
       const { width, height, depth } = obj.userData;
       const pos = obj.position;
 
+      // pos.y는 중심 좌표이므로 height/2를 빼서 바닥 좌표로 변환
+      const yBottom = pos.y - height / 2;
       const box1 = new THREE.Box3(
-        new THREE.Vector3(pos.x - width/2 + 0.01, pos.y + 0.01, pos.z - depth/2 + 0.01),
-        new THREE.Vector3(pos.x + width/2 - 0.01, pos.y + height - 0.01, pos.z + depth/2 - 0.01)
+        new THREE.Vector3(pos.x - width/2 + 0.01, yBottom + 0.01, pos.z - depth/2 + 0.01),
+        new THREE.Vector3(pos.x + width/2 - 0.01, yBottom + height - 0.01, pos.z + depth/2 - 0.01)
       );
 
       for (const other of placedFurniture) {
@@ -881,9 +891,11 @@
         const otherData = other.userData;
         const otherPos = other.position;
 
+        // otherPos.y도 중심 좌표이므로 height/2를 빼서 바닥 좌표로 변환
+        const otherYBottom = otherPos.y - otherData.height / 2;
         const box2 = new THREE.Box3(
-          new THREE.Vector3(otherPos.x - otherData.width/2, otherPos.y, otherPos.z - otherData.depth/2),
-          new THREE.Vector3(otherPos.x + otherData.width/2, otherPos.y + otherData.height, otherPos.z + otherData.depth/2)
+          new THREE.Vector3(otherPos.x - otherData.width/2, otherYBottom, otherPos.z - otherData.depth/2),
+          new THREE.Vector3(otherPos.x + otherData.width/2, otherYBottom + otherData.height, otherPos.z + otherData.depth/2)
         );
 
         if (box1.intersectsBox(box2)) {
