@@ -638,14 +638,26 @@
             // 중심 맞추기
             geometry.center();
 
-            // PLY 스케일 - 각 축별로 히트박스 치수에 맞게 스케일링 (타이트하게)
-            const scaleX = width / size.x;
-            const scaleY = height / size.y;
-            const scaleZ = depth / size.z;
+            // PLY 균일 스케일링 (원본 비율 유지)
+            const scale = Math.min(width / size.x, height / size.y, depth / size.z);
+
+            // 스케일 적용 후 실제 PLY 크기 계산
+            const scaledWidth = size.x * scale;
+            const scaledHeight = size.y * scale;
+            const scaledDepth = size.z * scale;
 
             // 그룹 생성 (히트박스 + 포인트클라우드)
             const group = new THREE.Group();
-            group.userData = { ...item, placed: false, baseY: height / 2, isPoints: true };
+            // userData는 스케일 적용된 실제 크기로 저장
+            group.userData = {
+              ...item,
+              width: scaledWidth,
+              height: scaledHeight,
+              depth: scaledDepth,
+              placed: false,
+              baseY: scaledHeight / 2,
+              isPoints: true
+            };
 
             // 포인트 클라우드 (다운샘플링 후 포인트 크기 조절)
             const pointSize = originalCount > MAX_POINTS ? 0.015 : 0.008;
@@ -655,12 +667,12 @@
               sizeAttenuation: true,
             });
             const points = new THREE.Points(geometry, pointsMaterial);
-            points.scale.set(scaleX, scaleY, scaleZ);  // 비균일 스케일링 (히트박스에 딱 맞게)
+            points.scale.setScalar(scale);  // 균일 스케일링 (원본 비율 유지)
             points.frustumCulled = false; // frustum culling 비활성화 (사라짐 방지)
             group.add(points);
 
-            // 히트박스 (드래그/클릭용) - 반투명하게 표시하여 배치 영역 확인
-            const hitboxGeometry = new THREE.BoxGeometry(width, height, depth);
+            // 히트박스 - PLY 실제 크기에 딱 맞게
+            const hitboxGeometry = new THREE.BoxGeometry(scaledWidth, scaledHeight, scaledDepth);
             const hitboxMaterial = new THREE.MeshBasicMaterial({
               transparent: true,
               opacity: 0.15,

@@ -190,13 +190,33 @@ if (placement.orientation === 2) {
 
 ### PLY 스케일링
 
+PLY 포인트클라우드는 **균일 스케일링**으로 원본 비율을 유지하고, 히트박스는 스케일된 PLY에 딱 맞게 생성합니다.
+
 ```javascript
-// 비균일 스케일링으로 히트박스에 딱 맞게
-const scaleX = width / plySize.x;
-const scaleY = height / plySize.y;
-const scaleZ = depth / plySize.z;
-points.scale.set(scaleX, scaleY, scaleZ);
+// 1. 균일 스케일 계산 (원본 비율 유지, 왜곡 없음)
+const scale = Math.min(width / plySize.x, height / plySize.y, depth / plySize.z);
+
+// 2. 스케일 적용 후 실제 PLY 크기 계산
+const scaledWidth = plySize.x * scale;
+const scaledHeight = plySize.y * scale;
+const scaledDepth = plySize.z * scale;
+
+// 3. PLY에 균일 스케일 적용
+points.scale.setScalar(scale);
+
+// 4. 히트박스는 스케일된 PLY 크기에 맞게 생성
+const hitboxGeometry = new THREE.BoxGeometry(scaledWidth, scaledHeight, scaledDepth);
+
+// 5. userData에 실제 크기 저장 (OBB API에서 사용)
+mesh.userData.width = scaledWidth;
+mesh.userData.height = scaledHeight;
+mesh.userData.depth = scaledDepth;
 ```
+
+**왜 균일 스케일링인가?**
+- 비균일 스케일링은 객체를 찌그러뜨려 왜곡시킴
+- 균일 스케일링은 원본 3D 모델의 비율을 유지
+- 히트박스가 PLY에 정확히 맞아서 충돌 감지가 정확함
 
 ## 제약 조건
 
