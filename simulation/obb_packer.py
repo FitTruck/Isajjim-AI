@@ -86,13 +86,13 @@ class ExtremePoint:
     z: float
 
     def __lt__(self, other: "ExtremePoint") -> bool:
-        # Z → Y → X 우선순위 (뒤쪽 → 바닥 → 왼쪽)
-        # 뒤쪽(Z 작은 값)부터 채우고, 같은 깊이면 아래부터
+        # Z → X → Y 우선순위 (뒤쪽 → 왼쪽 → 바닥)
+        # 뒤쪽(Z 작은 값)부터, 왼쪽부터 오른쪽으로, 마지막으로 위로 쌓기
         if self.z != other.z:
             return self.z < other.z
-        if self.y != other.y:
-            return self.y < other.y
-        return self.x < other.x
+        if self.x != other.x:
+            return self.x < other.x
+        return self.y < other.y
 
 
 @dataclass
@@ -480,11 +480,11 @@ def find_best_placement(
             if not check_support(cx, cy, cz, w, d, placed, support_ratio):
                 continue
 
-            # 점수 계산 (Z → Y → X 우선순위) - 뒤쪽(안쪽)부터 채움
-            # Z: 뒤쪽(음수)부터, Y: 바닥부터, X: 왼쪽부터
+            # 점수 계산 (Z → X → Y 우선순위) - 뒤쪽부터, 왼쪽에서 오른쪽으로 차곡차곡
+            # Z: 뒤쪽(음수)부터, X: 왼쪽부터, Y: 바닥부터 (쌓기는 마지막)
             # 마지막 요소: d >= w면 0 (자연스러운 방향 우선), 아니면 1
             natural = 0 if d >= w else 1
-            score = (cz, cy, cx, natural)
+            score = (cz, cx, cy, natural)
 
             if score < best_score:
                 best_score = score
@@ -528,11 +528,10 @@ def extreme_points_pack(
     unplaced: list[str] = []
     placed_volume = 0.0
 
-    # Corner-first 배치를 위한 가용 코너 목록 (뒤쪽 코너만 - 안쪽부터 채우기)
+    # Corner-first 배치: 왼쪽 뒤 코너에서만 시작
+    # (오른쪽 코너 제거 - 왼쪽에서 오른쪽으로 차곡차곡 채우기 위해)
     available_corners = [
-        CornerPosition.LEFT_REAR,    # 1순위: 뒤쪽 왼쪽
-        CornerPosition.RIGHT_REAR,   # 2순위: 뒤쪽 오른쪽
-        # 앞쪽 코너는 제외 - 뒤쪽부터 순차적으로 채우기 위해
+        CornerPosition.LEFT_REAR,    # 뒤쪽 왼쪽 코너만 사용
     ]
 
     # Corner-first 단계 완료 여부
@@ -633,9 +632,9 @@ def extreme_points_pack(
 
     volume_utilization = (placed_volume / truck_volume) * 100 if truck_volume > 0 else 0
 
-    # 코너 배치 통계 메시지 (뒤쪽 코너 2개만 사용)
-    corners_filled = 2 - len(available_corners) if corner_first else 0
-    corner_msg = f" (뒤쪽코너 {corners_filled}개)" if corner_first else ""
+    # 코너 배치 통계 메시지 (왼쪽 뒤 코너만 사용)
+    corners_filled = 1 - len(available_corners) if corner_first else 0
+    corner_msg = f" (코너시작)" if corner_first and corners_filled > 0 else ""
 
     return PackingResult(
         success=len(unplaced) == 0,
