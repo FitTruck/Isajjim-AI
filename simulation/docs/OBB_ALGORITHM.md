@@ -218,6 +218,47 @@ mesh.userData.depth = scaledDepth;
 - 균일 스케일링은 원본 3D 모델의 비율을 유지
 - 히트박스가 PLY에 정확히 맞아서 충돌 감지가 정확함
 
+### 히트박스 시각화
+
+디버깅 및 배치 확인을 위해 히트박스를 반투명하게 표시합니다.
+
+```javascript
+// 반투명 히트박스 (배치 영역 확인용)
+const hitboxMaterial = new THREE.MeshBasicMaterial({
+  transparent: true,
+  opacity: 0.15,           // 15% 불투명
+  depthWrite: false,
+  color: color || 0x4488ff // 객체별 색상
+});
+const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+
+// 히트박스 엣지 (흰색 경계선)
+const hitboxEdges = new THREE.EdgesGeometry(hitboxGeometry);
+const hitboxLine = new THREE.LineSegments(
+  hitboxEdges,
+  new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.5, transparent: true })
+);
+group.add(hitboxLine);
+```
+
+**시각화 구성요소:**
+
+| 요소 | 설명 |
+|------|------|
+| PLY 포인트클라우드 | 실제 3D 스캔 데이터 (색상 포함) |
+| 반투명 히트박스 | 충돌 감지 영역 (15% 불투명) |
+| 흰색 엣지 라인 | 히트박스 경계선 (50% 불투명) |
+
+```
+┌─────────────────┐
+│ ░░░░░░░░░░░░░░░ │  ← 흰색 엣지 라인
+│ ░  ·····  ░░░░░ │
+│ ░ ·······  ░░░░ │  ← PLY 포인트클라우드
+│ ░  ·····  ░░░░░ │
+│ ░░░░░░░░░░░░░░░ │  ← 반투명 히트박스
+└─────────────────┘
+```
+
 ## 제약 조건
 
 1. **경계 검사**: 트럭 범위 내에만 배치
