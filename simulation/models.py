@@ -61,7 +61,7 @@ class SimulationState(BaseModel):
     load_percent: float = 0.0
 
 
-# 트럭 프리셋
+# 트럭 프리셋 (미터 단위)
 TRUCK_PRESETS = {
     "1ton": TruckSpec(
         name="1톤 트럭",
@@ -79,6 +79,13 @@ TRUCK_PRESETS = {
         name="11톤 트럭",
         width=2.4, depth=9.0, height=2.6, max_weight=11000
     ),
+}
+
+# 트럭 프리셋 (cm 단위) - OBB 패커용 (TRUCK_PRESETS와 일치)
+TRUCK_PRESETS_CM = {
+    "1ton": {"width": 170, "depth": 280, "height": 170},
+    "2.5ton": {"width": 200, "depth": 430, "height": 190},
+    "5ton": {"width": 230, "depth": 620, "height": 240},
 }
 
 # 가구별 기본 색상

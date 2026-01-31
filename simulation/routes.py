@@ -14,9 +14,11 @@ from .models import (
     FurniturePosition,
     TruckSpec,
     TRUCK_PRESETS,
+    TRUCK_PRESETS_CM,
     get_furniture_color,
 )
 from .optimizer import optimize_placement, PY3DBP_AVAILABLE
+from .obb_packer import optimize_obb, TRUCK_PRESETS_CM as OBB_TRUCK_PRESETS
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,7 @@ _simulation_states: dict[int, SimulationState] = {}
 
 # Static 파일 경로
 STATIC_DIR = Path(__file__).parent / "static"
+ASSETS_DIR = Path(__file__).parent / "assets"
 
 
 @router.get("/")
@@ -98,6 +101,15 @@ async def get_static_file(filename: str) -> FileResponse:
     return FileResponse(file_path)
 
 
+@router.get("/assets/{filename:path}")
+async def get_asset_file(filename: str) -> FileResponse:
+    """PLY 에셋 파일 제공 (aligned/ 서브디렉토리 포함)"""
+    file_path = ASSETS_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"Asset not found: {filename}")
+    return FileResponse(file_path, media_type="application/octet-stream")
+
+
 # ==================== 최적화 API ====================
 
 from pydantic import BaseModel
@@ -106,7 +118,7 @@ class OptimizeRequest(BaseModel):
     """최적화 요청"""
     truck_type: str = "2.5ton"
     items: list[dict]  # [{"id", "width", "depth", "height"}, ...]
-    algorithm: str = "auto"  # "auto" | "py3dbp" | "blf"
+    algorithm: str = "blf"  # "blf" | "py3dbp"
 
 
 class PlacementResponse(BaseModel):
@@ -148,10 +160,7 @@ async def optimize_truck_loading(request: OptimizeRequest) -> OptimizeResponse:
     truck = TRUCK_PRESETS.get(request.truck_type, TRUCK_PRESETS["2.5ton"])
 
     # 알고리즘 선택
-    if request.algorithm == "auto":
-        algo = "py3dbp" if PY3DBP_AVAILABLE else "blf"
-    else:
-        algo = request.algorithm
+    algo = request.algorithm
 
     logger.info(f"Optimization request: {len(request.items)} items, truck={request.truck_type}, algo={algo}")
 
@@ -193,56 +202,285 @@ async def get_optimizer_status() -> dict:
     }
 
 
+# ==================== OBB 최적화 API ====================
+
+class OBBOptimizeRequest(BaseModel):
+    """OBB 최적화 요청"""
+    items: list[dict]  # [{"id", "width", "depth", "height"}, ...]
+    truck_type: Optional[str] = None  # None = 자동 선택
+    unit: str = "m"  # "m" | "cm"
+    support_ratio: float = 0.7  # 지지 비율 (기본 70%)
+
+
+class OBBPlacementResponse(BaseModel):
+    """OBB 배치 결과"""
+    id: str
+    x: float
+    y: float
+    z: float
+    width: float
+    depth: float
+    height: float
+    orientation: int
+
+
+class OBBOptimizeResponse(BaseModel):
+    """OBB 최적화 응답"""
+    success: bool
+    truck_type: str
+    placements: list[OBBPlacementResponse]
+    unplaced_ids: list[str]
+    volume_utilization: float
+    message: str
+
+
+@router.post("/optimize-obb")
+async def optimize_obb_loading(request: OBBOptimizeRequest) -> OBBOptimizeResponse:
+    """
+    OBB 기반 3D Bin Packing 최적화 API
+
+    Extreme Points 알고리즘을 사용하여 트럭 적재 최적화를 수행합니다.
+
+    특징:
+    - 6방향 회전 지원
+    - 70% 지지 규칙 (안정성 보장)
+    - 벽면 채우기 우선순위 (Y → Z → X)
+    - 자동 트럭 선택 (truck_type=None)
+
+    Args:
+        items: [{"id", "width", "depth", "height"}, ...]
+        truck_type: "1ton" | "2.5ton" | "5ton" | None (자동)
+        unit: "m" | "cm" (기본 "m")
+        support_ratio: 지지 비율 (기본 0.7)
+
+    Returns:
+        각 가구의 최적 배치 위치 (Three.js 좌표계)
+    """
+    logger.info(
+        f"OBB Optimization: {len(request.items)} items, "
+        f"truck={request.truck_type or 'auto'}, unit={request.unit}"
+    )
+
+    result = optimize_obb(
+        items=request.items,
+        truck_type=request.truck_type,
+        unit=request.unit,
+        support_ratio=request.support_ratio
+    )
+
+    logger.info(
+        f"OBB Result: {result.volume_utilization}% utilization, "
+        f"{len(result.placed_items)} placed, {len(result.unplaced_items)} unplaced"
+    )
+
+    return OBBOptimizeResponse(
+        success=result.success,
+        truck_type=result.truck_type,
+        placements=[
+            OBBPlacementResponse(
+                id=p.item_id,
+                x=p.x,
+                y=p.y,
+                z=p.z,
+                width=p.width,
+                depth=p.depth,
+                height=p.height,
+                orientation=p.orientation
+            )
+            for p in result.placed_items
+        ],
+        unplaced_ids=result.unplaced_items,
+        volume_utilization=result.volume_utilization,
+        message=result.message
+    )
+
+
 def _get_sample_furniture(estimate_id: int) -> list[FurnitureItem]:
     """
-    샘플 가구 데이터 (테스트용) - 실제 PLY 파일 사용
+    샘플 가구 데이터 (테스트용) - PLY 파일 있으면 3D 렌더링
 
     실제 구현에서는 analyze-furniture 결과를 DB에서 조회
-    """
-    # 테스트 서버 URL (8080 포트)
-    base_url = "http://localhost:8080"
 
-    # 실제 존재하는 PLY 파일 사용
-    # 2.png 이미지에서 생성된 PLY 파일들
+    PLY 모델 비율 기준으로 실제 가구 크기 설정:
+    - 침대: 싱글(1.0x2.0), 더블(1.4x2.0), 퀸(1.5x2.0)
+    - 소파: 2인(1.4x0.85), 3인(2.0x0.9)
+    - 테이블: 거실(1.0x0.6), 소형(0.6x0.4)
+    - 협탁: 0.4~0.5 정사각형
+    - 캐비닛: 0.6x0.4 x 높이 1.0~1.5
+    """
+    # PLY 파일이 있는 가구만 3D 렌더링 (크기 1.3배 적용)
     sample_items = [
+        # === 침대 (BED) ===
+        # 2_BED_1.ply: 싱글침대 (1.3x2.28x0.59)
         FurnitureItem(
             id=f"{estimate_id}_bed_001",
             label="bed",
-            label_ko="침대",
+            label_ko="싱글침대",
             type="BED",
-            width=0.97, depth=1.0, height=0.48,
-            weight=60,
-            ply_url=f"{base_url}/test-ply/2_BED_1.ply",  # 15MB
+            width=1.3, depth=2.28, height=0.59,
+            weight=65,
+            ply_url="/simulation/assets/aligned/2_BED_1.ply",
             color=get_furniture_color("bed"),
         ),
+        # 1_BED_6.ply: 더블침대 (1.82x2.6x0.65)
+        FurnitureItem(
+            id=f"{estimate_id}_bed_002",
+            label="bed",
+            label_ko="더블침대",
+            type="BED",
+            width=1.82, depth=2.6, height=0.65,
+            weight=91,
+            ply_url="/simulation/assets/aligned/1_BED_6.ply",
+            color=get_furniture_color("bed"),
+        ),
+        # 9_BED_0.ply: 퀸침대 (1.95x2.6x0.72)
+        FurnitureItem(
+            id=f"{estimate_id}_bed_003",
+            label="bed",
+            label_ko="퀸침대",
+            type="BED",
+            width=1.95, depth=2.6, height=0.72,
+            weight=104,
+            ply_url="/simulation/assets/aligned/9_BED_0.ply",
+            color=get_furniture_color("bed"),
+        ),
+        # 5_BED_0.ply: 싱글침대2 (1.17x2.47x0.59)
+        FurnitureItem(
+            id=f"{estimate_id}_bed_004",
+            label="bed",
+            label_ko="싱글침대2",
+            type="BED",
+            width=1.17, depth=2.47, height=0.59,
+            weight=59,
+            ply_url="/simulation/assets/aligned/5_BED_0.ply",
+            color=get_furniture_color("bed"),
+        ),
+        # === 소파 (SOFA) ===
+        # 9_SOFA_1.ply: 1인소파 (1.04x1.11x0.98)
+        FurnitureItem(
+            id=f"{estimate_id}_sofa_001",
+            label="sofa",
+            label_ko="1인소파",
+            type="SOFA",
+            width=1.04, depth=1.11, height=0.98,
+            weight=33,
+            ply_url="/simulation/assets/aligned/9_SOFA_1.ply",
+            color=get_furniture_color("sofa"),
+        ),
+        # 12_SOFA_0.ply: 2인소파 (2.34x1.17x1.04)
+        FurnitureItem(
+            id=f"{estimate_id}_sofa_002",
+            label="sofa",
+            label_ko="2인소파",
+            type="SOFA",
+            width=2.34, depth=1.17, height=1.04,
+            weight=52,
+            ply_url="/simulation/assets/aligned/12_SOFA_0.ply",
+            color=get_furniture_color("sofa"),
+        ),
+        # === 테이블 (TABLE) ===
+        # 4_COFFEE_TABLE_1.ply: 거실테이블 (1.04x0.65x0.59)
+        FurnitureItem(
+            id=f"{estimate_id}_table_001",
+            label="coffee table",
+            label_ko="거실테이블",
+            type="COFFEE_TABLE",
+            width=1.04, depth=0.65, height=0.59,
+            weight=26,
+            ply_url="/simulation/assets/aligned/4_COFFEE_TABLE_1.ply",
+            color=get_furniture_color("table"),
+        ),
+        # 11_COFFEE_TABLE_1.ply: 소형테이블 (0.65x0.52x0.52)
+        FurnitureItem(
+            id=f"{estimate_id}_table_002",
+            label="coffee table",
+            label_ko="소형테이블",
+            type="COFFEE_TABLE",
+            width=0.65, depth=0.52, height=0.52,
+            weight=13,
+            ply_url="/simulation/assets/aligned/11_COFFEE_TABLE_1.ply",
+            color=get_furniture_color("table"),
+        ),
+        # === 의자/스툴 (CHAIR) ===
+        # 4_CHAIR_STOOL_3.ply: 스툴 (0.52x0.52x0.59)
+        FurnitureItem(
+            id=f"{estimate_id}_chair_001",
+            label="chair",
+            label_ko="스툴",
+            type="CHAIR_STOOL",
+            width=0.52, depth=0.52, height=0.59,
+            weight=5,
+            ply_url="/simulation/assets/aligned/4_CHAIR_STOOL_3.ply",
+            color=get_furniture_color("chair"),
+        ),
+        # === 수납장 (CABINET) ===
+        # 8_CABINET_1.ply: 수납장 (0.78x0.52x1.56)
+        FurnitureItem(
+            id=f"{estimate_id}_cabinet_001",
+            label="cabinet",
+            label_ko="수납장",
+            type="CABINET",
+            width=0.78, depth=0.52, height=1.56,
+            weight=39,
+            ply_url="/simulation/assets/aligned/8_CABINET_1.ply",
+            color=get_furniture_color("cabinet"),
+        ),
+        # === 협탁 (NIGHTSTAND) ===
+        # 2_NIGHTSTAND_0.ply: 협탁 (0.52x0.52x0.72)
         FurnitureItem(
             id=f"{estimate_id}_nightstand_001",
             label="nightstand",
             label_ko="협탁",
             type="NIGHTSTAND",
-            width=0.9, depth=0.77, height=1.01,
-            weight=15,
-            ply_url=f"{base_url}/test-ply/2_NIGHTSTAND_0.ply",  # 12MB
+            width=0.52, depth=0.52, height=0.72,
+            weight=16,
+            ply_url="/simulation/assets/aligned/2_NIGHTSTAND_0.ply",
             color=get_furniture_color("cabinet"),
         ),
+        # 10_NIGHTSTAND_0.ply: 협탁2 (0.46x0.59x0.78)
+        FurnitureItem(
+            id=f"{estimate_id}_nightstand_002",
+            label="nightstand",
+            label_ko="협탁2",
+            type="NIGHTSTAND",
+            width=0.46, depth=0.59, height=0.78,
+            weight=13,
+            ply_url="/simulation/assets/aligned/10_NIGHTSTAND_0.ply",
+            color=get_furniture_color("cabinet"),
+        ),
+        # === TV (MONITOR_TV) ===
+        # 2_MONITOR_TV_3.ply: 55인치TV (1.59x0.09x0.91)
         FurnitureItem(
             id=f"{estimate_id}_tv_001",
             label="television",
-            label_ko="TV",
+            label_ko="55인치TV",
             type="MONITOR_TV",
-            width=1.03, depth=0.11, height=0.57,
-            weight=10,
-            ply_url=f"{base_url}/test-ply/2_MONITOR_TV_3.ply",  # 2.2MB
+            width=1.59, depth=0.09, height=0.91,
+            weight=20,
+            ply_url="/simulation/assets/aligned/2_MONITOR_TV_3.ply",
             color="#333333",
         ),
+        # === 화분 (POTTED_PLANT) ===
+        # 2_POTTED_PLANT_4.ply: 대형화분 (0.46x0.46x1.17)
         FurnitureItem(
             id=f"{estimate_id}_plant_001",
             label="potted plant",
-            label_ko="화분",
+            label_ko="대형화분",
             type="POTTED_PLANT",
-            width=0.43, depth=0.43, height=1.01,
-            weight=5,
-            ply_url=f"{base_url}/test-ply/2_POTTED_PLANT_2.ply",  # 4.4MB
+            width=0.46, depth=0.46, height=1.17,
+            weight=13,
+            ply_url="/simulation/assets/aligned/2_POTTED_PLANT_4.ply",
+            color="#228B22",
+        ),
+        # 2_POTTED_PLANT_2.ply: 중형화분 (0.39x0.39x0.72)
+        FurnitureItem(
+            id=f"{estimate_id}_plant_002",
+            label="potted plant",
+            label_ko="중형화분",
+            type="POTTED_PLANT",
+            width=0.39, depth=0.39, height=0.72,
+            weight=7,
+            ply_url="/simulation/assets/aligned/2_POTTED_PLANT_2.ply",
             color="#228B22",
         ),
     ]

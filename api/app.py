@@ -15,6 +15,7 @@ from api.routes import (
     health_router,
     furniture_router,
 )
+from simulation.routes import router as simulation_router
 
 # Add AI module to path
 ai_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ai")
@@ -34,6 +35,7 @@ app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 # Include routers
 app.include_router(health_router, tags=["Health"])
 app.include_router(furniture_router, tags=["Furniture Analysis"])
+app.include_router(simulation_router, tags=["Simulation"])
 
 
 @app.on_event("startup")

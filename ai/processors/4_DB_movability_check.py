@@ -29,7 +29,6 @@ class LabelMappingResult:
 # 하위 호환성을 위한 별칭
 MovabilityResult = LabelMappingResult
 
-
 class MovabilityChecker:
     """
     라벨 매핑기 (구 이동 가능 여부 판단기)
