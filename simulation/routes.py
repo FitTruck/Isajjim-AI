@@ -19,6 +19,7 @@ from .models import (
 )
 from .optimizer import optimize_placement, PY3DBP_AVAILABLE
 from .obb_packer import optimize_obb, TRUCK_PRESETS_CM as OBB_TRUCK_PRESETS
+from .ply_alignment import PLYAlignmentService, AlignmentResult, OPEN3D_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +294,89 @@ async def optimize_obb_loading(request: OBBOptimizeRequest) -> OBBOptimizeRespon
         volume_utilization=result.volume_utilization,
         message=result.message
     )
+
+
+# ==================== PLY 정렬 API ====================
+
+class AlignPLYRequest(BaseModel):
+    """PLY 정렬 요청"""
+    ply_base64: str  # Base64 인코딩된 PLY 데이터
+    convert_to_yup: bool = True  # Y-up 좌표계로 변환 여부
+
+
+class AlignPLYResponse(BaseModel):
+    """PLY 정렬 응답"""
+    success: bool
+    aligned_ply_base64: Optional[str] = None
+    width: float
+    depth: float
+    height: float
+    point_count: int
+    message: str
+
+
+@router.post("/align-ply")
+async def align_ply(request: AlignPLYRequest) -> AlignPLYResponse:
+    """
+    PLY 객체 정렬 API
+
+    OBB(Oriented Bounding Box) 기반으로 PLY 객체를 정렬합니다.
+
+    기능:
+    - OBB.R.T 역회전으로 주축 정렬
+    - 바닥에 배치 (Z-min 또는 Y-min = 0)
+    - Z-up → Y-up 좌표계 변환 (선택)
+
+    Args:
+        ply_base64: Base64 인코딩된 PLY 데이터
+        convert_to_yup: True면 Three.js 호환 Y-up 좌표계로 변환
+
+    Returns:
+        정렬된 PLY (Base64) + AABB 치수
+    """
+    if not OPEN3D_AVAILABLE:
+        return AlignPLYResponse(
+            success=False,
+            width=0, depth=0, height=0,
+            point_count=0,
+            message="Open3D not installed. Run: pip install open3d"
+        )
+
+    try:
+        service = PLYAlignmentService(convert_to_yup=request.convert_to_yup)
+        aligned_base64, result = service.align_from_base64(request.ply_base64)
+
+        return AlignPLYResponse(
+            success=result.success,
+            aligned_ply_base64=aligned_base64 if result.success else None,
+            width=result.width,
+            depth=result.depth,
+            height=result.height,
+            point_count=result.point_count,
+            message=result.message
+        )
+    except Exception as e:
+        logger.error(f"PLY alignment failed: {e}")
+        return AlignPLYResponse(
+            success=False,
+            width=0, depth=0, height=0,
+            point_count=0,
+            message=str(e)
+        )
+
+
+@router.get("/alignment-status")
+async def get_alignment_status() -> dict:
+    """PLY 정렬 서비스 상태 확인"""
+    return {
+        "open3d_available": OPEN3D_AVAILABLE,
+        "install_command": "pip install open3d" if not OPEN3D_AVAILABLE else None,
+        "features": [
+            "OBB-based axis alignment",
+            "Z-up to Y-up coordinate conversion",
+            "Floor placement (min=0)"
+        ]
+    }
 
 
 def _get_sample_furniture(estimate_id: int) -> list[FurnitureItem]:

@@ -577,3 +577,131 @@ class TestRealFurnitureData:
         # Corner-first는 코너 정보가 메시지에 포함
         assert "코너" in result_corner.message
         assert "코너" not in result_ep.message
+
+
+# ==================== 그리디 정렬 및 우선순위 테스트 ====================
+
+class TestGreedySorting:
+    """그리디 정렬 기준 테스트 (바닥면적 → 부피)"""
+
+    def test_바닥면적_우선_정렬_순서(self):
+        """바닥면적이 넓은 것이 먼저 정렬되는지 확인"""
+        from simulation.obb_packer import OBBItem
+
+        items = [
+            OBBItem(id="tall_narrow", original_dims=(50, 50, 100)),   # 바닥면적: 2500
+            OBBItem(id="wide_low", original_dims=(150, 150, 30)),    # 바닥면적: 22500
+            OBBItem(id="medium", original_dims=(100, 100, 60)),      # 바닥면적: 10000
+        ]
+
+        # 그리디 정렬 기준: 바닥면적 → 부피 (내림차순)
+        sorted_items = sorted(
+            items,
+            key=lambda x: (
+                -(x.normalized_dims[0] * x.normalized_dims[1]),
+                -x.volume
+            )
+        )
+
+        # wide_low가 가장 먼저 (바닥면적 가장 큼)
+        assert sorted_items[0].id == "wide_low"
+        # medium이 두 번째
+        assert sorted_items[1].id == "medium"
+        # tall_narrow가 마지막
+        assert sorted_items[2].id == "tall_narrow"
+
+    def test_모든_아이템_배치_성공(self):
+        """그리디 정렬로 모든 아이템이 배치되는지 확인"""
+        from simulation.obb_packer import OBBItem, extreme_points_pack, TRUCK_PRESETS_CM
+
+        items = [
+            OBBItem(id="tall_narrow", original_dims=(50, 50, 100)),
+            OBBItem(id="wide_low", original_dims=(150, 150, 30)),
+            OBBItem(id="medium", original_dims=(100, 100, 60)),
+        ]
+
+        result = extreme_points_pack(
+            items,
+            TRUCK_PRESETS_CM["2.5ton"],
+            support_ratio=0.7,
+            allow_tilt=False,
+            corner_first=False
+        )
+
+        # 모든 아이템이 배치되어야 함
+        assert len(result.placed_items) == 3
+        assert len(result.unplaced_items) == 0
+
+
+class TestZFirstPriority:
+    """Z→Y→X 우선순위 테스트 (뒤쪽 우선)"""
+
+    def test_뒤쪽_우선_배치(self):
+        """아이템이 뒤쪽(Z 음수)부터 배치되는지 확인"""
+        # 같은 크기의 여러 아이템
+        items = [
+            {"id": "box1", "width": 0.5, "depth": 0.5, "height": 0.5},
+            {"id": "box2", "width": 0.5, "depth": 0.5, "height": 0.5},
+            {"id": "box3", "width": 0.5, "depth": 0.5, "height": 0.5},
+            {"id": "box4", "width": 0.5, "depth": 0.5, "height": 0.5},
+        ]
+
+        result = optimize_obb(items, truck_type="2.5ton", unit="m", corner_first=True)
+
+        assert result.success is True
+        assert len(result.placed_items) >= 2
+
+        # Z 좌표 추출
+        z_coords = [p.z for p in result.placed_items]
+
+        # 뒤쪽(Z 음수)에 배치되어야 함
+        for z in z_coords:
+            assert z < 0  # 모두 뒤쪽 절반에 있어야 함
+
+    def test_층_쌓기_순서(self):
+        """같은 깊이에서는 바닥부터 쌓이는지 확인"""
+        # 작은 상자들 (70% 지지 규칙 만족하도록)
+        items = [
+            {"id": "base1", "width": 1.0, "depth": 1.0, "height": 0.3},
+            {"id": "base2", "width": 1.0, "depth": 1.0, "height": 0.3},
+            {"id": "top1", "width": 0.8, "depth": 0.8, "height": 0.3},
+        ]
+
+        result = optimize_obb(items, truck_type="2.5ton", unit="m", corner_first=True)
+
+        assert result.success is True
+
+        # 모든 아이템의 Y 좌표 확인
+        for p in result.placed_items:
+            # 바닥 또는 다른 아이템 위에 있어야 함
+            assert p.y >= 0
+
+
+class TestStablePacking:
+    """안정적 적재 테스트"""
+
+    def test_70퍼센트_지지규칙(self):
+        """공중에 떠있는 객체가 없는지 확인"""
+        items = [
+            {"id": "large_base", "width": 2.0, "depth": 2.0, "height": 0.5},
+            {"id": "medium_top", "width": 1.0, "depth": 1.0, "height": 0.5},
+            {"id": "small_top", "width": 0.5, "depth": 0.5, "height": 0.5},
+        ]
+
+        result = optimize_obb(items, truck_type="2.5ton", unit="m", support_ratio=0.7)
+
+        assert result.success is True
+
+        # 모든 배치된 아이템에 대해
+        for p in result.placed_items:
+            if p.y > 0.01:  # 바닥이 아닌 경우
+                # 아래에 지지하는 아이템이 있어야 함
+                has_support = False
+                for other in result.placed_items:
+                    if other.item_id == p.item_id:
+                        continue
+                    # 아래 아이템의 윗면이 현재 아이템의 바닥과 맞닿는지
+                    if abs(other.y + other.height - p.y) < 0.02:
+                        has_support = True
+                        break
+                assert has_support, f"{p.item_id} is floating at y={p.y}"

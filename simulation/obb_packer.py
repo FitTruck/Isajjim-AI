@@ -444,14 +444,15 @@ def find_best_placement(
     """
     최적 배치 위치 찾기
 
-    모든 EP에서 회전 시도 → 제약 조건 검사 → Y→Z→X 우선순위로 최적 선택
+    모든 EP에서 회전 시도 → 제약 조건 검사 → Z→Y→X 우선순위로 최적 선택
+    (뒤쪽(안쪽)부터 채우고, 같은 깊이면 바닥부터, 같은 높이면 왼쪽부터)
     동일 점수일 경우 긴 쪽이 트럭 길이 방향(depth)으로 향하는 방향 우선
 
     Args:
         allow_tilt: True면 6방향 모두 허용, False면 수평 회전만 (기본)
     """
     best_placement = None
-    best_score = (float('inf'), float('inf'), float('inf'), 0)  # (Y, Z, X, natural_orientation)
+    best_score = (float('inf'), float('inf'), float('inf'), 0)  # (Z, Y, X, natural_orientation)
 
     L, W, H = item.normalized_dims
 
@@ -479,10 +480,11 @@ def find_best_placement(
             if not check_support(cx, cy, cz, w, d, placed, support_ratio):
                 continue
 
-            # 점수 계산 (Y → Z → X 우선순위)
+            # 점수 계산 (Z → Y → X 우선순위) - 뒤쪽(안쪽)부터 채움
+            # Z: 뒤쪽(음수)부터, Y: 바닥부터, X: 왼쪽부터
             # 마지막 요소: d >= w면 0 (자연스러운 방향 우선), 아니면 1
             natural = 0 if d >= w else 1
-            score = (cy, cz, cx, natural)
+            score = (cz, cy, cx, natural)
 
             if score < best_score:
                 best_score = score
@@ -516,8 +518,15 @@ def extreme_points_pack(
     truck_h = truck_dims["height"]
     truck_volume = truck_w * truck_d * truck_h
 
-    # 부피 순 정렬 (큰 것 먼저)
-    sorted_items = sorted(items, key=lambda x: x.volume, reverse=True)
+    # 그리디 정렬: 바닥면적 → 부피 (넓고 큰 것 먼저 = 안정적 적재)
+    # 바닥면적이 넓은 것이 먼저 배치되면 그 위에 쌓기 좋음
+    sorted_items = sorted(
+        items,
+        key=lambda x: (
+            -(x.normalized_dims[0] * x.normalized_dims[1]),  # 바닥면적 (내림차순)
+            -x.volume  # 부피 (내림차순)
+        )
+    )
 
     # 초기 EP: 뒤쪽-왼쪽-바닥 코너
     extreme_points = [ExtremePoint(x=-truck_w / 2, y=0, z=-truck_d / 2)]
