@@ -170,21 +170,24 @@ def check_boundary(
     w: float, d: float, h: float,
     truck_w: float, truck_d: float, truck_h: float
 ) -> bool:
-    """경계 내 배치 가능 여부"""
-    # 중심 좌표 기준 체크
+    """경계 내 배치 가능 여부 (객체가 컨테이너를 절대 벗어나지 않도록 엄격 체크)"""
+    # 중심 좌표 기준 체크 - tolerance 없이 엄격하게 검사
     half_w, half_d = w / 2, d / 2
 
-    if x - half_w < -truck_w / 2 - 0.001:
+    # X축 경계 (좌우)
+    if x - half_w < -truck_w / 2:
         return False
-    if x + half_w > truck_w / 2 + 0.001:
+    if x + half_w > truck_w / 2:
         return False
-    if z - half_d < -truck_d / 2 - 0.001:
+    # Z축 경계 (앞뒤)
+    if z - half_d < -truck_d / 2:
         return False
-    if z + half_d > truck_d / 2 + 0.001:
+    if z + half_d > truck_d / 2:
         return False
-    if y < -0.001:
+    # Y축 경계 (바닥, 천장)
+    if y < 0:
         return False
-    if y + h > truck_h + 0.001:
+    if y + h > truck_h:
         return False
 
     return True
@@ -1068,6 +1071,126 @@ def _find_best_truck_py3dbp(items: list[dict], scale: float = 1.0) -> tuple[str,
     return "5ton", result
 
 
+@dataclass
+class MultiTruckResult:
+    """멀티 트럭 패킹 결과"""
+    success: bool
+    trucks: list[dict]  # [{"type": "5ton", "placements": [...], "utilization": 85.2}, ...]
+    total_trucks: int
+    unplaced_items: list[str]
+    message: str
+
+
+def select_trucks_for_all_items(
+    items: list[OBBItem],
+    support_ratio: float = 0.7,
+    allow_tilt: bool = False,
+    corner_first: bool = True
+) -> MultiTruckResult:
+    """
+    모든 아이템을 배치할 수 있는 최소 트럭 조합 선택
+
+    전략:
+    1. 단일 트럭 시도: 1ton → 2.5ton → 5ton
+    2. 5ton에도 안 들어가면 조합: 5ton + 1ton → 5ton + 2.5ton → 5ton + 5ton
+    3. 미배치가 없을 때까지 반복
+    """
+    # 1. 단일 트럭 시도
+    truck_order = ["1ton", "2.5ton", "5ton"]
+
+    for truck_type in truck_order:
+        truck_dims = TRUCK_PRESETS_CM[truck_type]
+        result = extreme_points_pack(items, truck_dims, support_ratio, allow_tilt, corner_first)
+
+        if result.success:
+            truck_volume = truck_dims["width"] * truck_dims["depth"] * truck_dims["height"]
+            placed_volume = sum(p.width * p.depth * p.height for p in result.placed_items)
+            utilization = (placed_volume / truck_volume) * 100 if truck_volume > 0 else 0
+
+            return MultiTruckResult(
+                success=True,
+                trucks=[{
+                    "type": truck_type,
+                    "placements": result.placed_items,
+                    "utilization": round(utilization, 1)
+                }],
+                total_trucks=1,
+                unplaced_items=[],
+                message=f"1대 트럭 사용: {truck_type}"
+            )
+
+    # 2. 5ton에도 안 들어가면 멀티 트럭 조합
+    trucks_result = []
+    remaining_items = items.copy()
+    additional_trucks = ["1ton", "2.5ton", "5ton"]  # 추가 트럭 우선순위
+
+    # 첫 번째 트럭: 5ton
+    first_truck_dims = TRUCK_PRESETS_CM["5ton"]
+    first_result = extreme_points_pack(remaining_items, first_truck_dims, support_ratio, allow_tilt, corner_first)
+
+    first_volume = first_truck_dims["width"] * first_truck_dims["depth"] * first_truck_dims["height"]
+    first_placed_volume = sum(p.width * p.depth * p.height for p in first_result.placed_items)
+    first_utilization = (first_placed_volume / first_volume) * 100 if first_volume > 0 else 0
+
+    trucks_result.append({
+        "type": "5ton",
+        "placements": first_result.placed_items,
+        "utilization": round(first_utilization, 1)
+    })
+
+    # 배치된 아이템 제거
+    placed_ids = {p.item_id for p in first_result.placed_items}
+    remaining_items = [item for item in remaining_items if item.id not in placed_ids]
+
+    # 3. 미배치 아이템이 있으면 추가 트럭 할당
+    while remaining_items:
+        placed_any = False
+
+        for add_truck_type in additional_trucks:
+            if not remaining_items:
+                break
+
+            add_truck_dims = TRUCK_PRESETS_CM[add_truck_type]
+            add_result = extreme_points_pack(remaining_items, add_truck_dims, support_ratio, allow_tilt, corner_first)
+
+            if add_result.placed_items:
+                add_volume = add_truck_dims["width"] * add_truck_dims["depth"] * add_truck_dims["height"]
+                add_placed_volume = sum(p.width * p.depth * p.height for p in add_result.placed_items)
+                add_utilization = (add_placed_volume / add_volume) * 100 if add_volume > 0 else 0
+
+                trucks_result.append({
+                    "type": add_truck_type,
+                    "placements": add_result.placed_items,
+                    "utilization": round(add_utilization, 1)
+                })
+
+                # 배치된 아이템 제거
+                placed_ids = {p.item_id for p in add_result.placed_items}
+                remaining_items = [item for item in remaining_items if item.id not in placed_ids]
+                placed_any = True
+
+                if add_result.success:  # 모든 remaining이 배치됨
+                    break
+
+        if not placed_any:
+            # 더 이상 배치할 수 없음
+            break
+
+    # 결과 메시지 생성
+    truck_names = [t["type"] for t in trucks_result]
+    message = f"{len(trucks_result)}대 트럭 사용: {' + '.join(truck_names)}"
+
+    unplaced_ids = [item.id for item in remaining_items]
+
+    return MultiTruckResult(
+        success=len(unplaced_ids) == 0,
+        trucks=trucks_result,
+        total_trucks=len(trucks_result),
+        unplaced_items=unplaced_ids,
+        message=message
+    )
+
+
 def optimize_obb(
     items: list[dict],
     truck_type: Optional[str] = None,
@@ -1122,5 +1245,57 @@ def optimize_obb(
             box.width /= 100
             box.depth /= 100
             box.height /= 100
+
+    return result
+
+
+def optimize_obb_multi(
+    items: list[dict],
+    unit: str = "cm",
+    support_ratio: float = 0.7,
+    allow_tilt: bool = False,
+    corner_first: bool = True
+) -> MultiTruckResult:
+    """
+    멀티 트럭 OBB 최적화 메인 함수
+
+    자동으로 최소 트럭 조합을 선택하여 모든 아이템을 배치합니다.
+
+    Args:
+        items: [{"id", "width", "depth", "height"}, ...]
+        unit: "cm" | "m"
+        support_ratio: 지지 비율 (기본 0.7)
+        allow_tilt: 6방향 회전 허용 여부
+        corner_first: 코너 우선 배치 여부
+
+    Returns:
+        MultiTruckResult
+    """
+    # 단위 변환 (m → cm)
+    scale = 100 if unit == "m" else 1
+
+    # OBBItem 리스트 생성
+    obb_items = []
+    for item in items:
+        dims = (
+            item["width"] * scale,
+            item["depth"] * scale,
+            item["height"] * scale
+        )
+        obb_items.append(OBBItem(id=item["id"], original_dims=dims))
+
+    # 멀티 트럭 선택
+    result = select_trucks_for_all_items(obb_items, support_ratio, allow_tilt, corner_first)
+
+    # 단위 역변환 (cm → m) 필요시
+    if unit == "m":
+        for truck in result.trucks:
+            for box in truck["placements"]:
+                box.x /= 100
+                box.y /= 100
+                box.z /= 100
+                box.width /= 100
+                box.depth /= 100
+                box.height /= 100
 
     return result

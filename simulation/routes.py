@@ -18,7 +18,7 @@ from .models import (
     get_furniture_color,
 )
 from .optimizer import optimize_placement, PY3DBP_AVAILABLE
-from .obb_packer import optimize_obb, TRUCK_PRESETS_CM as OBB_TRUCK_PRESETS
+from .obb_packer import optimize_obb, optimize_obb_multi, TRUCK_PRESETS_CM as OBB_TRUCK_PRESETS
 from .ply_alignment import PLYAlignmentService, AlignmentResult, OPEN3D_AVAILABLE
 
 logger = logging.getLogger(__name__)
@@ -235,6 +235,22 @@ class OBBOptimizeResponse(BaseModel):
     message: str
 
 
+class TruckPlacement(BaseModel):
+    """개별 트럭 배치 결과"""
+    type: str
+    placements: list[OBBPlacementResponse]
+    utilization: float
+
+
+class MultiTruckOptimizeResponse(BaseModel):
+    """멀티 트럭 OBB 최적화 응답"""
+    success: bool
+    trucks: list[TruckPlacement]
+    total_trucks: int
+    unplaced_ids: list[str]
+    message: str
+
+
 @router.post("/optimize-obb")
 async def optimize_obb_loading(request: OBBOptimizeRequest) -> OBBOptimizeResponse:
     """
@@ -292,6 +308,76 @@ async def optimize_obb_loading(request: OBBOptimizeRequest) -> OBBOptimizeRespon
         ],
         unplaced_ids=result.unplaced_items,
         volume_utilization=result.volume_utilization,
+        message=result.message
+    )
+
+
+class MultiTruckOptimizeRequest(BaseModel):
+    """멀티 트럭 OBB 최적화 요청"""
+    items: list[dict]  # [{"id", "width", "depth", "height"}, ...]
+    unit: str = "m"  # "m" | "cm"
+    support_ratio: float = 0.7  # 지지 비율 (기본 70%)
+
+
+@router.post("/optimize-obb-auto")
+async def optimize_obb_auto_loading(request: MultiTruckOptimizeRequest) -> MultiTruckOptimizeResponse:
+    """
+    멀티 트럭 OBB 자동 최적화 API
+
+    자동으로 최소 트럭 조합을 선택하여 모든 아이템을 배치합니다.
+
+    전략:
+    1. 단일 트럭 시도: 1ton → 2.5ton → 5ton
+    2. 5ton에도 안 들어가면 조합: 5ton + 1ton → 5ton + 2.5ton → 5ton + 5ton
+    3. 미배치가 없을 때까지 반복
+
+    Args:
+        items: [{"id", "width", "depth", "height"}, ...]
+        unit: "m" | "cm" (기본 "m")
+        support_ratio: 지지 비율 (기본 0.7)
+
+    Returns:
+        멀티 트럭 배치 결과 (각 트럭별 배치 정보)
+    """
+    logger.info(
+        f"Multi-Truck OBB Optimization: {len(request.items)} items, unit={request.unit}"
+    )
+
+    result = optimize_obb_multi(
+        items=request.items,
+        unit=request.unit,
+        support_ratio=request.support_ratio
+    )
+
+    logger.info(
+        f"Multi-Truck Result: {result.total_trucks} trucks, "
+        f"{len(result.unplaced_items)} unplaced, message={result.message}"
+    )
+
+    return MultiTruckOptimizeResponse(
+        success=result.success,
+        trucks=[
+            TruckPlacement(
+                type=truck["type"],
+                placements=[
+                    OBBPlacementResponse(
+                        id=p.item_id,
+                        x=p.x,
+                        y=p.y,
+                        z=p.z,
+                        width=p.width,
+                        depth=p.depth,
+                        height=p.height,
+                        orientation=p.orientation
+                    )
+                    for p in truck["placements"]
+                ],
+                utilization=truck["utilization"]
+            )
+            for truck in result.trucks
+        ],
+        total_trucks=result.total_trucks,
+        unplaced_ids=result.unplaced_items,
         message=result.message
     )
 

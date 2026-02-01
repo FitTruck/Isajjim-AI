@@ -89,14 +89,14 @@
       z-index: 100;
     }
 
-    #truck-selector { display: flex; gap: 10px; }
+    #truck-selector { display: flex; gap: 6px; }
 
     .truck-btn {
-      padding: 21px 30px;
+      padding: 10px 16px;
       border: none;
-      border-radius: 14px;
+      border-radius: 8px;
       background: rgba(255,255,255,0.9);
-      font-size: 24px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
@@ -105,19 +105,19 @@
     .truck-btn:hover { background: white; transform: scale(1.05); }
     .truck-btn.active { background: #007bff; color: white; }
 
-    #action-buttons { display: flex; gap: 14px; }
+    #action-buttons { display: flex; gap: 8px; }
 
     .btn {
-      padding: 21px 36px;
+      padding: 10px 18px;
       border: none;
-      border-radius: 16px;
-      font-size: 24px;
+      border-radius: 10px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 6px;
     }
 
     .btn-primary { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; }
@@ -169,12 +169,12 @@
     #selected-info .height-info { font-size: 11px; color: #007bff; font-weight: 500; }
 
     .control-btn {
-      padding: 21px 30px;
+      padding: 8px 14px;
       border: 1px solid #dee2e6;
-      border-radius: 14px;
+      border-radius: 8px;
       background: white;
       cursor: pointer;
-      font-size: 27px;
+      font-size: 14px;
       font-weight: 600;
     }
 
@@ -184,16 +184,16 @@
     .height-controls {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 4px;
     }
 
     .height-btn {
-      padding: 15px 24px;
+      padding: 6px 12px;
       border: 1px solid #dee2e6;
-      border-radius: 12px;
+      border-radius: 6px;
       background: white;
       cursor: pointer;
-      font-size: 30px;
+      font-size: 14px;
       font-weight: 600;
       line-height: 1;
     }
@@ -304,7 +304,7 @@
           <button class="btn btn-secondary" onclick="toggleHelp()">?</button>
           <button class="btn btn-secondary" onclick="resetCamera()">카메라</button>
           <button class="btn btn-primary" onclick="serverOptimize()">BLF</button>
-          <button class="btn btn-primary" onclick="serverOptimizeOBB()" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);">OBB</button>
+          <button class="btn btn-primary" onclick="serverOptimizeOBB()" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);" title="자동으로 최적 트럭 선택">자동</button>
           <button class="btn btn-danger" onclick="clearAll()">초기화</button>
           <span id="align-status" style="padding: 8px 12px; border-radius: 8px; font-size: 12px; background: #17a2b8; color: white; margin-left: 8px;">정렬됨</span>
         </div>
@@ -1183,12 +1183,17 @@
       updateStats();
     };
 
-    // ==================== OBB 서버 최적화 ====================
+    // ==================== OBB 서버 최적화 (멀티 트럭 자동 선택) ====================
+
+    // 멀티 트럭 저장 (시각화용)
+    let multiTrucks = [];
+
     window.serverOptimizeOBB = async function() {
-      console.log('=== serverOptimizeOBB 호출 ===');
+      console.log('=== serverOptimizeOBB 자동 호출 ===');
 
       // 먼저 모든 가구 초기화
       resetAllFurniture();
+      clearMultiTrucks();
 
       // 모든 가구 수집
       const items = [];
@@ -1211,15 +1216,13 @@
         return;
       }
 
-      const truckType = document.querySelector('.truck-btn.active')?.dataset.truck || '2.5ton';
-      setLoading(true, 'OBB 최적화 계산 중...');
+      setLoading(true, 'OBB 자동 최적화 계산 중...');
 
       try {
-        const response = await fetch('/simulation/optimize-obb', {
+        const response = await fetch('/simulation/optimize-obb-auto', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            truck_type: truckType,
             items: items.map(item => ({
               id: item.id,
               width: item.width,
@@ -1231,26 +1234,225 @@
           })
         });
 
-        if (!response.ok) throw new Error('OBB Optimization failed');
+        if (!response.ok) throw new Error('OBB Auto Optimization failed');
 
         const result = await response.json();
-        console.log('OBB 최적화 결과:', result);
+        console.log('OBB 자동 최적화 결과:', result);
 
-        // 애니메이션으로 결과 적용
-        setLoading(false);  // 계산 완료, 애니메이션 시작 전 로딩 해제
+        // 멀티 트럭 시각화 생성
+        createMultiTrucks(result.trucks);
 
-        await animateOBBPlacements(result.placements, items, 300);
+        // 첫 번째 트럭으로 UI 업데이트
+        if (result.trucks.length > 0) {
+          updateTruckSelection(result.trucks[0].type);
+        }
 
-        const autoTruck = result.truck_type !== truckType ? ` (권장: ${result.truck_type})` : '';
-        alert(`OBB 최적화 완료!\n${result.message}\n적재율: ${result.volume_utilization}%${autoTruck}`);
+        setLoading(false);
+
+        // 각 트럭별로 배치 애니메이션
+        await animateMultiTruckPlacements(result.trucks, items, 210);
+
+        // 결과 알림
+        const truckSummary = result.trucks.map(t => `${TRUCK_SPECS[t.type]?.name || t.type}(${t.utilization}%)`).join(' + ');
+        alert(`OBB 자동 최적화 완료!\n${result.message}\n트럭: ${truckSummary}`);
 
       } catch (error) {
-        console.error('OBB 최적화 실패:', error);
-        alert('OBB 최적화 실패');
+        console.error('OBB 자동 최적화 실패:', error);
+        alert('OBB 자동 최적화 실패');
       } finally {
         setLoading(false);
       }
     };
+
+    // 트럭 선택 UI 업데이트
+    function updateTruckSelection(truckType) {
+      document.querySelectorAll('.truck-btn').forEach((btn) => {
+        btn.classList.remove('active');
+        if (btn.dataset.truck === truckType) {
+          btn.classList.add('active');
+        }
+      });
+
+      if (TRUCK_SPECS[truckType]) {
+        currentTruck = TRUCK_SPECS[truckType];
+      }
+    }
+
+    // 멀티 트럭 시각화 생성
+    function createMultiTrucks(trucks) {
+      clearMultiTrucks();
+
+      let offsetX = 0;
+      const gap = 0.5; // 트럭 간 간격
+
+      trucks.forEach((truckData, index) => {
+        const spec = TRUCK_SPECS[truckData.type];
+        if (!spec) return;
+
+        // 첫 번째 트럭은 기존 위치, 나머지는 오른쪽으로 배치
+        if (index === 0) {
+          createTruck(spec);
+          multiTrucks.push({ spec, offsetX: 0 });
+        } else {
+          offsetX += currentTruck.width / 2 + gap + spec.width / 2;
+          const truckGroup = createTruckAt(spec, offsetX);
+          multiTrucks.push({ spec, offsetX, group: truckGroup });
+        }
+      });
+    }
+
+    // 특정 위치에 트럭 생성
+    function createTruckAt(spec, offsetX) {
+      const { width, depth, height } = spec;
+      const group = new THREE.Group();
+
+      // 트럭 프레임
+      const geometry = new THREE.BoxGeometry(width, height, depth);
+      const edges = new THREE.EdgesGeometry(geometry);
+      const frame = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x00aaff }));
+      frame.position.set(offsetX, height / 2, 0);
+      group.add(frame);
+      scene.add(frame);
+
+      // 바닥
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, depth),
+        new THREE.MeshStandardMaterial({ color: 0x00aaff, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(offsetX, 0.005, 0);
+      group.add(floor);
+      scene.add(floor);
+
+      // 벽면
+      const wallMaterial = new THREE.MeshStandardMaterial({
+        color: 0x00aaff, transparent: true, opacity: 0.08, side: THREE.DoubleSide
+      });
+
+      const backWall = new THREE.Mesh(new THREE.PlaneGeometry(width, height), wallMaterial);
+      backWall.position.set(offsetX, height / 2, -depth / 2);
+      group.add(backWall);
+      scene.add(backWall);
+
+      return { frame, floor, backWall };
+    }
+
+    // 멀티 트럭 정리
+    function clearMultiTrucks() {
+      multiTrucks.forEach(truck => {
+        if (truck.group) {
+          scene.remove(truck.group.frame);
+          scene.remove(truck.group.floor);
+          scene.remove(truck.group.backWall);
+        }
+      });
+      multiTrucks = [];
+    }
+
+    // 특정 트럭에 맞게 객체 클램핑 (멀티 트럭용)
+    function clampToTruckAt(obj, truckSpec, offsetX) {
+      const { width, depth, height } = obj.userData;
+
+      // 트럭 경계 (중심이 offsetX에 위치)
+      const halfTruckW = truckSpec.width / 2;
+      const halfTruckD = truckSpec.depth / 2;
+      const truckH = truckSpec.height;
+
+      // 객체 경계 (중심에서 가장자리까지)
+      const halfW = width / 2;
+      const halfD = depth / 2;
+      const halfH = height / 2;
+
+      // X 범위: offsetX - halfTruckW + halfW ~ offsetX + halfTruckW - halfW
+      const minX = offsetX - halfTruckW + halfW;
+      const maxX = offsetX + halfTruckW - halfW;
+      obj.position.x = Math.max(minX, Math.min(maxX, obj.position.x));
+
+      // Z 범위: -halfTruckD + halfD ~ halfTruckD - halfD (모든 트럭 동일)
+      const minZ = -halfTruckD + halfD;
+      const maxZ = halfTruckD - halfD;
+      obj.position.z = Math.max(minZ, Math.min(maxZ, obj.position.z));
+
+      // Y 범위: halfH ~ truckH - halfH
+      const minY = halfH;
+      const maxY = truckH - halfH;
+      obj.position.y = Math.max(minY, Math.min(maxY, obj.position.y));
+    }
+
+    // 멀티 트럭 배치 애니메이션
+    async function animateMultiTruckPlacements(trucks, items, delay = 210) {
+      animationRunning = true;
+
+      let offsetX = 0;
+      const gap = 0.5;
+
+      for (let truckIdx = 0; truckIdx < trucks.length; truckIdx++) {
+        const truckData = trucks[truckIdx];
+        const spec = TRUCK_SPECS[truckData.type];
+        if (!spec) continue;
+
+        // 트럭 오프셋 계산
+        if (truckIdx > 0) {
+          const prevSpec = TRUCK_SPECS[trucks[truckIdx - 1].type];
+          offsetX += prevSpec.width / 2 + gap + spec.width / 2;
+        }
+
+        // 이 트럭의 배치들 처리
+        for (let i = 0; i < truckData.placements.length; i++) {
+          const placement = truckData.placements[i];
+          const item = items.find(it => it.id === placement.id);
+          if (!item) continue;
+
+          const mesh = furnitureObjects[item.index];
+
+          // 회전 설정
+          mesh.rotation.set(0, 0, 0);
+          const isRotated = placement.orientation === 2 || placement.orientation === 3 || placement.orientation === 5;
+          if (isRotated) {
+            mesh.rotation.y = Math.PI / 2;
+          }
+
+          // 치수 업데이트
+          mesh.userData.width = placement.width;
+          mesh.userData.depth = placement.depth;
+          mesh.userData.height = placement.height;
+
+          // 최종 위치 계산 (트럭 오프셋 적용)
+          const targetPos = {
+            x: placement.x + offsetX,
+            y: placement.y + placement.height / 2,
+            z: placement.z
+          };
+
+          // 상태 업데이트
+          mesh.userData.placed = true;
+          mesh.userData.truckIndex = truckIdx; // 어느 트럭에 배치되었는지
+          placedFurniture.push(mesh);
+          document.getElementById(`item-${item.index}`)?.classList.add('placed');
+
+          // 진행 표시
+          const totalPlacements = trucks.reduce((sum, t) => sum + t.placements.length, 0);
+          const currentPlacement = trucks.slice(0, truckIdx).reduce((sum, t) => sum + t.placements.length, 0) + i + 1;
+          showAnimProgress(`적재 중... ${currentPlacement}/${totalPlacements} (트럭 ${truckIdx + 1})`);
+
+          // 애니메이션 실행 (420ms = 30% faster)
+          await animatePlacement(mesh, targetPos, 420, Easing.easeOutBack);
+
+          // 트럭 경계 내로 클램핑 (부동소수점 오차 방지)
+          clampToTruckAt(mesh, spec, offsetX);
+
+          // 다음 객체 전 딜레이
+          if (i < truckData.placements.length - 1 || truckIdx < trucks.length - 1) {
+            await new Promise(r => setTimeout(r, delay));
+          }
+        }
+      }
+
+      hideAnimProgress();
+      setupDragControls();
+      updateStats();
+      animationRunning = false;
+    }
 
     // 모든 가구 초기화 (배치 해제)
     function resetAllFurniture() {
@@ -1515,8 +1717,8 @@
         // 애니메이션 실행 및 대기
         await animatePlacement(mesh, targetPos, 600, Easing.easeOutBack);
 
-        // 애니메이션 후 트럭 경계 내로 클램핑
-        clampToTruckXZ(mesh);
+        // 애니메이션 후 트럭 경계 내로 클램핑 (X, Y, Z 모두 체크)
+        clampToTruck(mesh);
 
         // 다음 객체 전 딜레이
         if (i < placements.length - 1) {
