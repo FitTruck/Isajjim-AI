@@ -1,0 +1,14 @@
+name: isajjim-sim
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - pip:
+    - fastapi
+    - "uvicorn[standard]"
+    - pydantic
+    - open3d
+    - py3dbp
+    - playwright
