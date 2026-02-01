@@ -118,11 +118,14 @@ def check_support(x, y, z, width, depth, placed_boxes):
 
 ## 트럭 프리셋
 
-| 타입 | 폭(cm) | 깊이(cm) | 높이(cm) |
-|------|--------|----------|----------|
-| 1ton | 170 | 280 | 170 |
-| 2.5ton | 200 | 430 | 190 |
-| 5ton | 230 | 620 | 240 |
+| 타입 | 폭(cm) | 깊이(cm) | 높이(cm) | 최대 중량(kg) |
+|------|--------|----------|----------|--------------|
+| 1ton | 170 | 280 | 170 | 1,000 |
+| 2.5ton | 200 | 430 | 190 | 2,500 |
+| 5ton | 230 | 620 | 240 | 5,000 |
+| 11ton | 240 | 900 | 260 | 11,000 |
+
+> **Note**: OBB 패커는 1ton, 2.5ton, 5ton만 지원합니다. 11ton은 models.py에만 정의되어 있습니다.
 
 ## API
 
@@ -172,6 +175,56 @@ Content-Type: application/json
 - `x, z`: 객체 중심의 수평 좌표
 - `y`: 객체 **바닥**의 수직 좌표 (중심 아님!)
 - `width, depth, height`: 회전 적용된 최종 치수
+
+## 멀티 트럭 자동 최적화 API
+
+단일 트럭에 모든 아이템이 들어가지 않을 때 자동으로 최소 트럭 조합을 선택합니다.
+
+### 요청
+
+```http
+POST /simulation/optimize-obb-auto
+Content-Type: application/json
+
+{
+  "items": [
+    {"id": "sofa", "width": 2.0, "depth": 0.9, "height": 0.85},
+    {"id": "bed", "width": 1.5, "depth": 2.0, "height": 0.5}
+  ],
+  "unit": "m",
+  "support_ratio": 0.7
+}
+```
+
+### 응답
+
+```json
+{
+  "success": true,
+  "trucks": [
+    {
+      "type": "5ton",
+      "placements": [...],
+      "utilization": 72.5
+    },
+    {
+      "type": "1ton",
+      "placements": [...],
+      "utilization": 45.3
+    }
+  ],
+  "total_trucks": 2,
+  "unplaced_ids": [],
+  "message": "2대 트럭 사용: 5ton + 1ton"
+}
+```
+
+### 트럭 선택 전략
+
+1. **단일 트럭 시도**: 1ton → 2.5ton → 5ton 순서로 모든 아이템이 들어가는지 확인
+2. **멀티 트럭 조합**: 5ton에도 안 들어가면 추가 트럭 할당
+   - 5ton + 1ton → 5ton + 2.5ton → 5ton + 5ton
+3. **반복**: 미배치 아이템이 없을 때까지 반복
 
 ## 프론트엔드 통합
 

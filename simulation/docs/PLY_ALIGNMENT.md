@@ -121,8 +121,64 @@ Processing: 12_SOFA_0.ply
 2. **비정형 객체**: 복잡한 형태의 객체는 OBB 정렬이 예상과 다를 수 있음
 3. **파일 크기**: Open3D는 대용량 PLY 파일 처리 시 메모리 사용량이 높을 수 있음
 
+## API 엔드포인트
+
+### PLY 정렬 API
+
+```http
+POST /simulation/align-ply
+Content-Type: application/json
+
+{
+  "ply_base64": "cGx5CmZvcm1hdC...",
+  "convert_to_yup": true
+}
+```
+
+**응답:**
+
+```json
+{
+  "success": true,
+  "aligned_ply_base64": "cGx5CmZvcm1hdC...",
+  "width": 0.95,
+  "depth": 0.56,
+  "height": 0.34,
+  "point_count": 12345,
+  "message": "Alignment successful"
+}
+```
+
+**파라미터:**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `ply_base64` | string | Base64 인코딩된 PLY 데이터 |
+| `convert_to_yup` | boolean | Y-up 좌표계로 변환 (Three.js 호환) |
+
+### 정렬 서비스 상태
+
+```http
+GET /simulation/alignment-status
+```
+
+**응답:**
+
+```json
+{
+  "open3d_available": true,
+  "install_command": null,
+  "features": [
+    "OBB-based axis alignment",
+    "Z-up to Y-up coordinate conversion",
+    "Floor placement (min=0)"
+  ]
+}
+```
+
 ## 관련 파일
 
+- `simulation/ply_alignment.py` - PLY 정렬 서비스 모듈
 - `simulation/align_ply.py` - 배치 정렬 스크립트
 - `simulation/static/simulator.html` - Three.js 시뮬레이터 (좌표계 변환 포함)
-- `simulation/routes.py` - PLY 파일 서빙 엔드포인트
+- `simulation/routes.py` - PLY 파일 서빙 및 정렬 API 엔드포인트
