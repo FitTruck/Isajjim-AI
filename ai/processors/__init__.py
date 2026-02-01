@@ -21,6 +21,7 @@ _stage4 = importlib.import_module('.4_DB_movability_check', package='ai.processo
 # _stage5 = SAM2 제거됨 (V2 파이프라인에서 YOLOE-seg 마스크 직접 사용)
 # _stage6 = Legacy subprocess 방식 제거됨 (Worker Pool 사용)
 _stage7 = importlib.import_module('.7_volume_calculate', package='ai.processors')
+_stage8 = importlib.import_module('.8_absolute_volume_calculate', package='ai.processors')
 
 # 클래스 노출
 ImageFetcher = _stage1.ImageFetcher
@@ -31,6 +32,9 @@ MovabilityResult = _stage4.MovabilityResult
 LabelMappingResult = _stage4.LabelMappingResult  # V2 별칭
 DimensionCalculator = _stage7.DimensionCalculator
 VolumeCalculator = _stage7.VolumeCalculator  # 하위 호환성 별칭
+AbsoluteVolumeCalculator = _stage8.AbsoluteVolumeCalculator
+AbsoluteVolumeResult = _stage8.AbsoluteVolumeResult
+get_calculator = _stage8.get_calculator
 
 __all__ = [
     # Step 1-4: Detection
@@ -42,5 +46,9 @@ __all__ = [
     'LabelMappingResult',  # V2 별칭
     # Step 7: Dimension (SAM-3D는 Worker Pool 통해 직접 사용)
     'DimensionCalculator',
-    'VolumeCalculator'  # 하위 호환성 별칭
+    'VolumeCalculator',  # 하위 호환성 별칭
+    # Step 8: Absolute Volume (절대 부피 계산)
+    'AbsoluteVolumeCalculator',
+    'AbsoluteVolumeResult',
+    'get_calculator',
 ]

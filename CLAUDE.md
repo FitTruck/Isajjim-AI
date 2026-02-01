@@ -12,13 +12,19 @@ A FastAPI-based service integrating:
 
 The API accepts 2D images and generates 3D Gaussian Splats, PLY, GIF, and GLB meshes.
 
-### Pipeline Version: V2 (2026-01)
+### Pipeline Version: V2.5 (2026-02)
 
-V2 파이프라인에서는 **YOLOE-seg 마스크를 SAM-3D에 직접 전달**합니다 (SAM2 제거).
+V2.5 파이프라인에서는 **절대 부피 계산을 AI 서버에서 수행**합니다.
 ```
-[V1]  YOLO detect → center_point → SAM2 → mask → SAM-3D
-[V2]  YOLO-seg detect → mask (직접) → SAM-3D  ← 현재
+[V1]    YOLO detect → SAM2 → SAM-3D → 상대치수 → Backend에서 절대부피 계산
+[V2]    YOLO-seg → SAM-3D → 상대치수 → Backend에서 절대부피 계산
+[V2.5]  YOLO-seg → SAM-3D → 상대치수 → AI서버에서 절대부피 계산 ← 현재
 ```
+
+**V2.5 주요 변경사항:**
+- 절대 부피 계산 로직을 백엔드에서 AI 서버로 이전
+- `AbsoluteVolumeCalculator`: Backend `FurnitureDimensionConverter.java` 로직 포팅
+- API 응답에 절대 치수(mm)와 부피(m³) 포함
 
 ## Architecture
 
@@ -415,11 +421,12 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
       "image_id": 101,
       "objects": [
         {
-          "label": "sofa",
+          "label": "SOFA",
           "type": "THREE_SEATER_SOFA",
-          "width": 200.0,
-          "depth": 90.0,
-          "height": 85.0
+          "width": 1000.0,
+          "depth": 3000.0,
+          "height": 900.0,
+          "volume": 2.7
         }
       ]
     },
@@ -430,6 +437,8 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
   ]
 }
 ```
+
+> **Note (V2.5)**: 모든 치수는 **절대값(mm)**, 부피는 **m³** 단위입니다.
 
 **Callback Payload (실패):**
 ```json
@@ -443,13 +452,12 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 
 **필드:**
 - `label`: 탐지된 객체 라벨 (영어, base_name)
-- `type`: 세부 유형 (예: "THREE_SEATER_SOFA") 또는 null
-- `width`, `depth`, `height`: **상대 치수** (3D 메시 OBB 기준, 단위 없음)
+- `type`: 매칭된 세부 유형 (예: "THREE_SEATER_SOFA")
+- `width`, `depth`, `height`: **절대 치수** (mm, 표준 가구 치수 기반)
+- `volume`: **절대 부피** (m³)
 
-> 절대 치수/부피 계산은 백엔드에서 Knowledge Base 실제 치수와 비율을 조합하여 계산
-
-**Note**: `is_movable`, `dimensions`, `ratio`, `volume`은 V2 파이프라인에서 제거되었습니다.
-절대 부피 계산은 백엔드에서 Knowledge Base를 사용합니다.
+> **V2.5 변경사항**: 절대 치수와 부피는 AI 서버에서 계산합니다.
+> 백엔드는 `volume > 0`이면 바로 사용하고, 그렇지 않으면 fallback 로직을 사용합니다.
 
 ### Key Components
 - `ai/pipeline/furniture_pipeline.py` - Main pipeline orchestrator
@@ -459,8 +467,10 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 - `ai/subprocess/worker_protocol.py` - 워커-풀 통신 프로토콜
 - `ai/processors/2_YOLO_detect.py` - YOLOE-seg detector (Objects365 기반)
 - `ai/processors/4_DB_movability_check.py` - DB 라벨 매핑 (is_movable 제거됨)
-- `ai/processors/7_volume_calculate.py` - DimensionCalculator: OBB 기반 상대 치수 계산 (volume 제거)
-- `ai/data/knowledge_base.py` - YOLO 클래스 매핑 + 영어 라벨 (base_name) 정적 DB (dimensions/is_movable 제거됨)
+- `ai/processors/7_volume_calculate.py` - DimensionCalculator: OBB 기반 상대 치수 계산
+- `ai/processors/8_absolute_volume_calculate.py` - AbsoluteVolumeCalculator: 절대 부피 계산 (V2.5 신규)
+- `ai/data/knowledge_base.py` - YOLO 클래스 매핑 + 영어 라벨 (base_name) 정적 DB
+- `ai/data/furniture_dimensions.py` - 52개 가구 타입 표준 치수 데이터 (V2.5 신규)
 
 ## Code Modification Guidelines
 
@@ -556,7 +566,8 @@ ai/                                     # AI module (integrated with main API)
     1_firebase_images_fetch.py          # Step 1: Fetch images from Firebase
     2_YOLO_detect.py                    # Step 2: YOLOE-seg object detection (with mask)
     4_DB_movability_check.py            # Step 4: DB 라벨 매핑
-    7_volume_calculate.py               # Step 7: OBB-based relative volume/dimension calculation
+    7_volume_calculate.py               # Step 7: OBB-based relative dimension calculation
+    8_absolute_volume_calculate.py      # Step 8: Absolute volume calculation (V2.5)
   pipeline/
     __init__.py                         # Exports FurniturePipeline
     furniture_pipeline.py               # Pipeline orchestrator V2 (YOLO mask direct use)
@@ -564,8 +575,9 @@ ai/                                     # AI module (integrated with main API)
     persistent_3d_worker.py             # Persistent 3D Worker (성능 최적화 설정 포함)
     worker_protocol.py                  # 워커-풀 통신 프로토콜
   data/
-    __init__.py                         # Exports FURNITURE_DB
+    __init__.py                         # Exports FURNITURE_DB, furniture dimensions
     knowledge_base.py                   # YOLO 클래스 매핑 + 영어 라벨 (base_name) 정적 DB
+    furniture_dimensions.py             # 52개 가구 타입 표준 치수 데이터 (V2.5)
   utils/
     __init__.py                         # Exports utilities
     image_ops.py                        # Image processing utilities

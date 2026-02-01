@@ -17,6 +17,16 @@ from .knowledge_base import (
     get_excluded_subtype_names
 )
 
+from .furniture_dimensions import (
+    FurnitureTypeDimension,
+    FURNITURE_TYPES,
+    FURNITURE_LABELS,
+    get_furniture_type,
+    get_subtypes_for_label,
+    get_first_subtype_for_label,
+    get_dimension_for_label,
+)
+
 __all__ = [
     'FURNITURE_DB',
     # Core functions
@@ -32,5 +42,13 @@ __all__ = [
     'get_dimensions_for_subtype',
     'estimate_size_variant',
     'get_excluded_base_names',
-    'get_excluded_subtype_names'
+    'get_excluded_subtype_names',
+    # Furniture Dimensions (절대 부피 계산용)
+    'FurnitureTypeDimension',
+    'FURNITURE_TYPES',
+    'FURNITURE_LABELS',
+    'get_furniture_type',
+    'get_subtypes_for_label',
+    'get_first_subtype_for_label',
+    'get_dimension_for_label',
 ]

@@ -35,6 +35,7 @@ from ai.processors import (
     YoloDetector,
     MovabilityChecker,
     DimensionCalculator,
+    AbsoluteVolumeCalculator,
 )
 
 # GPU pool manager import
@@ -633,13 +634,20 @@ class FurniturePipeline:
         """
         TDD 문서 Section 4.1에 맞는 JSON 응답을 생성합니다 (다중 이미지용).
 
-        Output format (TDD_PIPELINE_V2.md Section 4.1):
+        Output format (TDD_PIPELINE_V2.md Section 4.1 - Updated):
         {
             "results": [
                 {
                     "image_id": 101,
                     "objects": [
-                        {"label": "sofa", "type": "THREE_SEATER_SOFA", "width": 200.0, "depth": 90.0, "height": 85.0},
+                        {
+                            "label": "SOFA",
+                            "type": "THREE_SEATER_SOFA",
+                            "width": 1000.0,   # mm (절대 치수)
+                            "depth": 3000.0,   # mm (절대 치수)
+                            "height": 900.0,   # mm (절대 치수)
+                            "volume": 2.7      # m³ (절대 부피)
+                        },
                         ...
                     ]
                 },
@@ -647,10 +655,11 @@ class FurniturePipeline:
             ]
         }
 
-        Note: volume 필드는 제거됨 (백엔드에서 절대 부피 계산)
+        Note: 절대 치수와 부피는 AI 서버에서 계산 (Backend fallback 가능)
         """
         results_list = []
         excluded_subtypes = get_excluded_subtype_names()
+        abs_calc = AbsoluteVolumeCalculator()
 
         for result in results:
             objects_list = []
@@ -664,12 +673,26 @@ class FurniturePipeline:
                     dims = obj.relative_dimensions
                     bbox = dims.get("bounding_box", {})
 
+                    rel_width = bbox.get("width", 0)
+                    rel_depth = bbox.get("depth", 0)
+                    rel_height = bbox.get("height", 0)
+
+                    # 절대 치수 및 부피 계산
+                    abs_result = abs_calc.calculate_absolute_volume(
+                        label=obj.label,
+                        type_name=obj.subtype_name,
+                        rel_width=rel_width,
+                        rel_depth=rel_depth,
+                        rel_height=rel_height
+                    )
+
                     objects_list.append({
                         "label": obj.label,
-                        "type": obj.subtype_name,
-                        "width": round(bbox.get("width", 0), 2),
-                        "depth": round(bbox.get("depth", 0), 2),
-                        "height": round(bbox.get("height", 0), 2)
+                        "type": abs_result.matched_type,
+                        "width": abs_result.width_mm,
+                        "depth": abs_result.depth_mm,
+                        "height": abs_result.height_mm,
+                        "volume": abs_result.volume_m3
                     })
 
             results_list.append({

@@ -4,8 +4,8 @@
 
 | 항목 | 내용 |
 |------|------|
-| Version | 2.4 |
-| Last Updated | 2026-01-26 |
+| Version | 2.5 |
+| Last Updated | 2026-02-01 |
 | Author | AI Team |
 | Status | Implemented |
 
@@ -26,12 +26,13 @@
 | 분류 | CLIP 분류 후 DB 매칭 | YOLO 클래스로 직접 DB 매칭 |
 | 탐지 | SAHI 타일링 + YOLO-World | YOLOE-seg 단일 추론 |
 | API 호출 | 3회 (YOLO → SAM2 → SAM-3D) | 2회 (YOLO → SAM-3D) |
+| 부피 계산 | 백엔드에서 계산 | **AI 서버에서 절대 부피 계산** (V2.5) |
 
 ### 1.3 Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         Pipeline V2 Architecture                     │
+│                     Pipeline V2.5 Architecture                       │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐        │
@@ -42,21 +43,29 @@
 │         │                    │                    │                 │
 │         ▼                    ▼                    ▼                 │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐        │
-│  │  PIL Image   │     │  bbox, label │     │  PLY, GLB    │        │
-│  │              │     │  mask (seg)  │     │  GIF preview │        │
+│  │  PIL Image   │     │  bbox, label │     │  PLY (3D)    │        │
+│  │              │     │  mask (seg)  │     │              │        │
 │  └──────────────┘     └──────────────┘     └──────────────┘        │
 │                              │                    │                 │
 │                              ▼                    ▼                 │
 │                       ┌──────────────┐     ┌──────────────┐        │
-│                       │  DB Matching │     │   Volume     │        │
+│                       │  DB Matching │     │  Dimension   │        │
 │                       │ (base_name)  │     │  (OBB-based) │        │
 │                       └──────────────┘     └──────────────┘        │
-│                                                   │                 │
-│                                                   ▼                 │
-│                                            ┌──────────────┐        │
-│                                            │ JSON Response│        │
-│                                            │ (dimensions) │        │
-│                                            └──────────────┘        │
+│                              │                    │                 │
+│                              └────────┬──────────┘                 │
+│                                       ▼                            │
+│                              ┌──────────────────┐                  │
+│                              │ Absolute Volume  │  ← V2.5 신규     │
+│                              │   Calculator     │                  │
+│                              │ (상대→절대 변환) │                  │
+│                              └──────────────────┘                  │
+│                                       │                            │
+│                                       ▼                            │
+│                              ┌──────────────────┐                  │
+│                              │  JSON Response   │                  │
+│                              │ (절대 치수+부피) │                  │
+│                              └──────────────────┘                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,21 +126,50 @@ SAM3DConverter.convert(image_path, mask_path) → SAM3DResult {
 ```python
 DimensionCalculator.calculate_from_ply(ply_path) → {
     "bounding_box": {
-        "width": float,        # OBB X-axis extent (이미지 가로)
-        "depth": float,        # OBB Z-axis extent (깊이)
-        "height": float        # OBB Y-axis extent (이미지 세로)
+        "width": float,        # OBB X-axis extent (이미지 가로) - 상대 치수
+        "depth": float,        # OBB Z-axis extent (깊이) - 상대 치수
+        "height": float        # OBB Y-axis extent (이미지 세로) - 상대 치수
     },
     "centroid": [x, y, z],
     "surface_area": float
 }
 ```
 
-> **Note**: `volume` 필드는 제거됨 (백엔드에서 절대 부피 계산)
-
 **OBB (Oriented Bounding Box) 사용 이유:**
 - PLY(Point Cloud)가 회전되어 있어서 AABB가 부정확한 치수 반환
 - OBB는 객체의 실제 방향에 맞춘 정확한 치수 계산 (AABB 대비 최대 300%+ 정확도 향상)
 - 좌표계 기반 Greedy 매핑: X→width, Y→height, Z→depth
+
+#### Stage 7: Absolute Volume Calculation (V2.5 신규)
+```python
+AbsoluteVolumeCalculator.calculate_absolute_volume(
+    label: str,           # "SOFA"
+    type_name: str,       # "THREE_SEATER_SOFA" 또는 None
+    rel_width: float,     # 상대 가로 (OBB 결과)
+    rel_depth: float,     # 상대 세로
+    rel_height: float     # 상대 높이
+) → AbsoluteVolumeResult {
+    matched_type: str,    # "THREE_SEATER_SOFA"
+    width_mm: float,      # 1000.0 (mm)
+    depth_mm: float,      # 3000.0 (mm)
+    height_mm: float,     # 900.0 (mm)
+    volume_m3: float      # 2.7 (m³)
+}
+```
+
+**알고리즘 (Backend FurnitureDimensionConverter.java 포팅):**
+1. 상대 치수 정렬: `[l1, l2, l3]` (l1 < l2 < l3)
+2. 탐지 비율 계산: `detected_ratio = l2 / l3`
+3. `type_name`이 없으면 비율로 best match 서브타입 찾기
+4. 표준 장단변 추출: `long = max(width, depth)`, `short = min(width, depth)`
+5. 높이 계산:
+   - 고정 높이: `actual_height = standard_height`
+   - 가변 높이 (height=-1): `scale_factor = long / l3`, `actual_height = l1 * scale_factor`
+6. 부피 계산: `volume = short * long * height * 1e-9` (mm³ → m³)
+
+**표준 치수 데이터:** `ai/data/furniture_dimensions.py`
+- 52개 가구 타입 표준 치수 (FurnitureType.java 기반)
+- 29개 라벨 → 서브타입 매핑 (FurnitureLabel.java 기반)
 
 ### 2.3 Output
 
@@ -142,25 +180,28 @@ DimensionCalculator.calculate_from_ply(ply_path) → {
       "image_id": 101,
       "objects": [
         {
-          "label": "sofa",
+          "label": "SOFA",
           "type": "THREE_SEATER_SOFA",
-          "width": 200.0,
-          "depth": 90.0,
-          "height": 85.0
+          "width": 1000.0,
+          "depth": 3000.0,
+          "height": 900.0,
+          "volume": 2.7
         },
         {
-          "label": "table",
-          "type": null,
-          "width": 120.0,
-          "depth": 60.0,
-          "height": 45.0
+          "label": "DINING_TABLE",
+          "type": "DEFAULT_DINING_TABLE",
+          "width": 800.0,
+          "depth": 1200.0,
+          "height": 750.0,
+          "volume": 0.72
         },
         {
-          "label": "lamp",
-          "type": null,
-          "width": 30.0,
-          "depth": 30.0,
-          "height": 150.0
+          "label": "BED",
+          "type": "SINGLE_BED",
+          "width": 1000.0,
+          "depth": 2000.0,
+          "height": 500.0,
+          "volume": 1.0
         }
       ]
     },
@@ -168,11 +209,12 @@ DimensionCalculator.calculate_from_ply(ply_path) → {
       "image_id": 102,
       "objects": [
         {
-          "label": "chair",
+          "label": "CHAIR_STOOL",
           "type": "STANDARD_CHAIR",
-          "width": 45.0,
-          "depth": 50.0,
-          "height": 90.0
+          "width": 600.0,
+          "depth": 600.0,
+          "height": 1200.0,
+          "volume": 0.432
         }
       ]
     }
@@ -185,15 +227,17 @@ DimensionCalculator.calculate_from_ply(ply_path) → {
 | Field | Type | Unit | Description |
 |-------|------|------|-------------|
 | label | string | - | 탐지된 객체 라벨 (YOLO 클래스명 → base_name) |
-| type | string/null | - | 세부 유형 (예: "THREE_SEATER_SOFA") 또는 null |
-| width | float | 상대 길이 | OBB X-axis extent (이미지 가로 방향) |
-| depth | float | 상대 길이 | OBB Z-axis extent (깊이 방향) |
-| height | float | 상대 길이 | OBB Y-axis extent (이미지 세로 방향) |
+| type | string | - | 매칭된 세부 유형 (예: "THREE_SEATER_SOFA") |
+| width | float | mm | **절대 가로 길이** (표준 치수 기반) |
+| depth | float | mm | **절대 세로 길이** (표준 치수 기반) |
+| height | float | mm | **절대 높이** (고정 또는 스케일 팩터로 계산) |
+| volume | float | m³ | **절대 부피** (width × depth × height × 1e-9) |
 
-> **Note**: SAM-3D가 생성하는 3D 모델은 실제 물리적 크기 정보가 없습니다.
-> OBB (Oriented Bounding Box)를 사용하여 회전된 객체도 정확히 측정합니다.
-> 절대 치수/부피는 백엔드에서 Knowledge Base의 실제 치수와 비율을 조합하여 계산합니다.
-> `volume` 필드는 V2.4에서 제거되었습니다.
+> **Note (V2.5 변경사항)**:
+> - 절대 치수와 부피가 **AI 서버에서 계산**됩니다 (이전에는 백엔드).
+> - `AbsoluteVolumeCalculator`가 상대 치수를 표준 가구 치수와 매칭하여 절대값으로 변환합니다.
+> - 백엔드에서는 AI 응답의 `volume` 값을 바로 사용하며, fallback 로직만 유지합니다.
+> - 가변 높이 가구 (침대 등)는 스케일 팩터로 높이를 역산합니다.
 
 ---
 
@@ -238,17 +282,57 @@ DimensionCalculator.calculate_from_ply(ply_path) → {
 - `GAUSSIAN_ONLY_MODE=True`: 37.4% 속도 향상
 - `compile=True`: 10-20% 추론 속도 향상
 
-### 3.3 Furniture Pipeline
+### 3.3 Absolute Volume Calculator (V2.5 신규)
+
+**File:** `ai/processors/8_absolute_volume_calculate.py`
+
+**Data File:** `ai/data/furniture_dimensions.py`
+
+**Classes:**
+- `AbsoluteVolumeResult`: 계산 결과 dataclass
+- `AbsoluteVolumeCalculator`: 메인 계산기 클래스
+
+**Key Methods:**
+```python
+class AbsoluteVolumeCalculator:
+    def find_best_match(self, label, rel_w, rel_d, rel_h) -> str:
+        """비율로 최적 서브타입 매칭"""
+
+    def calculate_absolute_volume(self, label, type_name, rel_w, rel_d, rel_h) -> AbsoluteVolumeResult:
+        """절대 치수 및 부피 계산"""
+```
+
+**Furniture Dimensions Data:**
+- `FURNITURE_TYPES`: 52개 타입의 표준 치수 (width, depth, height in mm)
+- `FURNITURE_LABELS`: 29개 라벨의 서브타입 리스트
+
+**가변 높이 타입 (height=-1):**
+- `SINGLE_BED`, `SUPER_SINGLE_BED`, `DOUBLE_BED`, `QUEEN_SIZE_BED`, `KING_SIZE_BED`, `BUNK_BED`
+
+**전체 가변 타입 (-1,-1,-1):**
+- `DEFAULT_DINING_TABLE`: 4인용 식탁 기준으로 스케일링
+
+### 3.4 Furniture Pipeline
 
 **File:** `ai/pipeline/furniture_pipeline.py`
 
-**V2 Changes:**
+**V2.5 Changes:**
 ```python
 # V2: YOLOE-seg 마스크 직접 사용
 if obj.yolo_mask is not None:
     mask_b64 = self._yolo_mask_to_base64(obj.yolo_mask)
-    # SAM-3D에 직접 전달
     result = await self.generate_3d(image, mask_b64)
+
+# V2.5: 절대 부피 계산
+abs_calc = AbsoluteVolumeCalculator()
+abs_result = abs_calc.calculate_absolute_volume(
+    label=obj.label,
+    type_name=obj.subtype_name,
+    rel_width=bbox["width"],
+    rel_depth=bbox["depth"],
+    rel_height=bbox["height"]
+)
+# 응답에 절대 치수(mm) + 부피(m³) 포함
 ```
 
 ---
@@ -305,28 +389,20 @@ if obj.yolo_mask is not None:
       "image_id": 101,
       "objects": [
         {
-          "label": "sofa",
-          "type": "SINGLE_SOFA",
-          "width": 200.0,
-          "depth": 90.0,
-          "height": 85.0,
-          "volume": 1.53
+          "label": "SOFA",
+          "type": "THREE_SEATER_SOFA",
+          "width": 1000.0,
+          "depth": 3000.0,
+          "height": 900.0,
+          "volume": 2.7
         },
         {
-          "label": "table",
-          "type": null,
-          "width": 120.0,
-          "depth": 60.0,
-          "height": 45.0,
-          "volume": 0.324
-        },
-        {
-          "label": "lamp",
-          "type": null,
-          "width": 30.0,
-          "depth": 30.0,
-          "height": 150.0,
-          "volume": 0.135
+          "label": "BED",
+          "type": "SINGLE_BED",
+          "width": 1000.0,
+          "depth": 2000.0,
+          "height": 500.0,
+          "volume": 1.0
         }
       ]
     },
@@ -334,18 +410,20 @@ if obj.yolo_mask is not None:
       "image_id": 102,
       "objects": [
         {
-          "label": "chair",
-          "type": null,
-          "width": 45.0,
-          "depth": 50.0,
-          "height": 90.0,
-          "volume": 0.2025
+          "label": "CHAIR_STOOL",
+          "type": "STANDARD_CHAIR",
+          "width": 600.0,
+          "depth": 600.0,
+          "height": 1200.0,
+          "volume": 0.432
         }
       ]
     }
   ]
 }
 ```
+
+> **Note**: 모든 치수는 **절대값(mm)**, 부피는 **m³** 단위입니다.
 
 **Callback Payload (실패):**
 ```json
@@ -727,6 +805,31 @@ hydra-core>=1.3.2       # SAM-3D 설정
 ---
 
 ## 10. Changelog
+
+### V2.5 (2026-02-01)
+
+**Absolute Volume Calculation Migration:**
+- 절대 부피 계산 로직을 **백엔드에서 AI 서버로 이전**
+- 상대 치수 계산 직후 절대 치수(mm)와 부피(m³)를 함께 계산
+
+**New Files:**
+- `ai/data/furniture_dimensions.py`: 52개 가구 타입 표준 치수 데이터
+- `ai/processors/8_absolute_volume_calculate.py`: AbsoluteVolumeCalculator 클래스
+
+**API Response Changes:**
+- `width`, `depth`, `height`: 상대 치수 → **절대 치수 (mm)**
+- `volume`: 새로 추가 → **절대 부피 (m³)**
+
+**Backend Changes:**
+- `FurnitureService.java`: AI 응답의 `volume > 0`이면 바로 사용
+- `FurnitureDimensionConverter.java`: Fallback용으로 유지
+
+**알고리즘 (Backend FurnitureDimensionConverter.java 포팅):**
+1. 상대 치수 정렬 후 탐지 비율 계산
+2. `type_name`이 없으면 비율로 best match 서브타입 찾기
+3. 표준 장단변 추출
+4. 높이 계산: 고정 높이 사용 또는 스케일 팩터로 역산
+5. 부피 계산: `volume = short * long * height * 1e-9`
 
 ### V2.3 (2026-01-26)
 
