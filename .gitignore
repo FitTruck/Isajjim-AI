@@ -30,6 +30,10 @@ assets/
 ai/outputs/
 runs/
 
+# Credentials (NEVER commit these!)
+credentials/
+*.json.bak
+
 # Environment
 .env
 .venv/

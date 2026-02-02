@@ -14,17 +14,54 @@ The API accepts 2D images and generates 3D Gaussian Splats, PLY, GIF, and GLB me
 
 ### Pipeline Version: V2.5 (2026-02)
 
-V2.5 파이프라인에서는 **절대 부피 계산을 AI 서버에서 수행**합니다.
+V2.5 파이프라인에서는 **절대 부피 계산을 AI 서버에서 수행**하고 **PLY 파일을 GCS에 업로드**합니다.
 ```
 [V1]    YOLO detect → SAM2 → SAM-3D → 상대치수 → Backend에서 절대부피 계산
 [V2]    YOLO-seg → SAM-3D → 상대치수 → Backend에서 절대부피 계산
-[V2.5]  YOLO-seg → SAM-3D → 상대치수 → AI서버에서 절대부피 계산 ← 현재
+[V2.5]  YOLO-seg → SAM-3D → 상대치수 → AI서버에서 절대부피 계산 + GCS PLY 업로드 ← 현재
 ```
 
 **V2.5 주요 변경사항:**
 - 절대 부피 계산 로직을 백엔드에서 AI 서버로 이전
 - `AbsoluteVolumeCalculator`: Backend `FurnitureDimensionConverter.java` 로직 포팅
 - API 응답에 절대 치수(mm)와 부피(m³) 포함
+- **PLY 파일 GCS 업로드**: 생성된 PLY를 GCS에 업로드하고 `ply_url` 반환
+- GCS 버킷: `isajjim-bucket`, 서비스 계정: `credentials/gcs-credentials.json`
+- **PLY 전처리**: GCS 업로드 전 PLY 파일 전처리 (축 정렬, 스케일링, 다운샘플링)
+
+### PLY Preprocessing Pipeline
+
+GCS 업로드 전에 `PLYPreprocessor`가 다음 전처리를 수행합니다:
+
+```
+SAM-3D PLY (base64)
+    ↓
+1. 축 정렬 (OBB.R.T 역회전)
+    ↓
+2. 바닥 배치 (Z-min = 0)
+    ↓
+3. 좌표계 변환 (Z-up → Y-up for Three.js)
+    ↓
+4. 스케일링 (절대 치수 mm → m)
+    ↓
+5. Stride 다운샘플링 (max 50,000 points)
+    ↓
+GCS 업로드
+```
+
+**설정 (`ai/config.py`):**
+```python
+PLY_ENABLE_PREPROCESSING = True  # 전처리 활성화
+PLY_MAX_POINTS = 50000           # 다운샘플링 최대 포인트 수
+PLY_CONVERT_TO_YUP = True        # Y-up 좌표계 변환 (Three.js 호환)
+PLY_ENABLE_ALIGNMENT = True      # OBB 기반 축 정렬
+PLY_ENABLE_SCALING = True        # 절대 치수 스케일링
+PLY_ENABLE_DOWNSAMPLING = True   # Stride 다운샘플링
+```
+
+**성능 효과:**
+- 파일 크기: ~50-90% 감소 (포인트 수에 따라)
+- 50,000 포인트 기준: 약 2MB → ~200KB
 
 ## Architecture
 
@@ -469,8 +506,10 @@ The `/analyze-furniture` endpoint implements the V2 AI Logic pipeline:
 - `ai/processors/4_DB_movability_check.py` - DB 라벨 매핑 (is_movable 제거됨)
 - `ai/processors/7_volume_calculate.py` - DimensionCalculator: OBB 기반 상대 치수 계산
 - `ai/processors/8_absolute_volume_calculate.py` - AbsoluteVolumeCalculator: 절대 부피 계산 (V2.5 신규)
+- `ai/processors/ply_preprocessor.py` - PLYPreprocessor: PLY 전처리 (축 정렬, 스케일링, 다운샘플링)
 - `ai/data/knowledge_base.py` - YOLO 클래스 매핑 + 영어 라벨 (base_name) 정적 DB
 - `ai/data/furniture_dimensions.py` - 52개 가구 타입 표준 치수 데이터 (V2.5 신규)
+- `api/services/gcs_storage.py` - GCS 업로드 서비스 (PLY 파일 업로드)
 
 ## Code Modification Guidelines
 
@@ -541,6 +580,7 @@ api/                                    # FastAPI 애플리케이션 (모듈화)
     health.py                           # /health, /gpu-status, /assets 엔드포인트
   services/                             # 서비스 레이어
     callback.py                         # 비동기 Callback 서비스
+    gcs_storage.py                      # GCS PLY 업로드 서비스 (V2.5)
 requirements.txt                        # Python dependencies
 setup.sh                                # Setup script (clones sam-3d-objects, creates conda env)
 assets/                                 # Static files served at /assets/ (PLY, GIF, GLB)
@@ -568,6 +608,7 @@ ai/                                     # AI module (integrated with main API)
     4_DB_movability_check.py            # Step 4: DB 라벨 매핑
     7_volume_calculate.py               # Step 7: OBB-based relative dimension calculation
     8_absolute_volume_calculate.py      # Step 8: Absolute volume calculation (V2.5)
+    ply_preprocessor.py                 # PLY preprocessing (alignment, scaling, downsampling)
   pipeline/
     __init__.py                         # Exports FurniturePipeline
     furniture_pipeline.py               # Pipeline orchestrator V2 (YOLO mask direct use)

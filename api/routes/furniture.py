@@ -22,9 +22,34 @@ from api.models import (
     AnalyzeFurnitureBase64Request,
 )
 from api.services.callback import send_callback
+from api.services.gcs_storage import (
+    GCSStorageService,
+    initialize_gcs_service,
+    get_gcs_service,
+)
+from api.config import GCS_BUCKET_NAME, GCS_CREDENTIALS_PATH
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# GCS 서비스 초기화 (서버 시작 시)
+_gcs_initialized = False
+
+
+def ensure_gcs_initialized() -> Optional[GCSStorageService]:
+    """GCS 서비스가 초기화되지 않았으면 초기화"""
+    global _gcs_initialized
+    if not _gcs_initialized:
+        try:
+            if os.path.exists(GCS_CREDENTIALS_PATH):
+                initialize_gcs_service(GCS_BUCKET_NAME, GCS_CREDENTIALS_PATH)
+                logger.info(f"[GCS] Initialized with bucket: {GCS_BUCKET_NAME}")
+                _gcs_initialized = True
+            else:
+                logger.warning(f"[GCS] Credentials file not found: {GCS_CREDENTIALS_PATH}")
+        except Exception as e:
+            logger.error(f"[GCS] Failed to initialize: {e}")
+    return get_gcs_service()
 
 # Lazy-load furniture pipeline
 _furniture_pipeline = None
@@ -74,6 +99,48 @@ def get_furniture_pipeline(device_id: Optional[int] = None):
     return _furniture_pipeline
 
 
+def get_furniture_pipeline_with_gcs(
+    gcs_service: Optional[GCSStorageService] = None,
+    estimate_id: Optional[int] = None,
+    device_id: Optional[int] = None
+):
+    """
+    GCS 서비스가 설정된 FurniturePipeline 반환.
+
+    Args:
+        gcs_service: GCS 업로드 서비스
+        estimate_id: 견적 ID (GCS 파일명에 사용)
+        device_id: GPU 디바이스 ID
+
+    Returns:
+        FurniturePipeline with GCS service configured
+    """
+    try:
+        from ai.pipeline import FurniturePipeline
+        from ai.gpu import get_gpu_pool
+
+        try:
+            gpu_pool = get_gpu_pool()
+        except Exception:
+            gpu_pool = None
+
+        # GCS 서비스가 있으면 새 파이프라인 생성 (estimate_id별로)
+        pipeline = FurniturePipeline(
+            enable_3d_generation=True,
+            device_id=device_id,
+            gpu_pool=gpu_pool,
+            gcs_service=gcs_service,
+            estimate_id=estimate_id
+        )
+        logger.info(f"[Pipeline] Created with GCS service (estimate_id={estimate_id})")
+        return pipeline
+
+    except Exception as e:
+        logger.error(f"[Pipeline] Failed to create with GCS: {e}")
+        # Fallback to regular pipeline
+        return get_furniture_pipeline(device_id)
+
+
 async def process_furniture_analysis_background(
     estimate_id: int,
     image_items: list,
@@ -94,7 +161,17 @@ async def process_furniture_analysis_background(
     try:
         logger.info(f"[Background] Starting analysis for estimate_id={estimate_id}")
 
-        pipeline = get_furniture_pipeline()
+        # GCS 서비스 확보
+        gcs_service = ensure_gcs_initialized()
+        if gcs_service:
+            logger.info(f"[Background] GCS service available for PLY uploads")
+        else:
+            logger.warning(f"[Background] GCS service not available, PLY URLs will be None")
+
+        pipeline = get_furniture_pipeline_with_gcs(
+            gcs_service=gcs_service,
+            estimate_id=estimate_id
+        )
 
         # Run pipeline
         results = await pipeline.process_multiple_images_with_ids(
@@ -262,8 +339,7 @@ async def analyze_furniture_base64(request: AnalyzeFurnitureBase64Request):
                         tmp.write(base64.b64decode(ply_b64_data))
                         ply_path = tmp.name
 
-                    rel_dims, _ = pipeline.calculate_dimensions(obj, ply_path=ply_path)
-                    obj.relative_dimensions = rel_dims
+                    obj.relative_dimensions = pipeline.calculate_dimensions(ply_path=ply_path)
 
                     os.unlink(ply_path)
 

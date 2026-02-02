@@ -22,6 +22,7 @@ _stage4 = importlib.import_module('.4_DB_movability_check', package='ai.processo
 # _stage6 = Legacy subprocess 방식 제거됨 (Worker Pool 사용)
 _stage7 = importlib.import_module('.7_volume_calculate', package='ai.processors')
 _stage8 = importlib.import_module('.8_absolute_volume_calculate', package='ai.processors')
+_ply_preprocess = importlib.import_module('.ply_preprocessor', package='ai.processors')
 
 # 클래스 노출
 ImageFetcher = _stage1.ImageFetcher
@@ -35,6 +36,9 @@ VolumeCalculator = _stage7.VolumeCalculator  # 하위 호환성 별칭
 AbsoluteVolumeCalculator = _stage8.AbsoluteVolumeCalculator
 AbsoluteVolumeResult = _stage8.AbsoluteVolumeResult
 get_calculator = _stage8.get_calculator
+PLYPreprocessor = _ply_preprocess.PLYPreprocessor
+PreprocessResult = _ply_preprocess.PreprocessResult
+preprocess_ply = _ply_preprocess.preprocess_ply
 
 __all__ = [
     # Step 1-4: Detection
@@ -51,4 +55,8 @@ __all__ = [
     'AbsoluteVolumeCalculator',
     'AbsoluteVolumeResult',
     'get_calculator',
+    # PLY Preprocessing (GCS 업로드 전 전처리)
+    'PLYPreprocessor',
+    'PreprocessResult',
+    'preprocess_ply',
 ]

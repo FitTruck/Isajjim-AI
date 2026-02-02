@@ -3,19 +3,23 @@ Furniture Analysis Pipeline
 
 전체 AI 로직을 통합한 파이프라인 오케스트레이터:
 
-[V2 파이프라인 - CLIP/SAHI/SAM2 제거]
+[V2.5 파이프라인 - CLIP/SAHI/SAM2 제거 + GCS 업로드]
 1. Firebase Storage URL에서 이미지 가져오기
 2. YOLOE-seg로 객체 탐지 (bbox + class + 세그멘테이션 마스크)
 3. DB 대조하여 is_movable 결정 (YOLO 클래스로 직접 매칭)
 4. YOLOE-seg 마스크를 SAM-3D에 직접 전달 (SAM2 제거)
 5. SAM3D로 3D 변환
 6. 객체별 부피 계산 (trimesh)
-7. 상대적 부피 계산 후 JSON 응답
+7. PLY 파일 GCS 업로드 및 절대 부피 계산 후 JSON 응답
 
 변경 이유 (2024-01 테스트 결과):
 - YOLOE-seg 마스크가 SAM2보다 객체 전체를 더 정확하게 커버
 - SAM2 API 호출 제거로 latency 감소
 - 파이프라인 단순화
+
+V2.5 추가 (2026-02):
+- PLY 파일 GCS 업로드 및 ply_url 응답 추가
+- 절대 부피 계산 AI 서버에서 수행
 """
 
 import os
@@ -24,10 +28,14 @@ import base64
 import tempfile
 import uuid
 import asyncio
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
 from PIL import Image
 import numpy as np
 from dataclasses import dataclass, field
+
+# Type checking only imports (avoid circular imports)
+if TYPE_CHECKING:
+    from api.services.gcs_storage import GCSStorageService
 
 # AI processors import
 from ai.processors import (
@@ -36,23 +44,18 @@ from ai.processors import (
     MovabilityChecker,
     DimensionCalculator,
     AbsoluteVolumeCalculator,
+    PLYPreprocessor,
 )
 
 # GPU pool manager import
 from ai.gpu import GPUPoolManager, get_gpu_pool
-from ai.gpu import SAM3DWorkerPool, get_sam3d_worker_pool
+from ai.gpu import get_sam3d_worker_pool
 
 # Config import
 from ai.config import Config
 
 # Knowledge base import for subtype exclusion
 from ai.data.knowledge_base import get_excluded_subtype_names
-
-try:
-    import aiohttp
-    HAS_AIOHTTP = True
-except ImportError:
-    HAS_AIOHTTP = False
 
 
 @dataclass
@@ -72,7 +75,8 @@ class DetectedObject:
     yolo_mask: Optional[np.ndarray] = None
 
     # 3D 정보 (SAM-3D 처리 후)
-    ply_url: Optional[str] = None
+    ply_url: Optional[str] = None           # GCS 업로드 URL (V2.5)
+    ply_b64: Optional[str] = None           # PLY base64 데이터 (임시 저장용)
     glb_url: Optional[str] = None
     gif_url: Optional[str] = None
 
@@ -94,14 +98,15 @@ class PipelineResult:
 
 class FurniturePipeline:
     """
-    가구 분석 통합 파이프라인 V2
+    가구 분석 통합 파이프라인 V2.5
 
-    [V2 파이프라인 - SAM2 제거]
+    [V2.5 파이프라인 - SAM2 제거 + GCS 업로드]
     AI Logic Stages:
         Stage 1: ImageFetcher - Firebase URL → PIL Image
         Stage 2: YoloDetector - 객체 탐지 (bbox, class, 세그멘테이션 마스크)
         Stage 3: MovabilityChecker - DB 대조 → is_movable 결정
         Stage 4: YOLOE-seg 마스크 → SAM-3D 직접 전달
+        Stage 5: PLY GCS 업로드 및 절대 부피 계산
 
     External API:
         SAM-3D API - 3D 모델 생성 및 부피 계산
@@ -117,7 +122,9 @@ class FurniturePipeline:
         api_url: str = "http://localhost:8000",
         enable_3d_generation: bool = True,
         device_id: Optional[int] = None,
-        gpu_pool: Optional[GPUPoolManager] = None
+        gpu_pool: Optional[GPUPoolManager] = None,
+        gcs_service: Optional["GCSStorageService"] = None,
+        estimate_id: Optional[int] = None
     ):
         """
         Args:
@@ -125,6 +132,8 @@ class FurniturePipeline:
             enable_3d_generation: 3D 생성 활성화 여부
             device_id: GPU 디바이스 ID (None이면 기본값 사용)
             gpu_pool: GPU 풀 매니저 (Multi-GPU 처리용)
+            gcs_service: GCS 업로드 서비스 (None이면 업로드 안함)
+            estimate_id: 견적 ID (GCS 파일명에 사용)
         """
         self.api_url = api_url.rstrip('/')
         self.enable_3d_generation = enable_3d_generation
@@ -133,6 +142,10 @@ class FurniturePipeline:
         self.device_id = device_id
         self._device = Config.get_device(device_id)
         self.gpu_pool = gpu_pool
+
+        # GCS 업로드 서비스 (V2.5)
+        self.gcs_service = gcs_service
+        self.estimate_id = estimate_id
 
         print(f"[FurniturePipeline] Initializing on device: {self._device}")
 
@@ -457,6 +470,9 @@ class FurniturePipeline:
                 # Worker Pool로 병렬 3D 생성 (use_parallel_3d 파라미터는 하위 호환성 유지)
                 gen_results = await self._parallel_3d_generation(image, objects_with_masks)
 
+                # GCS 업로드 작업 목록 (병렬 처리용)
+                gcs_upload_tasks = []
+
                 # 결과를 객체에 매핑
                 for obj in detected_objects:
                     if obj.id in gen_results:
@@ -464,11 +480,105 @@ class FurniturePipeline:
                         obj.glb_url = gen_result.get("mesh_url")
 
                         if gen_result.get("ply_b64"):
-                            # tempfile 자동 정리 (with 블록 종료 시 삭제)
+                            # PLY base64 임시 저장 (GCS 업로드용)
+                            obj.ply_b64 = gen_result["ply_b64"]
+
+                            # 치수 계산 (tempfile 사용)
                             with tempfile.NamedTemporaryFile(suffix=".ply", delete=True) as tmp:
                                 tmp.write(base64.b64decode(gen_result["ply_b64"]))
                                 tmp.flush()  # 디스크에 쓰기 완료 보장
                                 obj.relative_dimensions = self.calculate_dimensions(ply_path=tmp.name)
+
+                            # GCS 업로드 작업 추가
+                            if self.gcs_service and obj.ply_b64:
+                                filename = self.gcs_service.generate_unique_filename(
+                                    label=obj.label,
+                                    estimate_id=self.estimate_id,
+                                    image_id=result.user_image_id,
+                                    object_idx=obj.id
+                                )
+                                gcs_upload_tasks.append((obj, obj.ply_b64, filename))
+
+                # PLY 전처리 및 GCS 병렬 업로드 (V2.5)
+                if gcs_upload_tasks:
+                    print(f"[FurniturePipeline] Processing {len(gcs_upload_tasks)} PLY files")
+
+                    # PLY 전처리기 초기화 (설정에서 가져오기)
+                    preprocessor = None
+                    if Config.PLY_ENABLE_PREPROCESSING:
+                        preprocessor = PLYPreprocessor(
+                            max_points=Config.PLY_MAX_POINTS,
+                            convert_to_yup=Config.PLY_CONVERT_TO_YUP,
+                            enable_alignment=Config.PLY_ENABLE_ALIGNMENT,
+                            enable_scaling=Config.PLY_ENABLE_SCALING,
+                            enable_downsampling=Config.PLY_ENABLE_DOWNSAMPLING
+                        )
+
+                    # 절대 치수 계산기
+                    abs_calc = AbsoluteVolumeCalculator()
+
+                    # 전처리 후 업로드할 PLY 데이터
+                    upload_items = []
+
+                    for (obj, ply_b64, filename) in gcs_upload_tasks:
+                        processed_ply_b64 = ply_b64  # 기본값: 원본
+
+                        if preprocessor and obj.relative_dimensions:
+                            # 절대 치수 계산
+                            dims = obj.relative_dimensions
+                            bbox = dims.get("bounding_box", {})
+                            rel_width = bbox.get("width", 0)
+                            rel_depth = bbox.get("depth", 0)
+                            rel_height = bbox.get("height", 0)
+
+                            abs_result = abs_calc.calculate_absolute_volume(
+                                label=obj.label,
+                                type_name=obj.subtype_name,
+                                rel_width=rel_width,
+                                rel_depth=rel_depth,
+                                rel_height=rel_height
+                            )
+
+                            try:
+                                # PLY 전처리 적용 (축 정렬 + 스케일링 + 다운샘플링)
+                                processed_ply_b64, preprocess_result = preprocessor.process(
+                                    ply_b64=ply_b64,
+                                    target_width_mm=abs_result.width_mm,
+                                    target_depth_mm=abs_result.depth_mm,
+                                    target_height_mm=abs_result.height_mm
+                                )
+
+                                if preprocess_result.success:
+                                    print(f"[FurniturePipeline] PLY preprocessed for {obj.label}: "
+                                          f"{preprocess_result.original_points} → {preprocess_result.processed_points} points, "
+                                          f"{preprocess_result.original_size_bytes} → {preprocess_result.processed_size_bytes} bytes")
+                                else:
+                                    print(f"[FurniturePipeline] PLY preprocessing failed for {obj.label}: {preprocess_result.message}")
+                                    processed_ply_b64 = ply_b64  # 실패 시 원본 사용
+                            except Exception as e:
+                                print(f"[FurniturePipeline] PLY preprocessing error for {obj.label}: {e}")
+                                processed_ply_b64 = ply_b64  # 예외 시 원본 사용
+
+                        upload_items.append((obj, processed_ply_b64, filename))
+
+                    # GCS 병렬 업로드
+                    print(f"[FurniturePipeline] Uploading {len(upload_items)} PLY files to GCS")
+                    upload_coros = [
+                        self.gcs_service.upload_ply_base64(ply_b64, filename)
+                        for (obj, ply_b64, filename) in upload_items
+                    ]
+                    upload_results = await asyncio.gather(*upload_coros, return_exceptions=True)
+
+                    # 업로드 결과를 객체에 매핑
+                    for i, (obj, ply_b64, filename) in enumerate(upload_items):
+                        upload_result = upload_results[i]
+                        if isinstance(upload_result, Exception):
+                            print(f"[FurniturePipeline] GCS upload failed for {obj.label}: {upload_result}")
+                        else:
+                            obj.ply_url = upload_result
+                            print(f"[FurniturePipeline] GCS upload success: {obj.ply_url}")
+                        # 메모리 정리 - 업로드 후 base64 데이터 삭제
+                        obj.ply_b64 = None
 
             # 결과 집계
             result.objects = detected_objects
@@ -539,6 +649,9 @@ class FurniturePipeline:
                         # 사전 초기화된 파이프라인 사용
                         async with pool.pipeline_context(task_id=f"img_{user_image_id}") as (gpu_id, pipeline):
                             print(f"[FurniturePipeline] Processing image {user_image_id} on GPU {gpu_id} (pre-initialized)")
+                            # GCS 서비스와 estimate_id를 현재 파이프라인에서 복사 (V2.5)
+                            pipeline.gcs_service = self.gcs_service
+                            pipeline.estimate_id = self.estimate_id
                             result = await pipeline.process_single_image(url, enable_mask, enable_3d)
                             result.user_image_id = user_image_id
                             return result
@@ -553,7 +666,9 @@ class FurniturePipeline:
                                     api_url=self.api_url,
                                     enable_3d_generation=self.enable_3d_generation,
                                     device_id=gpu_id,
-                                    gpu_pool=pool
+                                    gpu_pool=pool,
+                                    gcs_service=self.gcs_service,
+                                    estimate_id=self.estimate_id
                                 )
                                 result = await pipeline.process_single_image(url, enable_mask, enable_3d)
                             result.user_image_id = user_image_id
@@ -692,7 +807,8 @@ class FurniturePipeline:
                         "width": abs_result.width_mm,
                         "depth": abs_result.depth_mm,
                         "height": abs_result.height_mm,
-                        "volume": abs_result.volume_m3
+                        "volume": abs_result.volume_m3,
+                        "ply_url": obj.ply_url  # GCS URL (V2.5)
                     })
 
             results_list.append({

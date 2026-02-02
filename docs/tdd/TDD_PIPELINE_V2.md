@@ -185,7 +185,8 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
           "width": 1000.0,
           "depth": 3000.0,
           "height": 900.0,
-          "volume": 2.7
+          "volume": 2.7,
+          "ply_url": "https://storage.isajjim.kr/ply/sofa.ply" // 업로드된 gcs ply url을 반환 
         },
         {
           "label": "DINING_TABLE",
@@ -193,7 +194,8 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
           "width": 800.0,
           "depth": 1200.0,
           "height": 750.0,
-          "volume": 0.72
+          "volume": 0.72,
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
         },
         {
           "label": "BED",
@@ -201,7 +203,8 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
           "width": 1000.0,
           "depth": 2000.0,
           "height": 500.0,
-          "volume": 1.0
+          "volume": 1.0,
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
         }
       ]
     },
@@ -214,7 +217,8 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
           "width": 600.0,
           "depth": 600.0,
           "height": 1200.0,
-          "volume": 0.432
+          "volume": 0.432,
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
         }
       ]
     }
@@ -394,7 +398,8 @@ abs_result = abs_calc.calculate_absolute_volume(
           "width": 1000.0,
           "depth": 3000.0,
           "height": 900.0,
-          "volume": 2.7
+          "volume": 2.7,
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
         },
         {
           "label": "BED",
@@ -402,7 +407,8 @@ abs_result = abs_calc.calculate_absolute_volume(
           "width": 1000.0,
           "depth": 2000.0,
           "height": 500.0,
-          "volume": 1.0
+          "volume": 1.0,
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
         }
       ]
     },
@@ -415,7 +421,8 @@ abs_result = abs_calc.calculate_absolute_volume(
           "width": 600.0,
           "depth": 600.0,
           "height": 1200.0,
-          "volume": 0.432
+          "volume": 0.432,
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
         }
       ]
     }
@@ -806,19 +813,27 @@ hydra-core>=1.3.2       # SAM-3D 설정
 
 ## 10. Changelog
 
-### V2.5 (2026-02-01)
+### V2.5 (2026-02-02)
 
 **Absolute Volume Calculation Migration:**
 - 절대 부피 계산 로직을 **백엔드에서 AI 서버로 이전**
 - 상대 치수 계산 직후 절대 치수(mm)와 부피(m³)를 함께 계산
 
+**PLY 파일 GCS 업로드 (NEW):**
+- 생성된 PLY 파일을 Google Cloud Storage에 업로드
+- 응답에 `ply_url` 필드 추가 (Public URL)
+- GCS 버킷: `isajjim-bucket`
+- 파일 경로: `ply/est{estimate_id}_img{image_id}_{label}_{timestamp}_{uuid}.ply`
+
 **New Files:**
 - `ai/data/furniture_dimensions.py`: 52개 가구 타입 표준 치수 데이터
 - `ai/processors/8_absolute_volume_calculate.py`: AbsoluteVolumeCalculator 클래스
+- `api/services/gcs_storage.py`: GCS PLY 업로드 서비스
 
 **API Response Changes:**
 - `width`, `depth`, `height`: 상대 치수 → **절대 치수 (mm)**
 - `volume`: 새로 추가 → **절대 부피 (m³)**
+- `ply_url`: 새로 추가 → **GCS Public URL**
 
 **Backend Changes:**
 - `FurnitureService.java`: AI 응답의 `volume > 0`이면 바로 사용

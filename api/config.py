@@ -62,6 +62,20 @@ ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
 # ============================================================================
+# GCS Configuration
+# ============================================================================
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "isajjim-bucket")
+GCS_CREDENTIALS_PATH = os.environ.get(
+    "GCS_CREDENTIALS_PATH",
+    os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "credentials",
+        "gcs-credentials.json"
+    )
+)
+GCS_PLY_PREFIX = "ply/"
+
+# ============================================================================
 # Callback Configuration
 # ============================================================================
 CALLBACK_URL_TEMPLATE = "https://api.isajjim.kro.kr/api/v1/estimates/{estimateId}/callback"
