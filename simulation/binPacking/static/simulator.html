@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TypeScript 3D Bin Packing 시뮬레이터</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+    #container { display: flex; height: 100vh; }
+
+    /* 사이드바 */
+    #sidebar {
+      width: 160px;
+      background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+      padding: 12px 8px;
+      overflow-y: auto;
+      border-right: 1px solid #dee2e6;
+    }
+    #sidebar h3 {
+      font-size: 14px;
+      color: #495057;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #dee2e6;
+      margin-bottom: 8px;
+    }
+    .furniture-item {
+      padding: 10px 8px;
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      text-align: center;
+      border: 2px solid transparent;
+    }
+    .furniture-item.placed { opacity: 0.4; border-color: #28a745; }
+    .furniture-icon { font-size: 24px; margin-bottom: 4px; }
+    .furniture-name { font-size: 11px; font-weight: 600; color: #212529; }
+    .furniture-size { font-size: 9px; color: #868e96; margin-top: 2px; }
+
+    /* 캔버스 */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+
+    /* 컨트롤 */
+    #controls {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+    #truck-selector { display: flex; gap: 6px; }
+    .truck-btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.9);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .truck-btn:hover { background: white; transform: scale(1.05); }
+    .truck-btn.active { background: #007bff; color: white; }
+
+    #action-buttons { display: flex; gap: 8px; }
+    .btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; }
+    .btn-secondary { background: rgba(255,255,255,0.9); color: #495057; }
+    .btn-danger { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+    /* 통계 패널 */
+    #stats-panel {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 16px;
+      display: flex;
+      gap: 32px;
+      backdrop-filter: blur(10px);
+      z-index: 100;
+    }
+    .stat-item { text-align: center; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #4dabf7; }
+    .stat-value.warning { color: #ffc107; }
+    .stat-value.danger { color: #ff6b6b; }
+    .stat-label { font-size: 11px; color: #adb5bd; margin-top: 4px; }
+
+    /* 알고리즘 정보 */
+    #algo-info {
+      position: absolute;
+      top: 60px;
+      left: 12px;
+      background: rgba(0,0,0,0.7);
+      color: #4dabf7;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+    }
+
+    /* 진행 상태 */
+    #progress {
+      position: absolute;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 123, 255, 0.9);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 100;
+      display: none;
+    }
+    #progress.visible { display: block; }
+
+    /* 로딩 */
+    #loading {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.95);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+    }
+    #loading.hidden { display: none; }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    #loading-text { margin-top: 16px; color: #495057; }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-text">시뮬레이터 로딩 중...</div>
+  </div>
+  <div id="progress"></div>
+
+  <div id="container">
+    <div id="sidebar">
+      <h3>가구 목록 (<span id="item-count">0</span>개)</h3>
+      <div id="furniture-list"></div>
+    </div>
+
+    <div id="canvas-container">
+      <div id="controls">
+        <div id="truck-selector">
+          <button class="truck-btn" data-truck="1ton">1톤</button>
+          <button class="truck-btn active" data-truck="2.5ton">2.5톤</button>
+          <button class="truck-btn" data-truck="5ton">5톤</button>
+        </div>
+        <div id="action-buttons">
+          <button class="btn btn-secondary" onclick="resetCamera()">카메라</button>
+          <button class="btn btn-primary" onclick="runOptimization()">자동배치</button>
+          <button class="btn btn-primary" onclick="runMultiTruckOptimization()" style="background: linear-gradient(135deg, #6610f2 0%, #520dc2 100%);">멀티트럭</button>
+          <button class="btn btn-danger" onclick="clearAll()">초기화</button>
+        </div>
+      </div>
+
+      <div id="algo-info">
+        TypeScript EP Algorithm | 70% 지지 규칙 | Z→X→Y 우선순위
+      </div>
+
+      <div id="stats-panel">
+        <div class="stat-item">
+          <div class="stat-value" id="load-percent">0</div>
+          <div class="stat-label">적재율 %</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="placed-count">0</div>
+          <div class="stat-label">배치됨</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="total-count">0</div>
+          <div class="stat-label">전체</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="truck-count">1</div>
+          <div class="stat-label">트럭 수</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+
+    // ==================== 전역 상태 ====================
+    let scene, camera, renderer, orbitControls;
+    let truckMesh, truckFloor, truckWalls = [];
+    let furnitureData = [];
+    let furnitureObjects = [];
+    let placedFurniture = [];
+    let multiTruckMeshes = [];
+
+    const plyLoader = new PLYLoader();
+    const MAX_POINTS = 50000;
+
+    const TRUCK_SPECS = {
+      '1ton': { name: '1톤', width: 1.7, depth: 2.8, height: 1.7 },
+      '2.5ton': { name: '2.5톤', width: 2.0, depth: 4.3, height: 1.9 },
+      '5ton': { name: '5톤', width: 2.3, depth: 6.2, height: 2.4 },
+    };
+
+    let currentTruck = TRUCK_SPECS['2.5ton'];
+
+    // ==================== 초기화 ====================
+    function init() {
+      const container = document.getElementById('canvas-container');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x1a1a2e);
+
+      camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(6, 5, 6);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      container.appendChild(renderer.domElement);
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+      dirLight.position.set(10, 15, 10);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      // Ground
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(20, 20),
+        new THREE.MeshStandardMaterial({ color: 0x2d2d44, roughness: 0.8 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -0.01;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      scene.add(new THREE.GridHelper(20, 20, 0x444466, 0x333355));
+
+      // Controls
+      orbitControls = new OrbitControls(camera, renderer.domElement);
+      orbitControls.enableDamping = true;
+      orbitControls.target.set(0, 1, 0);
+
+      createTruck(currentTruck);
+      setupEventListeners();
+      loadSimulationData();
+      animate();
+    }
+
+    // ==================== PLY 다운샘플링 ====================
+    function downsampleGeometry(geometry, maxPoints) {
+      const positions = geometry.attributes.position.array;
+      const totalPoints = positions.length / 3;
+      const stride = Math.ceil(totalPoints / maxPoints);
+
+      const newPositions = [];
+      const newColors = geometry.hasAttribute('color') ? [] : null;
+      const colors = newColors ? geometry.attributes.color.array : null;
+
+      for (let i = 0; i < totalPoints; i += stride) {
+        const idx = i * 3;
+        newPositions.push(positions[idx], positions[idx + 1], positions[idx + 2]);
+        if (newColors) {
+          newColors.push(colors[idx], colors[idx + 1], colors[idx + 2]);
+        }
+      }
+
+      const newGeometry = new THREE.BufferGeometry();
+      newGeometry.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3));
+      if (newColors) {
+        newGeometry.setAttribute('color', new THREE.Float32BufferAttribute(newColors, 3));
+      }
+      newGeometry.computeBoundingSphere();
+
+      return newGeometry;
+    }
+
+    // ==================== 트럭 생성 ====================
+    function createTruck(spec, offsetX = 0, color = 0x00ff88) {
+      const { width, depth, height } = spec;
+
+      const geometry = new THREE.BoxGeometry(width, height, depth);
+      const edges = new THREE.EdgesGeometry(geometry);
+      const frame = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color }));
+      frame.position.set(offsetX, height / 2, 0);
+      scene.add(frame);
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, depth),
+        new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(offsetX, 0.005, 0);
+      scene.add(floor);
+
+      const wallMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.08, side: THREE.DoubleSide });
+      const backWall = new THREE.Mesh(new THREE.PlaneGeometry(width, height), wallMat);
+      backWall.position.set(offsetX, height / 2, -depth / 2);
+      scene.add(backWall);
+
+      const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(depth, height), wallMat);
+      leftWall.rotation.y = Math.PI / 2;
+      leftWall.position.set(offsetX - width / 2, height / 2, 0);
+      scene.add(leftWall);
+
+      const rightWall = leftWall.clone();
+      rightWall.position.x = offsetX + width / 2;
+      scene.add(rightWall);
+
+      if (offsetX === 0) {
+        truckMesh = frame;
+        truckFloor = floor;
+        truckWalls = [backWall, leftWall, rightWall];
+      }
+
+      return { frame, floor, walls: [backWall, leftWall, rightWall] };
+    }
+
+    function clearMainTruck() {
+      if (truckMesh) scene.remove(truckMesh);
+      if (truckFloor) scene.remove(truckFloor);
+      truckWalls.forEach(w => scene.remove(w));
+      truckWalls = [];
+    }
+
+    function clearMultiTrucks() {
+      multiTruckMeshes.forEach(truck => {
+        scene.remove(truck.frame);
+        scene.remove(truck.floor);
+        truck.walls.forEach(w => scene.remove(w));
+      });
+      multiTruckMeshes = [];
+    }
+
+    // ==================== 데이터 로드 ====================
+    async function loadSimulationData() {
+      setLoading(true, '가구 데이터 로딩 중...');
+      try {
+        const response = await fetch('/api/data/123');
+        const data = await response.json();
+
+        if (data.truck) {
+          currentTruck = data.truck;
+          clearMainTruck();
+          createTruck(currentTruck);
+        }
+
+        furnitureData = data.furniture || [];
+        await loadFurnitureItems(furnitureData);
+        updateUI();
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setLoading(false);
+      }
+    }
+
+    async function loadFurnitureItems(items) {
+      furnitureObjects = [];
+      let loadedCount = 0;
+
+      for (const item of items) {
+        setLoading(true, `가구 로딩 중... (${++loadedCount}/${items.length})`);
+        const mesh = await createFurnitureMesh(item);
+        if (mesh) {
+          furnitureObjects.push(mesh);
+        }
+      }
+
+      createSidebar();
+      document.getElementById('total-count').textContent = furnitureObjects.length;
+      document.getElementById('item-count').textContent = furnitureObjects.length;
+    }
+
+    async function createFurnitureMesh(item) {
+      return new Promise((resolve) => {
+        const { width, height, depth, ply_url } = item;
+
+        if (!ply_url) {
+          resolve(null);
+          return;
+        }
+
+        plyLoader.load(
+          ply_url,
+          (geometry) => {
+            if (!geometry || !geometry.attributes || !geometry.attributes.position) {
+              console.error(`PLY 지오메트리 오류: ${item.label}`);
+              resolve(null);
+              return;
+            }
+
+            const originalCount = geometry.attributes.position.count;
+            if (originalCount === 0) {
+              resolve(null);
+              return;
+            }
+
+            if (originalCount > MAX_POINTS) {
+              geometry = downsampleGeometry(geometry, MAX_POINTS);
+            }
+
+            // Z-up → Y-up 좌표계 변환
+            geometry.rotateX(-Math.PI / 2);
+            geometry.computeBoundingBox();
+            const bbox = geometry.boundingBox;
+            const size = new THREE.Vector3();
+            bbox.getSize(size);
+            geometry.center();
+
+            // 균일 스케일링
+            const scale = Math.min(width / size.x, height / size.y, depth / size.z);
+            const scaledWidth = size.x * scale;
+            const scaledHeight = size.y * scale;
+            const scaledDepth = size.z * scale;
+
+            // 그룹 생성
+            const group = new THREE.Group();
+            group.userData = {
+              ...item,
+              width: scaledWidth,
+              height: scaledHeight,
+              depth: scaledDepth,
+              originalWidth: scaledWidth,
+              originalHeight: scaledHeight,
+              originalDepth: scaledDepth,
+              placed: false,
+            };
+
+            // 포인트 클라우드
+            const pointSize = originalCount > MAX_POINTS ? 0.015 : 0.008;
+            const pointsMaterial = new THREE.PointsMaterial({
+              size: pointSize,
+              vertexColors: geometry.hasAttribute('color'),
+              sizeAttenuation: true,
+            });
+            const points = new THREE.Points(geometry, pointsMaterial);
+            points.scale.setScalar(scale);
+            points.frustumCulled = false;
+            group.add(points);
+
+            group.visible = false;
+            scene.add(group);
+
+            resolve(group);
+          },
+          null,
+          (error) => {
+            console.error(`PLY 로드 실패: ${item.label}`, error);
+            resolve(null);
+          }
+        );
+      });
+    }
+
+    // ==================== UI ====================
+    function createSidebar() {
+      const container = document.getElementById('furniture-list');
+      container.innerHTML = '';
+
+      furnitureObjects.forEach((mesh, index) => {
+        const item = mesh.userData;
+        const div = document.createElement('div');
+        div.className = 'furniture-item' + (item.placed ? ' placed' : '');
+        div.id = `item-${index}`;
+        div.innerHTML = `
+          <div class="furniture-icon">${getEmoji(item.label)}</div>
+          <div class="furniture-name">${item.label}</div>
+          <div class="furniture-size">${(item.width * 100).toFixed(0)}x${(item.depth * 100).toFixed(0)}x${(item.height * 100).toFixed(0)}</div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function getEmoji(label) {
+      const l = label.toLowerCase();
+      if (l.includes('sofa')) return '🛋️';
+      if (l.includes('chair')) return '🪑';
+      if (l.includes('table')) return '🍽️';
+      if (l.includes('bed')) return '🛏️';
+      if (l.includes('cabinet')) return '🗄️';
+      if (l.includes('nightstand')) return '🛏️';
+      if (l.includes('tv') || l.includes('television')) return '📺';
+      if (l.includes('plant')) return '🌿';
+      return '📦';
+    }
+
+    function updateUI() {
+      updateStats();
+    }
+
+    function updateStats() {
+      const truckVolume = currentTruck.width * currentTruck.depth * currentTruck.height;
+      let placedVolume = 0;
+
+      placedFurniture.forEach((mesh) => {
+        const { width, depth, height } = mesh.userData;
+        placedVolume += width * depth * height;
+      });
+
+      const loadPercent = Math.round((placedVolume / truckVolume) * 100);
+
+      const loadEl = document.getElementById('load-percent');
+      loadEl.textContent = loadPercent;
+      loadEl.className = 'stat-value' + (loadPercent > 90 ? ' danger' : loadPercent > 70 ? ' warning' : '');
+
+      document.getElementById('placed-count').textContent = placedFurniture.length;
+    }
+
+    function setLoading(show, text = '로딩 중...') {
+      document.getElementById('loading').classList.toggle('hidden', !show);
+      document.getElementById('loading-text').textContent = text;
+    }
+
+    function showProgress(text) {
+      const el = document.getElementById('progress');
+      el.textContent = text;
+      el.classList.add('visible');
+    }
+
+    function hideProgress() {
+      document.getElementById('progress').classList.remove('visible');
+    }
+
+    // ==================== 액션 ====================
+    window.resetCamera = function() {
+      camera.position.set(6, 5, 6);
+      orbitControls.target.set(0, 1, 0);
+    };
+
+    window.clearAll = function() {
+      resetAllFurniture();
+      clearMultiTrucks();
+      document.getElementById('truck-count').textContent = '1';
+      updateStats();
+    };
+
+    function resetAllFurniture() {
+      furnitureObjects.forEach((mesh, i) => {
+        if (mesh.userData.originalWidth !== undefined) {
+          mesh.userData.width = mesh.userData.originalWidth;
+          mesh.userData.depth = mesh.userData.originalDepth;
+          mesh.userData.height = mesh.userData.originalHeight;
+        }
+        mesh.rotation.set(0, 0, 0);
+        mesh.userData.placed = false;
+        mesh.visible = false;
+        document.getElementById(`item-${i}`)?.classList.remove('placed');
+      });
+      placedFurniture = [];
+    }
+
+    function updateTruckSelection(truckType) {
+      document.querySelectorAll('.truck-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.truck === truckType) {
+          btn.classList.add('active');
+        }
+      });
+      if (TRUCK_SPECS[truckType]) {
+        currentTruck = TRUCK_SPECS[truckType];
+      }
+    }
+
+    // ==================== 최적화 API ====================
+    window.runOptimization = async function() {
+      if (furnitureObjects.length === 0) {
+        alert('가구가 없습니다.');
+        return;
+      }
+
+      resetAllFurniture();
+      clearMultiTrucks();
+
+      const items = furnitureObjects.map((mesh, index) => ({
+        id: mesh.userData.id,
+        index,
+        width: mesh.userData.width,
+        depth: mesh.userData.depth,
+        height: mesh.userData.height
+      }));
+
+      const truckType = document.querySelector('.truck-btn.active')?.dataset.truck || '2.5ton';
+      setLoading(true, '최적화 계산 중...');
+
+      try {
+        const response = await fetch('/api/optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: items.map(item => ({
+              id: item.id,
+              width: item.width,
+              depth: item.depth,
+              height: item.height
+            })),
+            truck_type: truckType,
+            unit: 'm',
+            support_ratio: 0.7
+          })
+        });
+
+        const result = await response.json();
+
+        updateTruckSelection(result.truck_type);
+        setLoading(false);
+
+        await animatePlacements(result.placements, items, 0);
+
+        document.getElementById('truck-count').textContent = '1';
+        alert(`최적화 완료!\n트럭: ${TRUCK_SPECS[result.truck_type]?.name}\n적재율: ${result.volume_utilization}%`);
+
+      } catch (error) {
+        console.error('최적화 실패:', error);
+        setLoading(false);
+        alert('최적화 실패');
+      }
+    };
+
+    window.runMultiTruckOptimization = async function() {
+      if (furnitureObjects.length === 0) {
+        alert('가구가 없습니다.');
+        return;
+      }
+
+      resetAllFurniture();
+      clearMultiTrucks();
+
+      const items = furnitureObjects.map((mesh, index) => ({
+        id: mesh.userData.id,
+        index,
+        width: mesh.userData.width,
+        depth: mesh.userData.depth,
+        height: mesh.userData.height
+      }));
+
+      setLoading(true, '멀티 트럭 최적화 계산 중...');
+
+      try {
+        const response = await fetch('/api/optimize-multi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: items.map(item => ({
+              id: item.id,
+              width: item.width,
+              depth: item.depth,
+              height: item.height
+            })),
+            unit: 'm',
+            support_ratio: 0.7
+          })
+        });
+
+        const result = await response.json();
+        setLoading(false);
+
+        // 멀티 트럭 시각화
+        let offsetX = 0;
+        const gap = 0.5;
+
+        for (let i = 0; i < result.trucks.length; i++) {
+          const truckData = result.trucks[i];
+          const spec = TRUCK_SPECS[truckData.type];
+          if (!spec) continue;
+
+          if (i === 0) {
+            updateTruckSelection(truckData.type);
+            clearMainTruck();
+            createTruck(spec, 0, 0x00ff88);
+          } else {
+            offsetX += TRUCK_SPECS[result.trucks[i-1].type].width / 2 + gap + spec.width / 2;
+            const truckMeshes = createTruck(spec, offsetX, 0x00aaff);
+            multiTruckMeshes.push(truckMeshes);
+          }
+
+          showProgress(`트럭 ${i + 1}/${result.trucks.length} 배치 중...`);
+          await animatePlacements(truckData.placements, items, offsetX);
+        }
+
+        hideProgress();
+        document.getElementById('truck-count').textContent = result.total_trucks;
+
+        const truckSummary = result.trucks.map(t => `${TRUCK_SPECS[t.type]?.name}(${t.utilization}%)`).join(' + ');
+        alert(`멀티 트럭 최적화 완료!\n${result.message}\n트럭: ${truckSummary}`);
+
+      } catch (error) {
+        console.error('멀티 트럭 최적화 실패:', error);
+        setLoading(false);
+        alert('최적화 실패');
+      }
+    };
+
+    // ==================== 배치 애니메이션 ====================
+    async function animatePlacements(placements, items, offsetX = 0) {
+      for (let i = 0; i < placements.length; i++) {
+        const p = placements[i];
+        const item = items.find(it => it.id === p.id);
+        if (!item) continue;
+
+        const mesh = furnitureObjects[item.index];
+
+        showProgress(`배치 중... ${i + 1}/${placements.length}`);
+
+        // 회전 설정
+        mesh.rotation.set(0, 0, 0);
+        if (p.orientation === 2) {
+          mesh.rotation.y = Math.PI / 2;
+        }
+
+        // 치수 업데이트
+        mesh.userData.width = p.width;
+        mesh.userData.depth = p.depth;
+        mesh.userData.height = p.height;
+
+        // 시작 위치
+        mesh.position.set(
+          p.x + offsetX,
+          p.y + p.height / 2 + 2,
+          currentTruck.depth / 2 + 1
+        );
+        mesh.userData.placed = true;
+        mesh.visible = true;
+        placedFurniture.push(mesh);
+        document.getElementById(`item-${item.index}`)?.classList.add('placed');
+
+        // 애니메이션
+        await animateToPosition(mesh, {
+          x: p.x + offsetX,
+          y: p.y + p.height / 2,
+          z: p.z
+        }, 330);
+
+        await sleep(165);
+      }
+
+      hideProgress();
+      updateStats();
+    }
+
+    function animateToPosition(mesh, target, duration) {
+      return new Promise(resolve => {
+        const start = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
+        const startTime = performance.now();
+
+        function update() {
+          const elapsed = performance.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const eased = easeOutBack(progress);
+
+          mesh.position.x = start.x + (target.x - start.x) * eased;
+          mesh.position.y = start.y + (target.y - start.y) * eased;
+          mesh.position.z = start.z + (target.z - start.z) * eased;
+
+          if (progress < 1) {
+            requestAnimationFrame(update);
+          } else {
+            mesh.position.set(target.x, target.y, target.z);
+            resolve();
+          }
+        }
+        update();
+      });
+    }
+
+    function easeOutBack(t) {
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // ==================== 이벤트 ====================
+    function setupEventListeners() {
+      document.querySelectorAll('.truck-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          updateTruckSelection(btn.dataset.truck);
+          clearMainTruck();
+          createTruck(currentTruck);
+        });
+      });
+
+      window.addEventListener('resize', () => {
+        const container = document.getElementById('canvas-container');
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      });
+    }
+
+    // ==================== 렌더링 루프 ====================
+    function animate() {
+      requestAnimationFrame(animate);
+      orbitControls.update();
+      renderer.render(scene, camera);
+    }
+
+    init();
+  </script>
+</body>
+</html>
