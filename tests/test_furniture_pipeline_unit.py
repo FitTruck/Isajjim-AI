@@ -262,6 +262,7 @@ class TestFurniturePipelineToJsonResponseV2:
             id=0,
             label="소파",
             db_key="sofa",
+            center_point=[150.5, 200.3],
             relative_dimensions={
                 "bounding_box": {"width": 200.0, "depth": 90.0, "height": 85.0},
                 "volume": 1.53e9
@@ -283,6 +284,9 @@ class TestFurniturePipelineToJsonResponseV2:
         assert json_resp["results"][0]["image_id"] == 101
         assert len(json_resp["results"][0]["objects"]) == 1
         assert json_resp["results"][0]["objects"][0]["label"] == "소파"
+        # x, y 필드 검증 (bounding box 중심 좌표)
+        assert json_resp["results"][0]["objects"][0]["x"] == 150.5
+        assert json_resp["results"][0]["objects"][0]["y"] == 200.3
 
     def test_to_json_response_v2_multiple_images(self, mock_pipeline):
         """V2 응답: 다중 이미지 결과"""
@@ -306,6 +310,33 @@ class TestFurniturePipelineToJsonResponseV2:
         assert len(json_resp["results"]) == 2
         assert json_resp["results"][0]["image_id"] == 101
         assert json_resp["results"][1]["image_id"] == 102
+
+    def test_to_json_response_v2_without_center_point(self, mock_pipeline):
+        """V2 응답: center_point가 없는 경우 x, y는 0.0"""
+        obj = DetectedObject(
+            id=0,
+            label="SOFA",
+            db_key="sofa",
+            center_point=[],  # 빈 리스트
+            relative_dimensions={
+                "bounding_box": {"width": 200.0, "depth": 90.0, "height": 85.0},
+                "volume": 1.53e9
+            }
+        )
+
+        result = PipelineResult(
+            image_id="uuid-1",
+            image_url="http://test.com/1.jpg",
+            objects=[obj],
+            status="completed",
+            user_image_id=101
+        )
+
+        json_resp = mock_pipeline.to_json_response_v2([result])
+
+        # center_point가 비어있으면 x, y는 0.0
+        assert json_resp["results"][0]["objects"][0]["x"] == 0.0
+        assert json_resp["results"][0]["objects"][0]["y"] == 0.0
 
 
 class TestFurniturePipelineFetchImage:

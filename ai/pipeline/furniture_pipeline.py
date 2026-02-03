@@ -808,7 +808,9 @@ class FurniturePipeline:
                         "depth": abs_result.depth_mm,
                         "height": abs_result.height_mm,
                         "volume": abs_result.volume_m3,
-                        "ply_url": obj.ply_url  # GCS URL (V2.5)
+                        "ply_url": obj.ply_url,  # GCS URL (V2.5)
+                        "x": round(obj.center_point[0], 1) if obj.center_point else 0.0,
+                        "y": round(obj.center_point[1], 1) if obj.center_point else 0.0
                     })
 
             results_list.append({
