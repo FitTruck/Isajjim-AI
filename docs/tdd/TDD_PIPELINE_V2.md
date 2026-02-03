@@ -186,7 +186,9 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
           "depth": 3000.0,
           "height": 900.0,
           "volume": 2.7,
-          "ply_url": "https://storage.isajjim.kr/ply/sofa.ply" // 업로드된 gcs ply url을 반환 
+          "ply_url": "https://storage.isajjim.kr/ply/sofa.ply",
+          "center_x": 43.2,
+          "center_y": 234.2  //이미지에서 객체의 중심 위치 
         },
         {
           "label": "DINING_TABLE",
@@ -195,7 +197,9 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
           "depth": 1200.0,
           "height": 750.0,
           "volume": 0.72,
-          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply",
+          "center_x": 43.2,
+          "center_y": 234.2
         },
         {
           "label": "BED",
@@ -204,7 +208,9 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
           "depth": 2000.0,
           "height": 500.0,
           "volume": 1.0,
-          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply",
+          "center_x": 43.2,
+          "center_y": 234.2
         }
       ]
     },
@@ -218,7 +224,9 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
           "depth": 600.0,
           "height": 1200.0,
           "volume": 0.432,
-          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply",
+          "center_x": 43.2,
+          "center_y": 234.2
         }
       ]
     }
@@ -399,7 +407,20 @@ abs_result = abs_calc.calculate_absolute_volume(
           "depth": 3000.0,
           "height": 900.0,
           "volume": 2.7,
-          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
+          "ply_url": "https://storage.isajjim.kr/ply/sofa.ply",
+          "center_x": 43.2,
+          "center_y": 234.2
+        },
+        {
+          "label": "DINING_TABLE",
+          "type": "DEFAULT_DINING_TABLE",
+          "width": 800.0,
+          "depth": 1200.0,
+          "height": 750.0,
+          "volume": 0.72,
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply",
+          "center_x": 43.2,
+          "center_y": 234.2
         },
         {
           "label": "BED",
@@ -408,7 +429,9 @@ abs_result = abs_calc.calculate_absolute_volume(
           "depth": 2000.0,
           "height": 500.0,
           "volume": 1.0,
-          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply",
+          "center_x": 43.2,
+          "center_y": 234.2
         }
       ]
     },
@@ -422,7 +445,9 @@ abs_result = abs_calc.calculate_absolute_volume(
           "depth": 600.0,
           "height": 1200.0,
           "volume": 0.432,
-          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply"
+          "ply_url": "https://storage.isajjim.kr/ply/{label}.ply",
+          "center_x": 43.2,
+          "center_y": 234.2
         }
       ]
     }

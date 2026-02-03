@@ -284,9 +284,9 @@ class TestFurniturePipelineToJsonResponseV2:
         assert json_resp["results"][0]["image_id"] == 101
         assert len(json_resp["results"][0]["objects"]) == 1
         assert json_resp["results"][0]["objects"][0]["label"] == "소파"
-        # x, y 필드 검증 (bounding box 중심 좌표)
-        assert json_resp["results"][0]["objects"][0]["x"] == 150.5
-        assert json_resp["results"][0]["objects"][0]["y"] == 200.3
+        # center_x, center_y 필드 검증 (bounding box 중심 좌표)
+        assert json_resp["results"][0]["objects"][0]["center_x"] == 150.5
+        assert json_resp["results"][0]["objects"][0]["center_y"] == 200.3
 
     def test_to_json_response_v2_multiple_images(self, mock_pipeline):
         """V2 응답: 다중 이미지 결과"""
@@ -334,9 +334,9 @@ class TestFurniturePipelineToJsonResponseV2:
 
         json_resp = mock_pipeline.to_json_response_v2([result])
 
-        # center_point가 비어있으면 x, y는 0.0
-        assert json_resp["results"][0]["objects"][0]["x"] == 0.0
-        assert json_resp["results"][0]["objects"][0]["y"] == 0.0
+        # center_point가 비어있으면 center_x, center_y는 0.0
+        assert json_resp["results"][0]["objects"][0]["center_x"] == 0.0
+        assert json_resp["results"][0]["objects"][0]["center_y"] == 0.0
 
 
 class TestFurniturePipelineFetchImage:
