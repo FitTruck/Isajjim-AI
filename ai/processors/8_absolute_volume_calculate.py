@@ -13,11 +13,10 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from ai.data.furniture_dimensions import (
-    FURNITURE_LABELS,
-    FURNITURE_TYPES,
     FurnitureTypeDimension,
     get_furniture_type,
     get_subtypes_for_label,
+    get_valid_type_or_none,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,12 +29,13 @@ class AbsoluteVolumeResult:
 
     Attributes:
         matched_type: 매칭된 가구 타입 이름 (예: "THREE_SEATER_SOFA")
+                      백엔드에 없는 타입(DEFAULT_* 등)은 None
         width_mm: 절대 가로 길이 (mm)
         depth_mm: 절대 세로 길이 (mm)
         height_mm: 절대 높이 (mm)
         volume_m3: 절대 부피 (m³)
     """
-    matched_type: str
+    matched_type: Optional[str]
     width_mm: float
     depth_mm: float
     height_mm: float
@@ -200,14 +200,17 @@ class AbsoluteVolumeCalculator:
         # 부피 계산 (mm³ → m³)
         volume_m3 = width_mm * depth_mm * height_mm * 1e-9
 
+        # 백엔드에 없는 타입은 None으로 변환
+        valid_type = get_valid_type_or_none(matched_type)
+
         logger.debug(
-            f"calculate_absolute_volume: type={matched_type}, "
+            f"calculate_absolute_volume: type={matched_type} -> valid_type={valid_type}, "
             f"dims=({width_mm:.0f}, {depth_mm:.0f}, {height_mm:.0f})mm, "
             f"volume={volume_m3:.3f}m³"
         )
 
         return AbsoluteVolumeResult(
-            matched_type=matched_type,
+            matched_type=valid_type,
             width_mm=round(width_mm, 1),
             depth_mm=round(depth_mm, 1),
             height_mm=round(height_mm, 1),
@@ -226,26 +229,33 @@ class AbsoluteVolumeCalculator:
 
         Returns:
             (width_mm, depth_mm, height_mm) 튜플
-        """
-        # 상대 치수 정렬 (l1 < l2 < l3)
-        sorted_relative = sorted([rel_width, rel_depth, rel_height])
-        l1 = sorted_relative[0]  # 가장 작은 값 (상대적 높이)
-        l3 = sorted_relative[2]  # 가장 큰 값
 
-        # 표준 장단변 추출
-        standard_long_side = max(furniture_type.width, furniture_type.depth)
-        standard_short_side = min(furniture_type.width, furniture_type.depth)
+        Note:
+            표준 치수(width, depth, height)를 그대로 유지합니다.
+            높이가 가변(-1)인 경우에만 상대 치수 비율로 계산합니다.
+            이렇게 하면 TV처럼 납작한 가구도 올바른 치수로 반환됩니다.
+        """
+        # 표준 치수 사용
+        actual_width = furniture_type.width
+        actual_depth = furniture_type.depth
 
         # 높이 계산
         if furniture_type.height != -1:
             # 고정 높이 사용
             actual_height = furniture_type.height
         else:
-            # 가변 높이: 스케일 팩터로 계산
+            # 가변 높이: 상대 치수 비율로 스케일 계산
+            # 상대 치수 정렬 (l1 < l2 < l3)
+            sorted_relative = sorted([rel_width, rel_depth, rel_height])
+            l1 = sorted_relative[0]  # 가장 작은 값
+            l3 = sorted_relative[2]  # 가장 큰 값
+
+            # 표준 장변 기준 스케일 팩터
+            standard_long_side = max(furniture_type.width, furniture_type.depth)
             scale_factor = standard_long_side / l3 if l3 > 0 else 1.0
             actual_height = l1 * scale_factor
 
-        return standard_short_side, standard_long_side, actual_height
+        return actual_width, actual_depth, actual_height
 
     def _calculate_fallback(
         self,
@@ -268,14 +278,17 @@ class AbsoluteVolumeCalculator:
 
         volume_m3 = width_mm * depth_mm * height_mm * 1e-9
 
+        # 백엔드에 없는 타입은 None으로 변환
+        valid_type = get_valid_type_or_none(type_name)
+
         logger.warning(
-            f"Using fallback calculation for {type_name}: "
+            f"Using fallback calculation for {type_name} -> valid_type={valid_type}: "
             f"dims=({width_mm:.0f}, {depth_mm:.0f}, {height_mm:.0f})mm, "
             f"volume={volume_m3:.6f}m³"
         )
 
         return AbsoluteVolumeResult(
-            matched_type=type_name,
+            matched_type=valid_type,
             width_mm=round(width_mm, 1),
             depth_mm=round(depth_mm, 1),
             height_mm=round(height_mm, 1),
@@ -295,10 +308,8 @@ class AbsoluteVolumeCalculator:
         일반적인 식탁 기준 치수를 사용하여 스케일 팩터를 계산합니다.
         기준: 1200mm x 800mm x 750mm (4인용 식탁)
         """
-        # 기준 치수 (4인용 식탁)
+        # 기준 치수 (4인용 식탁: 1200mm x 800mm x 750mm)
         reference_long = 1200.0
-        reference_short = 800.0
-        reference_height = 750.0
 
         # 상대 치수 정렬
         sorted_relative = sorted([rel_width, rel_depth, rel_height])
@@ -321,14 +332,17 @@ class AbsoluteVolumeCalculator:
 
         volume_m3 = width_mm * depth_mm * height_mm * 1e-9
 
+        # 백엔드에 없는 타입은 None으로 변환
+        valid_type = get_valid_type_or_none(type_name)
+
         logger.debug(
-            f"Fully variable calculation for {type_name}: "
+            f"Fully variable calculation for {type_name} -> valid_type={valid_type}: "
             f"dims=({width_mm:.0f}, {depth_mm:.0f}, {height_mm:.0f})mm, "
             f"volume={volume_m3:.3f}m³"
         )
 
         return AbsoluteVolumeResult(
-            matched_type=type_name,
+            matched_type=valid_type,
             width_mm=round(width_mm, 1),
             depth_mm=round(depth_mm, 1),
             height_mm=round(height_mm, 1),

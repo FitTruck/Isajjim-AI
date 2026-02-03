@@ -95,7 +95,7 @@ class Config:
     # --- PLY Preprocessing ---
     # GCS 업로드 전 PLY 전처리 설정
     PLY_ENABLE_PREPROCESSING: bool = True  # 전처리 활성화
-    PLY_MAX_POINTS: int = 50000            # 다운샘플링 최대 포인트 수
+    PLY_MAX_POINTS: int = 72000            # 다운샘플링 최대 포인트 수 (40% 퀄리티 향상)
     PLY_CONVERT_TO_YUP: bool = True        # Y-up 좌표계 변환 (Three.js 호환)
     PLY_ENABLE_ALIGNMENT: bool = True      # OBB 기반 축 정렬 활성화
     PLY_ENABLE_SCALING: bool = True        # 절대 치수 스케일링 활성화

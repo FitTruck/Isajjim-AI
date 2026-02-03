@@ -177,10 +177,10 @@ FURNITURE_TYPES: Dict[str, FurnitureTypeDimension] = {
         width=-1, depth=-1, height=-1
     ),
 
-    # TV/모니터
+    # TV/모니터 (65인치 기준)
     "DEFAULT_MONITOR_TV": FurnitureTypeDimension(
         name="DEFAULT_MONITOR_TV",
-        width=1900, depth=100, height=1100
+        width=1450, depth=80, height=840
     ),
 
     # 책상
@@ -373,6 +373,87 @@ FURNITURE_LABELS: Dict[str, List[str]] = {
     "DISH_CABINET": ["DEFAULT_DISH_CABINET"],
     "POTTED_PLANT": ["DEFAULT_POTTED_PLANT"],
 }
+
+
+# =============================================================================
+# Backend Valid FurnitureType enum (33개)
+# 백엔드에 정의된 FurnitureType만 API 응답에서 type으로 반환됩니다.
+# 이 목록에 없는 타입은 null로 반환됩니다.
+# =============================================================================
+BACKEND_VALID_TYPES: set = {
+    # 에어컨
+    "WALL_MOUNTED_AIR_CONDITIONER",
+    "STANDING_AIR_CONDITIONER",
+    # 냉장고
+    "TOP_BOTTOM_REFRIGERATOR",
+    "SIDE_BY_SIDE_REFRIGERATOR",
+    "FOUR_DOOR_REFRIGERATOR",
+    # 옷장
+    "MOVABLE_WARDROBE",
+    "SYSTEM_HANGER",
+    # 소파
+    "SINGLE_SOFA",
+    "TWIN_SOFA",
+    "THREE_SEATER_SOFA",
+    "L_SHAPED_SOFA",
+    # 침대
+    "SINGLE_BED",
+    "SUPER_SINGLE_BED",
+    "DOUBLE_BED",
+    "QUEEN_SIZE_BED",
+    "KING_SIZE_BED",
+    "BUNK_BED",
+    # 책상
+    "L_SHAPED_DESK",
+    "DESK_NO_DRAWER",
+    "DESK_SINGLE_PEDESTAL",
+    "DESK_DOUBLE_PEDESTAL",
+    # 의자
+    "STANDARD_CHAIR",
+    "ROUND_STOOL",
+    "ROLLING_OFFICE_CHAIR",
+    # 세탁기
+    "DRUM_WASHING_MACHINE",
+    "TOP_LOADING_WASHING_MACHINE",
+    # 화장대
+    "VANITY_TABLE_WITH_ATTACHED_MIRROR",
+    "CONSOLE_VANITY_TABLE",
+    # TV 거치대
+    "TV_ENTERTAINMENT_CENTER_WITH_STORAGE",
+    "LOW_TV_STAND",
+    # 피아노
+    "UPRIGHT_VERTICAL_PIANO",
+    "GRAND_PIANO",
+    "DIGITAL_PIANO",
+}
+
+
+def is_valid_backend_type(type_name: str) -> bool:
+    """
+    백엔드 FurnitureType enum에 존재하는 타입인지 확인
+
+    Args:
+        type_name: 타입 이름 (예: "THREE_SEATER_SOFA")
+
+    Returns:
+        백엔드에 유효한 타입이면 True, 아니면 False
+    """
+    return type_name in BACKEND_VALID_TYPES
+
+
+def get_valid_type_or_none(type_name: Optional[str]) -> Optional[str]:
+    """
+    백엔드에 유효한 타입이면 반환, 아니면 None 반환
+
+    Args:
+        type_name: 타입 이름
+
+    Returns:
+        유효한 타입이면 그대로, 아니면 None
+    """
+    if type_name is None:
+        return None
+    return type_name if is_valid_backend_type(type_name) else None
 
 
 # =============================================================================

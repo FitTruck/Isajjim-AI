@@ -44,7 +44,7 @@ SAM-3D PLY (base64)
     ↓
 4. 스케일링 (절대 치수 mm → m)
     ↓
-5. Stride 다운샘플링 (max 50,000 points)
+5. Stride 다운샘플링 (max 72,000 points)
     ↓
 GCS 업로드
 ```
@@ -52,7 +52,7 @@ GCS 업로드
 **설정 (`ai/config.py`):**
 ```python
 PLY_ENABLE_PREPROCESSING = True  # 전처리 활성화
-PLY_MAX_POINTS = 50000           # 다운샘플링 최대 포인트 수
+PLY_MAX_POINTS = 72000           # 다운샘플링 최대 포인트 수 (40% 퀄리티 향상)
 PLY_CONVERT_TO_YUP = True        # Y-up 좌표계 변환 (Three.js 호환)
 PLY_ENABLE_ALIGNMENT = True      # OBB 기반 축 정렬
 PLY_ENABLE_SCALING = True        # 절대 치수 스케일링
@@ -61,7 +61,7 @@ PLY_ENABLE_DOWNSAMPLING = True   # Stride 다운샘플링
 
 **성능 효과:**
 - 파일 크기: ~50-90% 감소 (포인트 수에 따라)
-- 50,000 포인트 기준: 약 2MB → ~200KB
+- 72,000 포인트 기준: 약 2MB → ~290KB
 
 ## Architecture
 
