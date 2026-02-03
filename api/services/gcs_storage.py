@@ -101,10 +101,9 @@ class GCSStorageService:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         unique_id = uuid.uuid4().hex[:8]
 
-        # 라벨 정리 (공백 제거, 소문자)
+        # 라벨 정리 (공백 제거, 대문자)
         safe_label = label.replace(" ", "_").upper()
 
-        parts = ["ply"]
         filename_parts = []
 
         if estimate_id is not None:

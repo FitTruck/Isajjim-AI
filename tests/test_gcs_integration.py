@@ -7,7 +7,6 @@ GCS Integration Tests (requires actual GCS credentials).
     pytest tests/test_gcs_integration.py -v -m "not ci_skip"
 """
 
-import asyncio
 import base64
 import os
 import pytest

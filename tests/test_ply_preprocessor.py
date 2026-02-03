@@ -4,7 +4,6 @@ Tests for PLY Preprocessor
 
 import base64
 import math
-import pytest
 import numpy as np
 
 from ai.processors.ply_preprocessor import (

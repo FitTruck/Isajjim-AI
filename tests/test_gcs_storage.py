@@ -5,10 +5,9 @@ Tests for GCS Storage Service.
     pytest tests/test_gcs_storage.py -v
 """
 
-import asyncio
 import base64
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # Import the service
 import sys

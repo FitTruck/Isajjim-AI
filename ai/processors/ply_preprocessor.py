@@ -503,7 +503,6 @@ class PLYPreprocessor:
 
         if is_binary:
             # Binary PLY (little endian, float32 xyz + optional uint8 rgb)
-            bytes_per_vertex = 12 + (3 if has_color else 0)  # 3*float32 + 3*uint8
             if has_color:
                 dtype = np.dtype([
                     ('x', '<f4'), ('y', '<f4'), ('z', '<f4'),
