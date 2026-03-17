@@ -195,7 +195,7 @@ class DimensionCalculator:
                 pairs.append((similarity[i, j], i, j))
         pairs.sort(reverse=True)
 
-        for sim, obb_idx, coord_idx in pairs:
+        for _, obb_idx, coord_idx in pairs:
             if obb_idx not in obb_to_coord and coord_idx not in used_coords:
                 obb_to_coord[obb_idx] = coord_idx
                 used_coords.add(coord_idx)
@@ -308,7 +308,7 @@ class DimensionCalculator:
                 centroid = points.mean(axis=0)
                 centered = points - centroid
                 cov = np.cov(centered.T)
-                eigenvalues, eigenvectors = np.linalg.eigh(cov)
+                _, eigenvectors = np.linalg.eigh(cov)
 
                 # 점들을 주축으로 회전
                 rotated = centered @ eigenvectors
@@ -327,7 +327,7 @@ class DimensionCalculator:
 
                 obb_to_coord = {}
                 used_coords = set()
-                for sim, obb_idx, coord_idx in pairs:
+                for _, obb_idx, coord_idx in pairs:
                     if obb_idx not in obb_to_coord and coord_idx not in used_coords:
                         obb_to_coord[obb_idx] = coord_idx
                         used_coords.add(coord_idx)

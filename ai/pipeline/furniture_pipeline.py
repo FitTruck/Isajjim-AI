@@ -174,10 +174,6 @@ class FurniturePipeline:
         """Stage 1: Firebase URL에서 이미지 가져오기"""
         return await self.fetcher.fetch_async(url)
 
-    def fetch_image_from_url_sync(self, url: str) -> Optional[Image.Image]:
-        """Stage 1 (동기): Firebase URL에서 이미지 가져오기"""
-        return self.fetcher.fetch_sync(url)
-
     # =========================================================================
     # Stage 2-3: 객체 탐지 → is_movable 결정
     # =========================================================================
@@ -477,7 +473,6 @@ class FurniturePipeline:
                 for obj in detected_objects:
                     if obj.id in gen_results:
                         gen_result = gen_results[obj.id]
-                        obj.glb_url = gen_result.get("mesh_url")
 
                         if gen_result.get("ply_b64"):
                             # PLY base64 임시 저장 (GCS 업로드용)

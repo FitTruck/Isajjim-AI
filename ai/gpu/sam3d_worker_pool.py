@@ -14,17 +14,15 @@ import asyncio
 import subprocess
 import sys
 import os
-import json
 import time
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from contextlib import asynccontextmanager
 
 # Import protocol
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ai.subprocess.worker_protocol import (
     MessageType, TaskMessage, ResultMessage, InitMessage,
-    HeartbeatMessage, ShutdownMessage, parse_message
+    ShutdownMessage, parse_message
 )
 
 
@@ -109,9 +107,6 @@ class SAM3DWorkerPool:
 
         # 라운드로빈 카운터
         self._next_worker_index = 0
-
-        # 작업 결과 대기용 Future 맵
-        self._result_futures: Dict[str, asyncio.Future] = {}
 
         # 동기화 락
         self._allocation_lock = asyncio.Lock()

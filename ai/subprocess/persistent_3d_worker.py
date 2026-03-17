@@ -324,7 +324,7 @@ class PersistentWorker:
             # Move models to GPU
             moved_count = 0
             if hasattr(self.sam3d_inference, "_pipeline") and hasattr(self.sam3d_inference._pipeline, "models"):
-                for model_name, model in self.sam3d_inference._pipeline.models.items():
+                for _, model in self.sam3d_inference._pipeline.models.items():
                     if hasattr(model, "cuda"):
                         model.cuda()
                         moved_count += 1
