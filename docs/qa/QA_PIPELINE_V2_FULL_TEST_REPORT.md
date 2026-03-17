@@ -1,5 +1,7 @@
 # Pipeline V2 Full QA Test Report
 
+> **주의**: 이 리포트는 V2 초기 버전(2026-01-20)의 테스트 기록입니다. 이후 `is_movable` 제거, Gaussian-only 모드 활성화, inference steps 최적화 등 변경사항이 있습니다. 현재 설정은 [TDD_PIPELINE_V2.md](../tdd/TDD_PIPELINE_V2.md)를 참조하세요.
+
 **Test Date:** 2026-01-20
 **Pipeline Version:** V2 (YOLOE-seg → SAM-3D Direct)
 **Environment:** NVIDIA A100-SXM4-40GB (40GB), sam3d-objects conda environment

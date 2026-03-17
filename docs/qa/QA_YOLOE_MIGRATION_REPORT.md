@@ -1,5 +1,7 @@
 # QA Test Report: YOLOE Migration
 
+> **주의**: 이 리포트는 YOLOE 초기 마이그레이션(2026-01-16, yoloe-11l-seg.pt) 테스트 기록입니다. 이후 모델이 `yoloe-26x-seg.pt`로 변경되었고, `is_movable` 제거 등 추가 변경이 있었습니다. 현재 아키텍처는 [TDD_PIPELINE_V2.md](../tdd/TDD_PIPELINE_V2.md)를 참조하세요.
+
 ## 개요
 
 YOLO-World + SAHI + CLIP 파이프라인에서 YOLOE-seg 단일 모델 파이프라인으로 마이그레이션 완료.

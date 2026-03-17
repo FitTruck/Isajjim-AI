@@ -317,7 +317,7 @@ MessageType:
 ### 5.1 불필요한 후처리 비활성화
 
 ```python
-# ai/subprocess/generate_3d_worker.py:631-644
+# ai/subprocess/persistent_3d_worker.py:631-644
 output = pipe.run(
     image=image,
     mask=mask,
@@ -339,11 +339,11 @@ output = pipe.run(
 
 ### 5.2 GIF 렌더링 스킵
 
-부피 계산만 필요한 경우 GIF 렌더링을 스킵합니다.
+Gaussian-only 모드에서는 GIF 렌더링이 자동으로 스킵됩니다.
 
 ```python
-# ai/processors/6_SAM3D_convert.py:53
-skip_gif: bool = True  # 기본값: GIF 스킵
+# ai/subprocess/persistent_3d_worker.py
+GAUSSIAN_ONLY_MODE = True  # GIF/GLB/Mesh 모두 스킵
 
 # 효과: 15-30초 절약
 ```
@@ -352,11 +352,11 @@ skip_gif: bool = True  # 기본값: GIF 스킵
 
 ```python
 # ai/subprocess/persistent_3d_worker.py:58-62
-# Stage1 (Sparse Structure): 테스트 결과 15 steps가 최적
-STAGE1_INFERENCE_STEPS = 15  # 기본값 25 → 15 (47% 속도 향상, 1.31% 부피 오차)
+# Stage1 (Sparse Structure): 12~16 사이 최적값
+STAGE1_INFERENCE_STEPS = 14  # 기본값 25 → 14 (속도/정확도 균형)
 
-# Stage2 (SLAT): 8 steps가 최적
-STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8 (~15-20% 속도 향상)
+# Stage2 (SLAT): 4 steps로 충분
+STAGE2_INFERENCE_STEPS = 4   # 기본값 12 → 4 (치수 오차 0.5% 이내, 30% 속도 향상)
 ```
 
 #### Stage1 Steps 테스트 결과
@@ -365,11 +365,12 @@ STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8 (~15-20% 속도 향상)
 |-------|----------|----------|------|
 | 25 | baseline | 1.00x | - |
 | 20 | +5.47% | 1.23x | ⚠️ 주의 |
-| **15** | **+1.31%** | **1.47x** | ✅ **권장 (현재 설정)** |
-| 12 | +11.04% | 1.65x | ❌ 비권장 |
+| 16 | ~+1% | ~1.4x | ✅ 권장 범위 |
+| **14** | **~+1.5%** | **~1.5x** | ✅ **권장 (현재 설정)** |
+| 12 | +11.04% | 1.65x | ⚠️ 주의 |
 | 10 | +15.09% | 1.84x | ❌ 비권장 |
 
-**결론**: `stage1_steps=15`가 최적의 균형점 (부피 오차 1.31%, 속도 47% 향상)
+**결론**: `stage1_steps=14`가 속도/정확도 균형점 (12~16 사이 최적값)
 
 ### 5.4 Binary PLY 포맷
 
@@ -433,8 +434,8 @@ self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cu
 | Phase | 최적화 | 효과 | 부피 영향 |
 |-------|--------|------|----------|
 | 1 | 이미지 다운샘플링 비활성화 | 부피 정확도 유지 | 91.7% 영향 방지 |
-| 2 | Stage1 Steps (25→15) | **47% 속도 향상** | **1.31%** |
-| 2 | Stage2 Steps (12→8) | 15-20% 속도 향상 | ~4% |
+| 2 | Stage1 Steps (25→14) | **~50% 속도 향상** | **~1.5%** |
+| 2 | Stage2 Steps (12→4) | ~30% 속도 향상 | ~0.5% |
 | 3 | Binary PLY | 쓰기 50% 빠름 | 없음 |
 | 5 | Gaussian-only 모드 | **37.4% 속도 향상** | 0.005% |
 | - | in_place=True | 5-10% 속도 향상 | 없음 |
@@ -451,7 +452,7 @@ self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cu
 ### 6.1 스레드 폭발 방지
 
 ```python
-# ai/subprocess/generate_3d_worker.py:32-37
+# ai/subprocess/persistent_3d_worker.py:32-37
 os.environ["OMP_NUM_THREADS"] = "4"
 os.environ["OPENBLAS_NUM_THREADS"] = "4"
 os.environ["MKL_NUM_THREADS"] = "4"
@@ -470,7 +471,7 @@ torch.set_num_interop_threads(2)
 ### 6.2 spconv 튜닝 시간 제한
 
 ```python
-# ai/subprocess/generate_3d_worker.py:29
+# ai/subprocess/persistent_3d_worker.py:29
 os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # 100ms 제한
 
 # 문제: spconv가 최적 알고리즘을 찾기 위해 무한 튜닝
@@ -495,15 +496,15 @@ os.environ["SPCONV_TUNE_DEVICE"] = "0"
 
 spconv 라이브러리는 GPU 상태를 유지하며, 같은 프로세스에서 여러 번 로드하면 충돌이 발생합니다.
 
-### 해결책: Subprocess 격리
+### 해결책: Persistent Worker Pool + Subprocess 격리
 
 ```python
-# ai/processors/6_SAM3D_convert.py:128-134
-result = subprocess.run(
-    cmd,
-    capture_output=True,
-    text=True,
-    timeout=timeout,
+# ai/gpu/sam3d_worker_pool.py - 워커 프로세스 시작
+process = subprocess.Popen(
+    [sys.executable, worker_script, "--gpu-id", str(gpu_id)],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
     env=env  # CUDA_VISIBLE_DEVICES로 GPU 격리
 )
 ```
@@ -525,7 +526,7 @@ SAM-3D의 MoGe 모듈이 카메라 intrinsics를 추정할 때 실패하거나 N
 ### 해결책
 
 ```python
-# ai/subprocess/generate_3d_worker.py:213-251
+# ai/subprocess/persistent_3d_worker.py:213-251
 def make_synthetic_pointmap(image, z=1.0, f=None):
     """
     Create a simple pinhole-camera pointmap:
@@ -580,14 +581,14 @@ def make_synthetic_pointmap(image, z=1.0, f=None):
 |------|------|------|
 | 1 | YOLOE-seg 탐지 (사전 로드) | 0.5-1초 |
 | 2 | SAM-3D 모델 로드 (Worker Pool) | 0초 |
-| 3 | SAM-3D 추론 (stage1=15, stage2=8, compile=True) | ~6-7초 |
+| 3 | SAM-3D 추론 (stage1=14, stage2=4, compile=True) | ~6-7초 |
 | 4 | Gaussian-only 디코딩 | ~0.5초 |
 | 5 | 후처리/GIF | 0초 (비활성화/스킵) |
 | | **총합** | **~7-8초** |
 
 **적용된 최적화**:
-- Stage1 Steps: 25 → 15 (47% 빠름)
-- Stage2 Steps: 12 → 8 (15-20% 빠름)
+- Stage1 Steps: 25 → 14 (~50% 빠름)
+- Stage2 Steps: 12 → 4 (~30% 빠름)
 - torch.compile: 10-20% 빠름
 - in_place=True: 5-10% 빠름
 - Gaussian-only: 37% 빠름
@@ -663,7 +664,7 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 | 10 이미지 × 3 객체 | 4590초 | 54초 | 98.8% | **~85배** |
 | 10 이미지 × 5 객체 | 7650초 | 89초 | 98.8% | **~86배** |
 
-> **Note**: 현재 시간은 stage1=15, stage2=8, compile=True, Gaussian-only 모드 적용 기준
+> **Note**: 현재 시간은 stage1=14, stage2=4, compile=True, Gaussian-only 모드 적용 기준
 
 ---
 
@@ -679,8 +680,8 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 | GIF 스킵 | 15-30초 | **11-13%** |
 | V2 파이프라인 (SAM2/CLIP 제거) | 3-7초 | **2-3%** |
 | 모델 사전 로드 (YOLOE + SAM-3D) | 7-11초 | **5-6%** |
-| Stage1 Steps 감소 (25→15) | ~4초 | **~3%** |
-| Stage2 Steps 감소 (12→8) | ~3초 | **~2%** |
+| Stage1 Steps 감소 (25→14) | ~4초 | **~3%** |
+| Stage2 Steps 감소 (12→4) | ~4초 | **~3%** |
 | Gaussian-only 모드 | ~9초 | **~6%** |
 | torch.compile | ~3-5초 | **~3%** |
 | in_place=True | ~1-2초 | **~1%** |
@@ -730,13 +731,13 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 | **모델 로드 오버헤드** | 7-11초/요청 | 0초 | **100% 제거** |
 | **GPU 활용률** | 단일 GPU | N GPU 병렬 | **N배 향상** |
 
-#### 적용된 최적화 설정 (2026-01-25)
+#### 적용된 최적화 설정 (2026-03-13 업데이트)
 
 ```python
 # ai/subprocess/persistent_3d_worker.py
 MAX_IMAGE_SIZE = None           # Phase 1: 다운샘플링 비활성화 (부피 정확도 유지)
-STAGE1_INFERENCE_STEPS = 15     # Phase 2: Stage1 (25→15, 47% 빠름, 1.31% 오차)
-STAGE2_INFERENCE_STEPS = 8      # Phase 2: Stage2 (12→8, 15-20% 빠름)
+STAGE1_INFERENCE_STEPS = 14     # Phase 2: Stage1 (25→14, 속도/정확도 균형)
+STAGE2_INFERENCE_STEPS = 4      # Phase 2: Stage2 (12→4, 치수 오차 0.5% 이내, 30% 빠름)
 USE_BINARY_PLY = True           # Phase 3: Binary PLY (70% 작음, 50% 빠름)
 GAUSSIAN_ONLY_MODE = True       # Phase 5: Gaussian-only (37.4% 빠름, 0.005% 오차)
 ENABLE_COMPILE = True           # torch.compile (10-20% 빠름)

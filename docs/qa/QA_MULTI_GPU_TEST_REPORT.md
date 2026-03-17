@@ -1,5 +1,7 @@
 # Multi-GPU 병렬 처리 QA 테스트 리포트
 
+> **주의**: 이 리포트는 V1 파이프라인(YOLO-World + CLIP + SAM2) 기반의 역사적 테스트 기록입니다. 현재 V2 파이프라인에서는 CLIP/SAM2/SAHI가 제거되었으며, Persistent Worker Pool 아키텍처가 도입되었습니다. 현재 아키텍처는 [TDD_PIPELINE_V2.md](../tdd/TDD_PIPELINE_V2.md)를 참조하세요.
+
 **테스트 일시**: 2026-01-15
 **테스트 환경**: Ubuntu Linux, NVIDIA GPU (40GB VRAM)
 **커밋**: bc62ce3
