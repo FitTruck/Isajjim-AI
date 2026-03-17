@@ -12,16 +12,8 @@ Pillow>=10.0.0
 numpy>=1.24.0
 opencv-python-headless>=4.9.0  # headless version to avoid GUI conflicts
 
-# ML/AI
-transformers==4.57.3
-tokenizers>=0.15.0
-
-# Scientific computing
-scipy>=1.10.0
-
 # 3D processing
 trimesh
-pygltflib
 
 # Gaussian splatting
 # NOTE: Install torch first, then install this package with:
