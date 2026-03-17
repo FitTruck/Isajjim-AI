@@ -29,7 +29,7 @@
 |------|-----|------|
 | `MAX_IMAGE_SIZE` | None (비활성화) | 부피 정확도 유지 |
 | `STAGE1_INFERENCE_STEPS` | 14 | 속도/정확도 균형 (12~16 사이 최적값) |
-| `STAGE2_INFERENCE_STEPS` | 8 | ~15-20% 속도 향상 |
+| `STAGE2_INFERENCE_STEPS` | 4 | 치수 오차 0.5% 이내, 30% 속도 향상 |
 | `GAUSSIAN_ONLY_MODE` | True | 37.4% 속도 향상, GLB/Mesh 스킵 |
 | `USE_BINARY_PLY` | True | ~70% 파일 크기 감소, ~50% I/O 속도 향상 |
 | `compile=True` | torch.compile | 10-20% 추론 속도 향상 |
@@ -84,8 +84,8 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Wo
 | 1 | `1_firebase_images_fetch.py` | Firebase Storage URL에서 이미지 다운로드 |
 | 2 | `2_YOLO_detect.py` | YOLOE-seg 객체 탐지 (bbox + class + mask) |
 | 3 | `4_DB_movability_check.py` | YOLO 클래스로 DB 매칭, 영어 라벨 반환 (base_name) |
-| 4 | `6_SAM3D_convert.py` | YOLO 마스크 → SAM-3D 3D 모델 생성 |
-| 5 | `7_volume_calculate.py` | trimesh OBB로 상대 부피/치수 계산 |
+| 4 | `persistent_3d_worker.py` | YOLO 마스크 → SAM-3D 3D 모델 생성 (Persistent Worker Pool) |
+| 5 | `7_volume_calculate.py` | trimesh OBB로 상대 치수 계산 |
 
 ### V1 → V2 변경사항
 
@@ -118,8 +118,6 @@ Firebase URL → YOLOE-seg (bbox + mask) → DB 매칭 → SAM-3D (Persistent Wo
 |--------|------|------|
 | GET | `/health` | 서버 상태 확인 |
 | GET | `/gpu-status` | GPU 풀 상태 |
-| POST | `/generate-3d` | 3D 생성 (task_id 반환) |
-| GET | `/generate-3d-status/{task_id}` | 3D 생성 결과 폴링 |
 | GET | `/assets-list` | 저장된 에셋 목록 |
 | GET | `/assets/{filename}` | 에셋 다운로드 |
 
@@ -163,10 +161,10 @@ curl -X POST http://localhost:8000/analyze-furniture \
       "objects": [
         {
           "label": "sofa",
-          "width": 1.5,
-          "depth": 0.8,
-          "height": 0.6,
-          "volume": 0.72
+          "type": "THREE_SEATER_SOFA",
+          "width": 200.0,
+          "depth": 90.0,
+          "height": 85.0
         }
       ]
     }
@@ -174,11 +172,12 @@ curl -X POST http://localhost:8000/analyze-furniture \
 }
 ```
 
-**단위 설명:**
-- `width`, `depth`, `height`: **상대 길이** (3D 메시 bounding box, 모델 좌표계)
-- `volume`: **상대 부피** (bounding box 부피, 모델 좌표계)
+**필드 설명:**
+- `label`: 탐지된 객체 라벨 (영어, base_name)
+- `type`: 세부 유형 (예: `"THREE_SEATER_SOFA"`) 또는 `null`
+- `width`, `depth`, `height`: **상대 치수** (3D 메시 OBB 기준, 단위 없음)
 
-> 절대 부피/치수는 백엔드에서 Knowledge Base 실제 치수와 비율을 조합하여 계산
+> 절대 치수/부피 계산은 백엔드에서 Knowledge Base 실제 치수와 비율을 조합하여 계산
 
 ### 빠른 탐지 (3D 없음)
 
@@ -276,7 +275,7 @@ MAX_IMAGE_SIZE = None
 
 # Phase 2: Inference Steps
 STAGE1_INFERENCE_STEPS = 14  # 속도/정확도 균형 (12~16 사이 최적값)
-STAGE2_INFERENCE_STEPS = 8   # 기본값 12 → 8 (~15-20% 빠름)
+STAGE2_INFERENCE_STEPS = 4   # 치수 오차 0.5% 이내, 30% 속도 향상
 
 # Phase 3: PLY 형식 (True = Binary, 70% 작은 파일)
 USE_BINARY_PLY = True
@@ -288,7 +287,7 @@ GAUSSIAN_ONLY_MODE = True    # 37.4% 빠름, 0.005% 부피 오차
 **최적화 테스트 결과:**
 - 다운샘플링: 부피 정확도에 91.7% 영향 (작은 객체에서 최대 576% 차이)
 - Stage1 Steps (25→14): 속도/정확도 균형, ~0.5% 부피 오차 (vs 16)
-- Stage2 Steps (12→8): ~15-20% 속도 향상
+- Stage2 Steps (12→4): 치수 오차 0.5% 이내, 30% 속도 향상
 - Gaussian-only: 37.4% 속도 향상, 0.005% 부피 오차
 - torch.compile: 10-20% 추론 속도 향상
 - in_place=True: 5-10% 속도/메모리 향상
