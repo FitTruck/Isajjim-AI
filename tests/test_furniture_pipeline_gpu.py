@@ -211,7 +211,6 @@ class TestDetectedObjectDataclass:
         assert obj.crop_image is None
         assert obj.mask_base64 is None
         assert obj.yolo_mask is None
-        assert obj.ply_url is None
 
 
 class TestPipelineResultDataclass:

@@ -9,7 +9,6 @@ STAGE1_INFERENCE_STEPS=14 통합 테스트
 """
 
 import pytest
-import asyncio
 import aiohttp
 import base64
 import os
