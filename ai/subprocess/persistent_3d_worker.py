@@ -29,6 +29,17 @@ os.environ["LIDRA_SKIP_INIT"] = "true"
 os.environ["SPCONV_TUNE_DEVICE"] = "0"  # Always 0 due to CUDA_VISIBLE_DEVICES remap
 os.environ["SPCONV_ALGO_TIME_LIMIT"] = os.environ.get("SPCONV_ALGO_TIME_LIMIT", "100")
 os.environ["TORCH_CUDA_ARCH_LIST"] = "all"
+os.environ["WARP_QUIET"] = "1"  # Suppress Warp stdout output (interferes with JSON protocol)
+
+# Phase C: Persistent AUTOTUNE cache (survives worker restarts)
+# torch.compile(mode="max-autotune") benchmarks CUDA kernels on first run.
+# Without persistent cache, every worker restart re-benchmarks (~5 min).
+_autotune_cache_dir = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", ".cache", "torch_compile"
+)
+os.makedirs(_autotune_cache_dir, exist_ok=True)
+os.environ["TORCHINDUCTOR_CACHE_DIR"] = _autotune_cache_dir
+os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 
 # Prevent thread explosion
 os.environ["OMP_NUM_THREADS"] = "4"
@@ -71,6 +82,20 @@ USE_BINARY_PLY = True
 # GLB/Mesh가 필요 없고 부피 계산만 필요한 경우 활성화
 GAUSSIAN_ONLY_MODE = True  # True = ["gaussian"], False = ["gaussian", "glb", "mesh"]
 
+# Phase A: SS Generator Step Caching (Fast-SAM3D, Section 4.1)
+# cache_stride=3: 매 3번째 step만 full backbone 실행, 나머지는 캐시 재사용
+# warmup_steps=2: 처음 2 step은 항상 full (궤적 안정화)
+# 14 steps 기준: full=6, cached=8 → backbone 호출 18/42 = 57% 감소
+ENABLE_SS_STEP_CACHING = True
+SS_CACHE_STRIDE = 3
+SS_CACHE_WARMUP_STEPS = 2
+
+# Phase B: SLaT Generator Step Caching
+# cache_stride=2: 4 steps에서 보수적 캐싱 (step 0,1=warmup, 2=cached, 3=full)
+ENABLE_SLAT_STEP_CACHING = False
+SLAT_CACHE_STRIDE = 2
+SLAT_CACHE_WARMUP_STEPS = 1
+
 # ============================================================================
 
 # Import protocol after environment setup
@@ -87,8 +112,23 @@ def log(msg: str):
 
 
 def send_message(msg_obj):
-    """stdout으로 JSON 메시지 전송"""
+    """stdout으로 JSON 메시지 전송 (stdout 오염 방지)"""
+    # Restore real stdout in case it was suppressed
+    if hasattr(send_message, '_real_stdout'):
+        sys.stdout = send_message._real_stdout
     print(msg_obj.to_json(), flush=True)
+
+
+def suppress_stdout():
+    """stdout을 /dev/null로 리다이렉트 (Warp 등 라이브러리 stdout 오염 방지)"""
+    send_message._real_stdout = sys.stdout
+    sys.stdout = open(os.devnull, 'w')
+
+
+def restore_stdout():
+    """stdout 복원"""
+    if hasattr(send_message, '_real_stdout'):
+        sys.stdout = send_message._real_stdout
 
 
 def downsample_image_and_mask(
@@ -294,6 +334,9 @@ class PersistentWorker:
                 log(f"torch.cuda.current_device()={torch.cuda.current_device()}")
                 log(f"Using GPU: {torch.cuda.get_device_name(0)}")
 
+            # Suppress stdout during model loading (Warp/kaolin pollute stdout)
+            suppress_stdout()
+
             # Import SAM-3D
             sam3d_notebook_path = "./sam-3d-objects/notebook"
             if not os.path.exists(sam3d_notebook_path):
@@ -312,35 +355,188 @@ class PersistentWorker:
             log(f"Loading SAM-3D from {config_path}...")
             load_start = time.time()
 
-            # compile=True: 첫 warmup 시 torch.compile로 CUDA 커널 컴파일
-            # 워커 시작 시 매우 오래 걸림 (4 GPU × 3 warmup → 10분+)
-            # 프로덕션에서는 True, 테스트에서는 False 권장
-            ENABLE_COMPILE = True  # True = 추론 10-20% 빠름, False = 빠른 시작 (테스트용)
+            # compile은 항상 False로 로드 (SAM3D 내부 _warmup()에 run_layout_model 버그 존재)
+            # 대신 Phase C에서 수동으로 torch.compile 적용 + 자체 warmup 수행
             try:
-                self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cuda")
+                self.sam3d_inference = Inference(config_path, compile=False, device="cuda")
             except TypeError:
-                self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE)
-
-            # Move models to GPU
-            moved_count = 0
-            if hasattr(self.sam3d_inference, "_pipeline") and hasattr(self.sam3d_inference._pipeline, "models"):
-                for _, model in self.sam3d_inference._pipeline.models.items():
-                    if hasattr(model, "cuda"):
-                        model.cuda()
-                        moved_count += 1
-                    if hasattr(model, "eval"):
-                        model.eval()
-
-            log(f"Moved {moved_count} models to GPU")
+                self.sam3d_inference = Inference(config_path, compile=False)
 
             self.pipe = getattr(self.sam3d_inference, "_pipeline", None)
             if self.pipe is None:
                 raise RuntimeError("Inference object has no _pipeline")
 
+            # ============================================================
+            # VRAM Optimization: Gaussian-only 모드에서 불필요한 모델 제거
+            # slat_decoder_mesh (~3-4GB), slat_decoder_gs_4 (~2-3GB),
+            # depth_model/MoGe (~1GB) 제거 → 총 ~6-8GB VRAM 절약
+            # ============================================================
+            if GAUSSIAN_ONLY_MODE and hasattr(self.pipe, "models"):
+                models_to_remove = []
+
+                # mesh decoder: Gaussian-only에서 절대 사용 안 함
+                if "slat_decoder_mesh" in self.pipe.models:
+                    models_to_remove.append("slat_decoder_mesh")
+
+                # gs_4 decoder: stage2=4에서는 기본 gs decoder 사용
+                if "slat_decoder_gs_4" in self.pipe.models and self.pipe.models["slat_decoder_gs_4"] is not None:
+                    models_to_remove.append("slat_decoder_gs_4")
+
+                for name in models_to_remove:
+                    model = self.pipe.models[name]
+                    if model is not None:
+                        # CPU로 이동 후 삭제 (ModuleDict에서 직접 삭제 불가하므로 CPU 이동)
+                        model.cpu()
+                        del model
+                    log(f"Unloaded {name} from GPU (not needed in Gaussian-only mode)")
+
+                # depth_model (MoGe): synthetic pointmap 사용 시 불필요
+                if hasattr(self.pipe, "depth_model") and self.pipe.depth_model is not None:
+                    depth = self.pipe.depth_model
+                    # MoGe wraps an nn.Module internally
+                    if hasattr(depth, "model") and hasattr(depth.model, "cpu"):
+                        depth.model.cpu()
+                    elif hasattr(depth, "cpu"):
+                        depth.cpu()
+                    del depth
+                    self.pipe.depth_model = None
+                    log("Unloaded depth_model (MoGe) from GPU (using synthetic pointmap)")
+
+                import gc
+                gc.collect()
+                torch.cuda.empty_cache()
+
+                # VRAM 사용량 확인
+                vram_used = torch.cuda.memory_allocated() / (1024 ** 3)
+                vram_reserved = torch.cuda.memory_reserved() / (1024 ** 3)
+                log(f"VRAM after cleanup: {vram_used:.2f}GB allocated, {vram_reserved:.2f}GB reserved")
+
+            # Move remaining models to GPU and set eval mode
+            moved_count = 0
+            if hasattr(self.pipe, "models"):
+                for name, model in self.pipe.models.items():
+                    if model is not None and hasattr(model, "cuda"):
+                        model.cuda()
+                        moved_count += 1
+                    if model is not None and hasattr(model, "eval"):
+                        model.eval()
+
+            log(f"Moved {moved_count} models to GPU")
+
+            # ============================================================
+            # Phase A: SS Generator Step Caching
+            # ============================================================
+            if ENABLE_SS_STEP_CACHING:
+                try:
+                    from sam3d_objects.model.backbone.generator.flow_matching.cached_solver import CachedEuler
+                except ImportError:
+                    from cached_solver import CachedEuler
+                ss_gen = self.pipe.models["ss_generator"]
+                ss_gen._solver = CachedEuler(
+                    cache_stride=SS_CACHE_STRIDE,
+                    warmup_steps=SS_CACHE_WARMUP_STEPS,
+                )
+                ss_gen._solver_method = "cached_euler"
+                log(f"Phase A: SS step caching (stride={SS_CACHE_STRIDE}, warmup={SS_CACHE_WARMUP_STEPS})")
+
+            # ============================================================
+            # Phase B: SLaT Generator Step Caching
+            # ============================================================
+            if ENABLE_SLAT_STEP_CACHING:
+                try:
+                    from sam3d_objects.model.backbone.generator.flow_matching.cached_solver import CachedEuler as CachedEulerB
+                except ImportError:
+                    from cached_solver import CachedEuler as CachedEulerB
+                slat_gen = self.pipe.models["slat_generator"]
+                slat_gen._solver = CachedEulerB(
+                    cache_stride=SLAT_CACHE_STRIDE,
+                    warmup_steps=SLAT_CACHE_WARMUP_STEPS,
+                )
+                slat_gen._solver_method = "cached_euler"
+                log(f"Phase B: SLaT step caching (stride={SLAT_CACHE_STRIDE}, warmup={SLAT_CACHE_WARMUP_STEPS})")
+
             torch.set_grad_enabled(False)
 
             load_time = time.time() - load_start
             log(f"SAM-3D loaded in {load_time:.2f}s")
+
+            # ============================================================
+            # Phase C: Manual torch.compile + AUTOTUNE warmup
+            # SAM3D 내부 compile=True는 _warmup()에서 run_layout_model 버그가 있어
+            # compile=False로 로드한 뒤, 핵심 모듈만 수동 compile하고 자체 warmup 수행
+            # ============================================================
+            ENABLE_COMPILE = True  # True = 추론 10-20% 빠름, False = 빠른 시작 (테스트용)
+            if ENABLE_COMPILE:
+                log("Phase C: Manual torch.compile on critical modules...")
+                compile_start = time.time()
+                compile_mode = "reduce-overhead"  # max-autotune은 첫 실행 10분+, reduce-overhead는 ~2분
+
+                try:
+                    _dynamo = torch._dynamo
+                    _dynamo.config.cache_size_limit = 64
+                    _dynamo.config.accumulated_cache_size_limit = 2048
+                    _dynamo.config.capture_scalar_outputs = True
+
+                    # SS Generator backbone (가장 호출 빈도 높음: 14 steps × 3 calls = 42회)
+                    ss_gen = self.pipe.models["ss_generator"]
+                    if hasattr(ss_gen, "reverse_fn") and hasattr(ss_gen.reverse_fn, "inner_forward"):
+                        ss_gen.reverse_fn.inner_forward = torch.compile(
+                            ss_gen.reverse_fn.inner_forward,
+                            mode=compile_mode,
+                            fullgraph=True,
+                        )
+                        log("Phase C: Compiled SS generator backbone")
+
+                    # SS Decoder
+                    ss_dec = self.pipe.models["ss_decoder"] if "ss_decoder" in self.pipe.models else None
+                    if ss_dec is not None:
+                        ss_dec.forward = torch.compile(
+                            ss_dec.forward,
+                            mode=compile_mode,
+                            fullgraph=True,
+                        )
+                        log("Phase C: Compiled SS decoder")
+
+                    # Condition embedding (fullgraph=False: PointPatchEmbed 호환성)
+                    if hasattr(self.pipe, "embed_condition"):
+                        self.pipe.embed_condition = torch.compile(
+                            self.pipe.embed_condition,
+                            mode=compile_mode,
+                            fullgraph=False,
+                        )
+                        log("Phase C: Compiled condition embedding")
+
+                    log(f"Phase C: Compilation setup in {time.time() - compile_start:.1f}s")
+
+                    # Warmup: 첫 실행으로 AUTOTUNE 캐시 생성
+                    log("Phase C: Running AUTOTUNE warmup (first run may take ~2-5min)...")
+                    warmup_start = time.time()
+                    dummy_image = np.random.randint(0, 255, (512, 512, 3), dtype=np.uint8)
+                    dummy_mask = np.ones((512, 512), dtype=np.uint8) * 255
+                    dummy_pointmap = make_synthetic_pointmap(dummy_image, z=1.0)
+
+                    with torch.no_grad():
+                        _ = self.pipe.run(
+                            image=dummy_image,
+                            mask=dummy_mask,
+                            seed=42,
+                            pointmap=dummy_pointmap,
+                            decode_formats=["gaussian"] if GAUSSIAN_ONLY_MODE else ["gaussian", "mesh"],
+                            stage1_inference_steps=STAGE1_INFERENCE_STEPS,
+                            stage2_inference_steps=STAGE2_INFERENCE_STEPS,
+                            with_mesh_postprocess=False,
+                            with_texture_baking=False,
+                            with_layout_postprocess=False,
+                            use_vertex_color=True,
+                        )
+                    torch.cuda.empty_cache()
+                    log(f"Phase C: AUTOTUNE warmup completed in {time.time() - warmup_start:.1f}s")
+                    log(f"Phase C: Cache dir = {_autotune_cache_dir}")
+
+                except Exception as e:
+                    log(f"Phase C: Compile/warmup failed (non-fatal, continuing without compile): {e}")
+                    import traceback
+                    traceback.print_exc(file=sys.stderr)
 
             # Send init success message
             send_message(InitMessage(
@@ -366,6 +562,7 @@ class PersistentWorker:
 
     def process_task(self, task: TaskMessage) -> ResultMessage:
         """3D 생성 작업 처리"""
+        suppress_stdout()  # Protect stdout during 3D generation
         start_time = time.time()
         log(f"Processing task {task.task_id}")
 
