@@ -105,11 +105,13 @@ class SAM3DWorkerPool:
         for i, gpu_id in enumerate(gpu_ids):
             self._workers[gpu_id] = WorkerInfo(worker_id=i, gpu_id=gpu_id)
 
-        # 라운드로빈 카운터
+        # 라운드로빈 카운터 (폴백용)
         self._next_worker_index = 0
 
-        # 동기화 락
+        # 동기화
         self._allocation_lock = asyncio.Lock()
+        self._worker_available = asyncio.Event()  # 워커 반환 시 시그널
+        self._worker_available.set()  # 초기 상태: 사용 가능
         self._started = False
 
         print(f"[SAM3DWorkerPool] Initialized with {len(gpu_ids)} workers for GPUs: {gpu_ids}")
@@ -303,12 +305,12 @@ class SAM3DWorkerPool:
             await self._release_worker(worker_info.gpu_id)
 
     async def _acquire_worker(self, task_id: str) -> Optional[WorkerInfo]:
-        """라운드로빈으로 사용 가능한 워커 할당"""
+        """Event 기반 work-stealing: 먼저 끝난 워커가 다음 작업을 즉시 가져감"""
         start_time = time.time()
 
         while time.time() - start_time < self.task_timeout:
             async with self._allocation_lock:
-                # 모든 워커 순회
+                # 사용 가능한 워커 순회 (라운드로빈 순서)
                 for _ in range(len(self.gpu_ids)):
                     gpu_id = self.gpu_ids[self._next_worker_index]
                     self._next_worker_index = (self._next_worker_index + 1) % len(self.gpu_ids)
@@ -319,20 +321,40 @@ class SAM3DWorkerPool:
                         worker_info.is_busy = True
                         worker_info.current_task_id = task_id
                         worker_info.last_activity = time.time()
+
+                        # 남은 빈 워커가 없으면 Event 초기화 (다음 대기자 블록)
+                        any_free = any(
+                            w.is_ready and not w.is_busy
+                            for w in self._workers.values()
+                        )
+                        if not any_free:
+                            self._worker_available.clear()
+
                         print(f"[SAM3DWorkerPool] Acquired worker {gpu_id} for task {task_id}")
                         return worker_info
 
-            # 잠시 대기 후 재시도
-            await asyncio.sleep(0.5)
+            # Event 기반 대기: 워커 반환 시 즉시 깨어남 (0.5초 폴링 제거)
+            try:
+                remaining = self.task_timeout - (time.time() - start_time)
+                if remaining <= 0:
+                    break
+                await asyncio.wait_for(
+                    self._worker_available.wait(),
+                    timeout=remaining
+                )
+            except asyncio.TimeoutError:
+                break
 
         return None
 
     async def _release_worker(self, gpu_id: int):
-        """워커 반환"""
+        """워커 반환 + 대기 중인 task에 즉시 시그널"""
         if gpu_id in self._workers:
             task_id = self._workers[gpu_id].current_task_id
             self._workers[gpu_id].is_busy = False
             self._workers[gpu_id].current_task_id = None
+            # 대기 중인 task가 즉시 이 워커를 할당받도록 시그널
+            self._worker_available.set()
             print(f"[SAM3DWorkerPool] Released worker {gpu_id} (was task {task_id})")
 
     async def _wait_for_result(self, gpu_id: int, task_id: str) -> ResultMessage:

@@ -731,7 +731,7 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 | **모델 로드 오버헤드** | 7-11초/요청 | 0초 | **100% 제거** |
 | **GPU 활용률** | 단일 GPU | N GPU 병렬 | **N배 향상** |
 
-#### 적용된 최적화 설정 (2026-03-13 업데이트)
+#### 적용된 최적화 설정 (2026-03-18 업데이트)
 
 ```python
 # ai/subprocess/persistent_3d_worker.py
@@ -740,7 +740,9 @@ STAGE1_INFERENCE_STEPS = 14     # Phase 2: Stage1 (25→14, 속도/정확도 균
 STAGE2_INFERENCE_STEPS = 4      # Phase 2: Stage2 (12→4, 치수 오차 0.5% 이내, 30% 빠름)
 USE_BINARY_PLY = True           # Phase 3: Binary PLY (70% 작음, 50% 빠름)
 GAUSSIAN_ONLY_MODE = True       # Phase 5: Gaussian-only (37.4% 빠름, 0.005% 오차)
-ENABLE_COMPILE = True           # torch.compile (10-20% 빠름)
+ENABLE_COMPILE = True           # Phase C: torch.compile reduce-overhead (20-30% 빠름)
+ENABLE_SS_STEP_CACHING = True   # Phase A: SS Step Caching (stride=3, 1.5x 빠름)
+ENABLE_SLAT_STEP_CACHING = False # Phase B: SLaT Step Caching (비활성화, 품질 리스크)
 in_place=True                   # make_scene/ready_gaussian에서 deepcopy 제거 (5-10% 빠름)
 ```
 
@@ -787,6 +789,375 @@ class ImageUtils:
 
 ---
 
+## 11. VRAM 최적화 (2026-03-18)
+
+### 문제점
+
+SAM-3D 모델이 L4 GPU (22GB) VRAM의 ~21GB를 사용하여:
+- YOLOE와 동일 GPU에 동시 탑재 불가
+- 2 GPU 환경에서 1 GPU는 YOLOE 전용, 1 GPU는 SAM-3D 전용으로 사용해야 함
+- 병렬 SAM-3D 처리 불가
+
+### 해결책: Gaussian-only 모드에서 불필요한 모델 GPU 언로드
+
+```python
+# ai/subprocess/persistent_3d_worker.py (initialize 메서드)
+
+# 1. Mesh decoder (~4GB) - Gaussian-only에서 절대 사용 안 함
+pipe.models["slat_decoder_mesh"].cpu()
+
+# 2. GS 4-channel decoder (~3GB) - 기본 GS decoder로 충분
+pipe.models["slat_decoder_gs_4"].cpu()
+
+# 3. Depth model/MoGe (~3GB) - synthetic pointmap 사용 중
+pipe.depth_model.model.cpu()
+pipe.depth_model = None
+```
+
+### 효과
+
+| 항목 | 변경 전 | 변경 후 | 절약 |
+|------|---------|---------|------|
+| SAM-3D VRAM | ~21GB | **11.25GB** | **~10GB (48%)** |
+| YOLOE VRAM | 0.36GB | 0.36GB | - |
+| 합계 (동일 GPU) | **OOM** | **11.61GB / 22GB** | 2GPU 병렬 가능 |
+
+### MoGe (depth_model) 비활성화 근거
+
+MoGe는 2D→3D 깊이 추정 모델. `make_synthetic_pointmap()`이 대신 사용되므로 MoGe는 호출되지 않음:
+
+```python
+# SAM3D 내부 (inference_pipeline_pointmap.py:268)
+if pointmap is None:
+    output = self.depth_model(loaded_image)  # pointmap 없을 때만 호출
+```
+
+worker가 항상 synthetic pointmap을 제공하므로 depth_model은 GPU에서 제거해도 안전.
+
+**비교 테스트 결과 (MoGe vs Synthetic):**
+
+| 객체 | 항목 | Synthetic | MoGe | 차이 |
+|------|------|-----------|------|------|
+| Nightstand | W/D/H | 0.76/0.54/1.00 | 0.77/0.55/1.00 | 1-1.4% |
+| Bed | W/D/H | 0.77/0.84/0.40 | 0.75/0.85/0.39 | 1-2.6% |
+| Television | W/D/H | 1.04/0.02/0.58 | 1.23/0.02/0.69 | 18% |
+
+TV 차이는 극히 얇은 객체(depth=0.02)의 깊이 추정 민감도 차이이며, Synthetic이 안정적.
+
+### 코드 위치
+
+- `ai/subprocess/persistent_3d_worker.py:347-390` - VRAM cleanup 로직
+
+---
+
+## 12. Fast-SAM3D 기반 추론 가속 (2026-03-18)
+
+Fast-SAM3D (arXiv:2602.05293) 논문의 기법을 적용한 training-free 추론 가속.
+
+### 12.1 Phase C: torch.compile + AUTOTUNE 캐시 영속화
+
+#### 문제점
+
+1. SAM3D 내부 `compile=True` 사용 시 `_warmup()`에서 `run_layout_model` 버그 발생
+2. `torch.compile(mode="max-autotune")`의 첫 실행 AUTOTUNE에 10분+ 소요
+3. 워커 재시작 시 AUTOTUNE 캐시 손실
+
+#### 해결책
+
+```python
+# 1. SAM3D는 compile=False로 로드
+self.sam3d_inference = Inference(config_path, compile=False)
+
+# 2. 핵심 모듈만 수동 torch.compile 적용
+compile_mode = "reduce-overhead"  # max-autotune보다 빠른 첫 실행
+
+# SS Generator backbone (14 steps × 3 CFG calls = 42회 호출, 가장 빈번)
+ss_gen.reverse_fn.inner_forward = torch.compile(
+    ss_gen.reverse_fn.inner_forward, mode=compile_mode, fullgraph=True
+)
+
+# SS Decoder
+ss_dec.forward = torch.compile(ss_dec.forward, mode=compile_mode, fullgraph=True)
+
+# Condition Embedding (fullgraph=False: PointPatchEmbed 호환성)
+pipe.embed_condition = torch.compile(
+    pipe.embed_condition, mode=compile_mode, fullgraph=False
+)
+
+# 3. AUTOTUNE 캐시 영속화
+os.environ["TORCHINDUCTOR_CACHE_DIR"] = ".cache/torch_compile"
+os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
+
+# 4. 자체 warmup (SAM3D 내부 warmup 우회)
+_ = pipe.run(dummy_image, dummy_mask, seed=42, pointmap=dummy_pointmap, ...)
+```
+
+#### 효과
+
+| 항목 | 변경 전 | 변경 후 | 개선 |
+|------|---------|---------|------|
+| Bed 추론 시간 | 25.6s | 18.7s | **1.37x** |
+| Television 추론 시간 | 10.0s | 7.6s | **1.31x** |
+| 첫 실행 warmup | N/A | ~280s (캐시 있을 때) | 1회 비용 |
+| AUTOTUNE 캐시 | 재시작 시 손실 | **영속** (2,259 파일) | 재컴파일 방지 |
+
+### 12.2 Phase A: SS Generator Step Caching
+
+#### 배경
+
+SS Generator (ShortCut 모델)은 PointmapCFG를 통해 매 step마다 3회 backbone 호출:
+```
+v_t = PointmapCFG(x_t, t)
+    = y_cond + strength_pm * (y_cond - y_no_pm) + strength * (y_no_pm - y_uncond)
+```
+14 steps × 3 calls = 42회 backbone 호출 → 전체 추론 시간의 ~50%
+
+#### 해결책: CachedEuler 솔버
+
+논문의 Modality-Aware Step Caching을 단순화한 CachedEuler 솔버:
+- **Full step**: 기존대로 `dynamics_fn()` 호출 (3회 backbone)
+- **Cached step**: 이전 step의 velocity를 재사용 (0회 backbone)
+
+```python
+# ai/subprocess/cached_solver.py
+class CachedEuler(ODESolver):
+    def __init__(self, cache_stride=3, warmup_steps=2):
+        ...
+
+    def _is_full_step(self, step_idx):
+        if step_idx < self.warmup_steps:
+            return True
+        return ((step_idx - self.warmup_steps) % self.cache_stride) == 0
+
+    def solve_iter(self, dynamics_fn, x_init, times, *args, **kwargs):
+        x_t = x_init
+        cached_velocity = None
+        for step_idx, (t0, t1) in enumerate(zip(times[:-1], times[1:])):
+            dt = t1 - t0
+            if self._is_full_step(step_idx) or cached_velocity is None:
+                velocity = dynamics_fn(x_t, t0, *args, **kwargs)
+                cached_velocity = velocity
+            else:
+                velocity = cached_velocity
+            x_t = linear_approximation_step(x_t, dt, velocity)
+            yield x_t, t0
+```
+
+#### Step 패턴 (14 steps, stride=3, warmup=2)
+
+```
+Step:  0  1  2  3  4  5  6  7  8  9  10 11 12 13
+Type:  F  F  F  C  C  F  C  C  F  C  C  F  C  C
+       ^  ^  ^           ^           ^
+     warmup  |-- stride=3 패턴 반복 --|
+
+F=Full (3 backbone calls), C=Cached (0 calls)
+Full steps: 6개, Cached steps: 8개
+Backbone calls: 6×3 = 18 (기존 42에서 57% 감소)
+```
+
+#### 런타임 솔버 교체
+
+```python
+# ai/subprocess/persistent_3d_worker.py (initialize 메서드)
+from cached_solver import CachedEuler
+ss_gen = pipe.models["ss_generator"]
+ss_gen._solver = CachedEuler(cache_stride=3, warmup_steps=2)
+```
+
+FlowMatching/ShortCut의 `generate_iter()`가 `self._solver.solve_iter()`를 호출하므로,
+solver 교체만으로 캐싱이 적용됨. upstream 코드 수정 불필요.
+
+#### 효과 (compile=False 기준)
+
+| 객체 | Baseline | Phase A | Speedup | W err | D err | H err |
+|------|----------|---------|---------|-------|-------|-------|
+| Nightstand | 19.1s | 16.5s | **1.16x** | 2.3% | 0.1% | 1.9% |
+| Bed | 25.6s | 17.9s | **1.43x** | 0.1% | 0.2% | 0.3% |
+| Television | 10.0s | 5.3s | **1.90x** | 1.2% | 2.7% | *9.4% |
+
+*Television H 오차: 캐싱 없이도 4.3% 자연 변동 (depth=0.018인 극박 객체)
+
+### 12.3 Phase B: SLaT Generator Step Caching (비활성화)
+
+SLaT Generator는 4 steps, CFG 비활성화 (strength=0)로 step당 1회 backbone 호출만 수행.
+stride=2로 캐싱 시 TV 등 얇은 객체에서 5%+ 치수 오차 발생 → **비활성화 유지**.
+
+4 steps에서 캐싱 효과가 제한적 (4→3 calls, ~25% 감소)이고 품질 리스크가 높아
+투자 대비 효과가 낮음.
+
+### 12.4 stdout 오염 방지
+
+Warp/kaolin 라이브러리가 import 시 stdout으로 초기화 메시지를 출력하여
+JSON 프로토콜을 깨뜨리는 문제 해결:
+
+```python
+# 환경변수로 Warp 출력 억제
+os.environ["WARP_QUIET"] = "1"
+
+# 모델 로딩/추론 시 stdout을 /dev/null로 리다이렉트
+def suppress_stdout():
+    send_message._real_stdout = sys.stdout
+    sys.stdout = open(os.devnull, 'w')
+
+# JSON 메시지 전송 시 자동 복원
+def send_message(msg_obj):
+    if hasattr(send_message, '_real_stdout'):
+        sys.stdout = send_message._real_stdout
+    print(msg_obj.to_json(), flush=True)
+```
+
+### 12.5 종합 최적화 효과 (2026-03-18)
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ 최적화 전후 비교 (L4 GPU, 단일 객체 기준)                              │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  초기 (V1, 순차):                                                    │
+│  ████████████████████████████████████████  ~150초                    │
+│                                                                      │
+│  V2 파이프라인 최적화 (2026-03-13):                                   │
+│  ████████  ~20초                                                     │
+│                                                                      │
+│  V2.5 + Fast-SAM3D (2026-03-18):                                    │
+│  █████  ~13초                                                        │
+│                                                                      │
+│  개선율: 150s → 13s = 11.5x 가속                                     │
+│                                                                      │
+│  VRAM: 21GB → 11.25GB (48% 절감, 동일 GPU에 YOLOE+SAM3D 탑재)       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+| 시나리오 | 2026-03-13 | 2026-03-18 | 개선 |
+|----------|-----------|-----------|------|
+| 1 객체 | ~20초 | ~13초 | 1.5x |
+| 3 객체 (1 GPU) | ~60초 | ~40초 | 1.5x |
+| 3 객체 (2 GPU) | ~40초 (역할분리) | ~27초 (동일GPU) | 1.5x |
+| VRAM/GPU | 21GB | 11.25GB | 48% 절감 |
+
+---
+
+## 13. Multi-GPU 확장성 및 GPU 스펙별 성능 예측 (2026-03-18)
+
+### 13.1 Work-Stealing 스케줄링
+
+기존 라운드로빈 스케줄링을 Event 기반 work-stealing으로 개선:
+
+```python
+# 변경 전 (폴링, 0.5초 지연)
+while time.time() - start < timeout:
+    worker = try_acquire()
+    if worker: return worker
+    await asyncio.sleep(0.5)  # 최대 0.5초 유휴
+
+# 변경 후 (Event, 즉시 할당)
+while time.time() - start < timeout:
+    worker = try_acquire()
+    if worker: return worker
+    await self._worker_available.wait()  # 워커 반환 즉시 깨어남
+```
+
+워커 반환 시 `_worker_available.set()`으로 대기 중인 task에 즉시 시그널.
+객체 크기가 다를 때 (TV 5초 vs Bed 17초) **먼저 끝난 GPU가 다음 작업을 즉시 가져감**.
+
+### 13.2 GPU 수별 처리 시간 예측
+
+#### 조건: 3 이미지, 12 객체, 평균 13초/객체
+
+```
+1단계 (YOLOE): ~2초 (이미지 수 / GPU 수 라운드, 매우 빠름)
+2단계 (SAM-3D): 객체 수 / GPU 수 라운드 × 13초
+3단계 (후처리): ~2초
+```
+
+| GPU 수 | SAM-3D 라운드 | 예상 총 시간 | 1GPU 대비 |
+|--------|-------------|-------------|----------|
+| 1 | 12 | **~160초** | 1.0x |
+| 2 | 6 | **~82초** | 1.9x |
+| **4** | **3** | **~43초** | **3.7x** |
+| 6 | 2 | ~30초 | 5.3x |
+| 8 | 2 (4 GPU 유휴) | ~30초 | 5.3x |
+
+> **Note**: 8 GPU에서 12 객체는 GPU 4개가 유휴. 객체 수 ÷ GPU 수 = 라운드 수이므로,
+> **12 객체 기준 최적 GPU 수는 4-6개**.
+
+#### 규모별 최적 GPU 수
+
+| 객체 수 | 최적 GPU | 예상 시간 | 비고 |
+|---------|---------|----------|------|
+| 3 | 2-3 | 15-27초 | 2 GPU면 충분 |
+| 6 | 3-4 | 20-30초 | |
+| 12 | 4-6 | 30-43초 | 4 GPU 권장 |
+| 20 | 4-8 | 35-67초 | |
+| 50 | 8+ | 82-160초 | GPU 선형 확장 |
+
+### 13.3 양자화 실험 결과 (2026-03-18)
+
+L4 GPU에서 양자화의 실질적 효과를 검증:
+
+| 방법 | FP16 대비 속도 | 결과 |
+|------|--------------|------|
+| bitsandbytes INT8 | **0.36x (2.8배 느림)** | 양자화/역양자화 오버헤드 >> 연산 절약 |
+| torch.compile inductor | 0.94x (동등) | FP16 Tensor Core 이미 최적 |
+
+**결론**: L4의 FP16 Tensor Core (121 TFLOPS)가 이미 충분히 빠르며,
+현재 PyTorch 생태계의 INT8 양자화 도구(bitsandbytes)는 runtime 오버헤드로 인해 순손실.
+효과적인 양자화에는 `torch_tensorrt` 또는 `torchao`의 커널 레벨 INT8 fusion이 필요.
+
+### 13.4 추가 최적화 실험 결과 (2026-03-18)
+
+| 실험 | 결과 | 채택 |
+|------|------|------|
+| SS cache stride=4 | 속도 +6-11%, **치수 24-6108% 오차** | ❌ 품질 붕괴 |
+| DINOv2 TensorRT/compile | 1회 27.5ms, 객체당 110ms (전체 0.7%) | ❌ 이미 빠름 |
+| DINOv2 SS↔SLaT 캐싱 | weight/preprocessor 다름 | ❌ 구조적 불가 |
+| bitsandbytes INT8 | FP16 대비 2.8배 느림 | ❌ 오버헤드 |
+| SLaT step caching | 4 step에서 얇은 객체 품질 저하 | ❌ 비활성화 유지 |
+
+> **현재 설정 (stride=3 + compile reduce-overhead)이 L4에서 training-free로 도달 가능한 최적점**.
+> 추가 가속은 A100 GPU 또는 `torchao`/`torch_tensorrt` 도입이 필요.
+
+### 13.5 GPU 스펙별 성능 비교 (L4 vs A100)
+
+| 항목 | NVIDIA L4 | NVIDIA A100 80GB | 배수 |
+|------|-----------|-----------------|------|
+| **아키텍처** | Ada Lovelace (sm_89) | Ampere (sm_80) | - |
+| **FP16 Tensor Core** | 121 TFLOPS | 312 TFLOPS | **2.6x** |
+| **INT8 Tensor Core** | 242 TOPS | 624 TOPS | 2.6x |
+| **메모리 대역폭** | 300 GB/s | 2,039 GB/s | **6.8x** |
+| **VRAM** | 24 GB | 80 GB | 3.3x |
+| **TDP** | 72W | 300W | 0.24x (효율적) |
+| **가격 (GCP)** | ~$0.7/hr | ~$3.7/hr | 5.3x |
+
+#### SAM-3D 추론 시간 예측 (객체당)
+
+| 단계 | L4 (실측) | A100 (예측) | 근거 |
+|------|----------|------------|------|
+| SS Generator (14 steps) | ~8s | ~3-4s | FP16 2.6x + 메모리 대역폭 |
+| SLaT Generator (4 steps) | ~3s | ~1-2s | FP16 2.6x |
+| Condition Embedding | ~0.1s | ~0.05s | 이미 빠름 |
+| GS Decoder | ~0.5s | ~0.2s | |
+| **객체당 합계** | **~13s** | **~5-7s** | **~2x** |
+
+> **Note**: 메모리 대역폭이 6.8x 차이나므로, memory-bound 연산(attention의 KV 읽기)에서
+> A100이 FP16 TFLOPS 차이(2.6x)보다 더 큰 이점을 가질 수 있음.
+> 최적화 문서 기준 A100 4GPU에서 객체당 ~7-8초 → 현재 최적화 적용 시 ~5-6초 예상.
+
+#### GPU 수 × 스펙 조합별 12 객체 처리 시간
+
+| 구성 | 객체당 | 12 객체 | 비용/hr |
+|------|--------|---------|--------|
+| L4 × 2 | ~13s | **~82초** | ~$1.4 |
+| L4 × 4 | ~13s | **~43초** | ~$2.8 |
+| A100 × 2 | ~6s | **~40초** | ~$7.4 |
+| A100 × 4 | ~6s | **~22초** | ~$14.8 |
+
+> **비용 효율**: L4 4대($2.8/hr, 43초) vs A100 2대($7.4/hr, 40초)
+> → 유사한 성능에서 L4 4대가 **2.6배 저렴**
+
+---
+
 ## 참고 파일
 
 | 파일 | 설명 |
@@ -795,8 +1166,10 @@ class ImageUtils:
 | `ai/gpu/gpu_pool_manager.py` | YOLOE용 GPU Pool Manager (1단계) |
 | `ai/gpu/sam3d_worker_pool.py` | SAM-3D Persistent Worker Pool (2단계) |
 | `ai/subprocess/persistent_3d_worker.py` | SAM-3D Persistent 워커 (성능 최적화 설정 포함) |
+| `ai/subprocess/cached_solver.py` | CachedEuler 솔버 (Fast-SAM3D Phase A) |
 | `ai/subprocess/worker_protocol.py` | 워커-풀 통신 프로토콜 |
 | `ai/pipeline/furniture_pipeline.py` | V2 파이프라인 오케스트레이터 |
 | `ai/config.py` | Multi-GPU 설정 |
 | `api/routes/furniture.py` | /analyze-furniture 엔드포인트 |
 | `api/services/callback.py` | 비동기 Callback 서비스 |
+| `docs/fast_sam3d.pdf` | Fast-SAM3D 논문 (arXiv:2602.05293) |
