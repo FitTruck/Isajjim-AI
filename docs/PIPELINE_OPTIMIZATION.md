@@ -798,6 +798,76 @@ SAM-3D 모델이 L4 GPU (22GB) VRAM의 ~21GB를 사용하여:
 - 2 GPU 환경에서 1 GPU는 YOLOE 전용, 1 GPU는 SAM-3D 전용으로 사용해야 함
 - 병렬 SAM-3D 처리 불가
 
+### SAM-3D 모델 구성 및 GPU 로딩 현황
+
+SAM-3D는 내부적으로 8개의 서브 모델로 구성됩니다. 이삿짐 서비스의 Gaussian-Only 모드에서는 이 중 5개만 GPU에 로딩하고, 나머지 3개는 언로딩하여 VRAM을 절감합니다.
+
+#### GPU에 로딩하는 모델 (활성, 5개)
+
+| 모델 | 파이프라인 단계 | 역할 | 파라미터 | VRAM |
+|------|--------------|------|---------|------|
+| **`image_cond_model`** (DINOv2) | Condition Embedding | 입력 이미지+마스크를 visual token으로 인코딩. 모든 후속 단계의 조건(condition)으로 사용됨 | ~300M | ~1GB |
+| **`ss_generator`** | Stage 1: SS Generator | **3D 구조(voxel) 생성** — DiT Block ×24로 iterative denoising하여 coarse한 3D shape + layout(회전/위치/스케일) 생성 | ~1,034M | ~4GB |
+| **`ss_decoder`** | Stage 1→2 변환 | SS Generator의 latent 출력을 sparse voxel로 변환. 3D-CNN 기반. Stage 2(SLaT)의 입력 조건으로 사용 | 소규모 | ~0.5GB |
+| **`slat_generator`** | Stage 2: SLaT Generator | **텍스처/디테일 생성** — DiT Block ×24로 coarse voxel에 appearance 신호를 iterative denoising하여 세부 형상 완성 | ~600M | ~3GB |
+| **`slat_decoder_gs`** | Stage 3: GS Decoder | **SLaT 출력 → 3D Gaussian Splatting(PLY)** 변환. Swin-Transformer ×12 기반. **부피 계산용 포인트 클라우드 생성에 필수** | ~91M | ~1GB |
+
+#### GPU에서 언로딩한 모델 (비활성, CPU 이동 후 삭제, 3개)
+
+| 모델 | 원래 역할 | VRAM | 언로딩 근거 |
+|------|----------|------|-----------|
+| **`slat_decoder_mesh`** | SLaT 출력 → **Mesh(GLB)** 변환. Swin-Transformer ×12. 텍스처 베이킹, 메시 후처리 포함 | **~3-4GB** | Gaussian-Only 모드에서 `decode_formats=["gaussian"]`만 사용하므로 mesh 디코딩 코드 경로 자체가 실행되지 않음 |
+| **`slat_decoder_gs_4`** | SLaT 출력 → **4-channel GS** 변환 (고해상도 버전). 기본 `slat_decoder_gs`의 상위 버전 | **~2-3GB** | Stage2 inference steps가 적을 때(=4) 기본 `slat_decoder_gs`가 자동 선택됨. 4-channel 버전은 호출되지 않음 |
+| **`depth_model`** (MoGe) | 입력 이미지 → **monocular depth 추정** → 3D pointmap 생성. 카메라 intrinsics 복원에 사용 | **~1-3GB** | `make_synthetic_pointmap()`으로 대체. SAM-3D 내부에서 `if pointmap is None`일 때만 호출되므로, pointmap을 항상 제공하면 미호출 |
+
+#### 파이프라인 흐름도
+
+```
+                        ┌─────────────────────────────────────────────────┐
+                        │              GPU에 로딩 (11.25GB)                │
+                        │                                                 │
+  입력 이미지+마스크 ──►│  image_cond_model (DINOv2)  [Condition Embedding]│
+                        │         │ visual tokens                         │
+                        │         ▼                                       │
+                        │  ss_generator (DiT ×24)     [Stage 1: 구조 생성]│
+                        │         │ latent                                │
+                        │         ▼                                       │
+                        │  ss_decoder (3D-CNN)        [Voxel 변환]        │
+                        │         │ sparse voxels                         │
+                        │         ▼                                       │
+                        │  slat_generator (DiT ×24)   [Stage 2: 디테일]   │
+                        │         │ refined latent                        │
+                        │         ▼                                       │
+                        │  slat_decoder_gs (Swin ×12) [Stage 3: GS 출력]  │
+                        │         │ 3D Gaussian Splatting (PLY)           │
+                        └─────────┼───────────────────────────────────────┘
+                                  ▼
+                          OBB 부피 계산 → 절대 치수 → m³
+
+                        ┌─────────────────────────────────────────────────┐
+                        │           GPU에서 언로딩 (~10GB 절감)             │
+                        │                                                 │
+                        │  ✗ slat_decoder_mesh  (~3-4GB)  mesh 미생성      │
+                        │  ✗ slat_decoder_gs_4  (~2-3GB)  기본 GS로 충분   │
+                        │  ✗ depth_model/MoGe   (~1-3GB)  synthetic 대체   │
+                        └─────────────────────────────────────────────────┘
+```
+
+#### VRAM 변화
+
+```
+변경 전 (21GB):                          변경 후 (11.25GB):
+  image_cond_model  ██       (~1GB)        image_cond_model  ██       (~1GB)
+  ss_generator      ████████ (~4GB)        ss_generator      ████████ (~4GB)
+  ss_decoder        █        (~0.5GB)      ss_decoder        █        (~0.5GB)
+  slat_generator    ██████   (~3GB)        slat_generator    ██████   (~3GB)
+  slat_decoder_gs   ██       (~1GB)        slat_decoder_gs   ██       (~1GB)
+  slat_decoder_gs_4 ████     (~2-3GB) ✗    기타 버퍼/캐시    ████     (~1.75GB)
+  slat_decoder_mesh ██████   (~3-4GB) ✗
+  depth_model(MoGe) ██       (~1-3GB) ✗    절감: ~10GB (48%)
+  기타 버퍼/캐시    ████     (~3GB)
+```
+
 ### 해결책: Gaussian-only 모드에서 불필요한 모델 GPU 언로드
 
 ```python
@@ -1155,6 +1225,523 @@ L4 GPU에서 양자화의 실질적 효과를 검증:
 
 > **비용 효율**: L4 4대($2.8/hr, 43초) vs A100 2대($7.4/hr, 40초)
 > → 유사한 성능에서 L4 4대가 **2.6배 저렴**
+
+---
+
+## 14. Fast-SAM3D 논문 vs 이삿짐 서비스 독자 최적화 구분
+
+이 섹션은 Fast-SAM3D (arXiv:2602.05293) 논문에서 제안된 기법과, **이삿짐 부피 추정 서비스의 목적에 맞춰 독자적으로 개발한 최적화**를 명확히 구분합니다.
+
+### 14.1 Fast-SAM3D 논문에 포함된 기법 (선행 연구)
+
+| 기법 | 논문 섹션 | 설명 | 본 프로젝트 적용 |
+|------|----------|------|-----------------|
+| Modality-Aware Step Caching | §4.1 | Shape/Layout 토큰을 분리하여 shape은 Taylor 외삽, layout은 momentum-anchored smoothing | **단순화 적용**: CachedEuler 솔버 (stride=3, warmup=2)로 velocity 재사용만 구현. 논문의 shape/layout 토큰 분리 및 momentum-anchored smoothing은 미적용 |
+| Joint Spatiotemporal Token Carving | §4.2 | 시공간 saliency 기반 토큰 pruning + 동적 adaptive step caching | **미적용**: Gaussian-Only 모드에서 SLaT 자체가 간소화되어 효과 제한적 |
+| Spectral-Aware Token Aggregation | §4.3 | FFT 기반 기하학적 복잡도 분석으로 mesh 디코딩 토큰 축소 | **미적용**: mesh 디코딩 자체를 완전 제거 (Gaussian-Only 모드) |
+
+> **요약**: 논문의 3가지 핵심 기법 중 Step Caching의 단순화 버전만 적용. 나머지 2가지(Token Carving, Token Aggregation)는 Gaussian-Only 전략으로 대체됨.
+
+---
+
+### 14.2 이삿짐 서비스 독자 최적화 (본 프로젝트 고유 기여)
+
+Fast-SAM3D 논문에 없으며, **이삿짐 부피 추정 서비스의 도메인 요구사항**에 맞춰 독자적으로 설계·구현한 최적화입니다.
+
+#### A. 서비스 목적 기반 파이프라인 재설계
+
+##### A-1. Gaussian-Only 디코딩 전략
+
+**동기**: 이삿짐 서비스는 **부피(m³) 계산**이 최종 목적이며, mesh/texture/GIF 등 시각적 출력이 불필요합니다.
+
+**핵심 발상**: SAM-3D의 출력 포맷 중 3D Gaussian Splatting만으로 OBB 기반 부피 계산이 가능하다는 점에 착안하여, mesh 디코딩 파이프라인 전체를 우회합니다.
+
+```python
+# 기존 SAM-3D: 모든 포맷 생성
+decode_formats = ["gaussian", "mesh", "glb"]
+with_texture_baking = True      # 30-60초
+with_mesh_postprocess = True    # 20-40초
+with_layout_postprocess = True  # 2-5초
+
+# 이삿짐 서비스: Gaussian-Only
+decode_formats = ["gaussian"]
+with_texture_baking = False
+with_mesh_postprocess = False
+with_layout_postprocess = False
+```
+
+**효과**:
+- **속도**: 67-135초/객체 절약 (후처리 52-105초 + GIF 15-30초)
+- **부피 오차**: 0.005% (무시 가능)
+- **의의**: Fast-SAM3D 논문의 Stage 3(Spectral-Aware Token Aggregation)이 mesh 디코딩 최적화인데, **mesh 자체를 제거**함으로써 논문보다 더 급진적인 가속을 달성
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:80-83`
+
+##### A-2. V2 파이프라인 아키텍처 (탐지 단계 통합)
+
+**동기**: V1 파이프라인에서 SAM2 마스크 생성 + CLIP 분류 + SAHI 보조 탐지가 개별적으로 동작하여 latency와 복잡도가 높았습니다.
+
+**핵심 발상**: YOLOE-seg 모델이 탐지(bbox) + 분류(class) + 세그멘테이션(mask)을 **단일 forward pass**로 수행한다는 점을 활용하여, 3단계를 1단계로 통합합니다.
+
+```
+[V1] YOLO-World detect → center_point → SAM2 mask → CLIP 분류 → DB 매칭 → SAM-3D
+     (5단계, 3회 모델 호출, HTTP API 호출 포함)
+
+[V2] YOLOE-seg detect+mask → DB 직접 매칭 → SAM-3D
+     (2단계, 2회 모델 호출)
+```
+
+**효과**:
+- **단계 수**: 5단계 → 2단계 (60% 감소)
+- **Latency**: SAM2 API 호출 2-5초 + CLIP 1-2초 = 3-7초 절약
+- **마스크 품질**: YOLOE-seg가 SAM2 center-point prompt보다 객체 전체를 더 정확하게 커버 (실험 검증)
+
+**코드**: `ai/pipeline/furniture_pipeline.py`, `ai/processors/2_YOLO_detect.py`
+
+##### A-3. 이미지 다운샘플링 비활성화 결정
+
+**동기**: 일반 3D 생성에서는 이미지 다운샘플링으로 속도를 확보하지만, 이삿짐 서비스에서는 부피 정확도가 견적 금액에 직결됩니다.
+
+**실험 결과**: 다운샘플링 영향도 분석
+
+| 최적화 기법 | 부피 정확도 영향 |
+|------------|-----------------|
+| **이미지 다운샘플링** | **91.7% (지배적)** |
+| Stage1 Steps 축소 | 3.8% |
+| Stage2 Steps 축소 | ~0.5% |
+
+특히 작은 객체(Pillow, Lamp)에서 **최대 576% 부피 차이**가 발생하여 비활성화 결정.
+
+```python
+MAX_IMAGE_SIZE = None  # 부피 정확도 유지를 위해 비활성화
+```
+
+**의의**: Fast-SAM3D 논문은 시각적 품질(Chamfer Distance, F-Score) 기준으로 최적화하지만, 본 서비스는 **부피 정확도** 기준으로 최적화 경계를 결정. 이 분석은 서비스 도메인에 특화된 기여.
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:64-67`
+
+---
+
+#### B. Task-Specific VRAM 최적화
+
+##### B-1. 불필요 모델 GPU 언로딩 (48% VRAM 절감)
+
+**동기**: SAM-3D가 L4 GPU(24GB) VRAM의 21GB를 점유하여 YOLOE(0.36GB)와 동일 GPU에 동시 탑재가 불가능했습니다. GPU 수가 제한된 환경에서 이는 병렬 처리의 직접적 병목입니다.
+
+**핵심 발상**: Gaussian-Only 모드에서 **실제로 호출되지 않는 모듈**을 식별하여 GPU에서 제거합니다.
+
+```python
+# 1. Mesh decoder (~4GB): Gaussian-Only에서 절대 사용 안 함
+pipe.models["slat_decoder_mesh"].cpu()
+
+# 2. GS 4-channel decoder (~3GB): 기본 GS decoder로 충분
+pipe.models["slat_decoder_gs_4"].cpu()
+
+# 3. MoGe depth model (~3GB): Synthetic Pointmap 사용 중이므로 호출 안 됨
+pipe.depth_model.model.cpu()
+pipe.depth_model = None
+```
+
+**효과**:
+
+| 항목 | 변경 전 | 변경 후 | 절감 |
+|------|---------|---------|------|
+| SAM-3D VRAM | ~21GB | **11.25GB** | **~10GB (48%)** |
+| YOLOE 동시 탑재 | 불가 | **가능** | OOM 해소 |
+| 동일 GPU 활용 | 1 모델 | **2 모델** | GPU 효율 2배 |
+
+**의의**: Fast-SAM3D 논문은 **속도 최적화**만 다루며 메모리 최적화는 논의하지 않음. 본 기법은 동일 GPU에서 탐지+3D 생성을 동시 수행할 수 있게 하여, **적은 GPU로 전체 파이프라인을 운용**할 수 있게 하는 실용적 기여.
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:347-390`
+
+##### B-2. Synthetic Pinhole Pointmap (MoGe 대체)
+
+**동기**: SAM-3D의 MoGe 깊이 추정 모듈이 (1) 간헐적으로 NaN/Inf 값을 생성하여 파이프라인이 실패하고, (2) ~3GB VRAM을 점유합니다.
+
+**핵심 발상**: 이삿짐 서비스에서는 **절대적인 깊이 정확도보다 상대 비율의 일관성**이 중요합니다. 가구 부피는 표준 치수 DB와 상대 비율을 매칭하여 계산하므로, 단순한 pinhole 모델로도 충분합니다.
+
+```python
+def make_synthetic_pointmap(image, z=1.0, f=None):
+    """Simple pinhole camera: X = (u-cx)/f * Z, Y = (v-cy)/f * Z"""
+    H, W = image.shape[:2]
+    f = f or (0.9 * max(H, W))
+    cx, cy = (W-1)*0.5, (H-1)*0.5
+    # ... uniform depth plane으로 일관된 pointmap 생성
+```
+
+**검증** (MoGe vs Synthetic 비교):
+
+| 객체 | 치수 | Synthetic | MoGe | 차이 |
+|------|------|-----------|------|------|
+| Nightstand | W/D/H | 0.76/0.54/1.00 | 0.77/0.55/1.00 | 1-1.4% |
+| Bed | W/D/H | 0.77/0.84/0.40 | 0.75/0.85/0.39 | 1-2.6% |
+| Television | W/D/H | 1.04/0.02/0.58 | 1.23/0.02/0.69 | ~18%* |
+
+*TV 차이는 극박 객체(depth=0.02)의 고유 민감도이며, Synthetic이 오히려 더 안정적.
+
+**효과**:
+- **안정성**: MoGe 실패율 0% (이전: 간헐적 NaN/Inf)
+- **VRAM**: ~3GB 추가 절감 (B-1과 합산하여 총 48%)
+- **부피 정확도**: 일반 가구에서 1-2.6% 차이 (서비스 허용 범위 내)
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:213-251`
+
+---
+
+#### C. 시스템 아키텍처 최적화
+
+##### C-1. Persistent Worker Pool (모델 로딩 오버헤드 제거)
+
+**동기**: SAM-3D는 spconv 라이브러리의 GPU 상태 충돌 문제로 메인 프로세스에서 직접 로드할 수 없습니다. 기존 방식(매 요청마다 subprocess 생성)은 모델 로딩에 3-5초가 소요되었습니다.
+
+**핵심 발상**: 서버 시작 시 GPU당 하나의 persistent 워커 프로세스를 생성하고, 모델을 1회 로드한 뒤 JSON stdin/stdout 프로토콜로 작업을 주고받습니다.
+
+```
+서버 시작 시 (1회):
+  Worker 0 (GPU 0): SAM-3D 모델 로드 → JSON 대기
+  Worker 1 (GPU 1): SAM-3D 모델 로드 → JSON 대기
+  Worker 2 (GPU 2): SAM-3D 모델 로드 → JSON 대기
+  Worker 3 (GPU 3): SAM-3D 모델 로드 → JSON 대기
+
+요청 처리 (매번):
+  API ──TaskMessage JSON──► Worker (모델 이미 로드됨) ──ResultMessage JSON──► API
+       (stdin)                                          (stdout)
+```
+
+**통신 프로토콜**:
+
+```python
+# ai/subprocess/worker_protocol.py
+MessageType:
+  INIT      # 워커 초기화 완료 알림
+  TASK      # 3D 생성 작업 요청 (image_b64 + mask_b64)
+  RESULT    # 작업 결과 반환 (ply_b64 + dimensions)
+  HEARTBEAT # 워커 상태 확인
+  SHUTDOWN  # 워커 종료 요청
+```
+
+**효과**:
+- **모델 로딩**: 요청당 3-5초 → **0초** (100% 제거)
+- **프로세스 격리**: spconv GPU 상태 충돌 완전 방지
+- **자동 재시작**: 워커 비정상 종료 시 자동 복구
+
+**의의**: Fast-SAM3D 논문은 단일 프로세스에서의 추론 가속만 다루며, **다중 프로세스 아키텍처**나 **모델 서빙 패턴**은 논의하지 않음. spconv의 GPU 상태 충돌이라는 실전 문제를 프로세스 격리로 해결한 것은 서비스 배포 환경에 특화된 기여.
+
+**코드**: `ai/gpu/sam3d_worker_pool.py`, `ai/subprocess/persistent_3d_worker.py`, `ai/subprocess/worker_protocol.py`
+
+##### C-2. 2단계 병렬 처리 아키텍처
+
+**동기**: 이삿짐 견적은 평균 4-10장 이미지, 이미지당 2-5개 객체 = 총 8-50개 객체를 처리합니다. 순차 처리 시 서비스 SLA(1분)를 절대 충족할 수 없습니다.
+
+**핵심 발상**: 파이프라인을 2단계로 분리하여 각각 다른 수준의 병렬성을 활용합니다.
+
+```
+1단계 (이미지 수준 병렬): GPUPoolManager
+  - 4개 이미지 → 4 GPU에 동시 분배
+  - 각 GPU에서 YOLOE-seg 독립 실행
+  - 소요: ~1초 (4개 이미지 동시)
+
+2단계 (객체 수준 병렬): SAM3DWorkerPool
+  - 12개 객체 → 4 Worker에 라운드로빈 분배
+  - 라운드 1: obj 1,2,3,4 → Worker 0,1,2,3 (동시)
+  - 라운드 2: obj 5,6,7,8 → Worker 0,1,2,3 (동시)
+  - 라운드 3: obj 9,10,11,12 → Worker 0,1,2,3 (동시)
+  - 소요: ~21초 (3 라운드 × 7초)
+```
+
+**효과**:
+
+| 시나리오 (12 객체) | 순차 처리 | 2단계 병렬 | 가속비 |
+|------------------|----------|-----------|-------|
+| V1 (최적화 없음) | ~1,836초 | N/A | 기준 |
+| V2.5 (최적화 적용) | ~96초 | **~22초** | **83x** |
+
+**코드**: `ai/gpu/gpu_pool_manager.py`, `ai/gpu/sam3d_worker_pool.py`, `ai/pipeline/furniture_pipeline.py`
+
+##### C-3. Event-Based Work-Stealing 스케줄링
+
+**동기**: 가구 종류에 따라 3D 생성 시간이 크게 다릅니다 (TV: ~5초, 침대: ~17초). 단순 라운드로빈은 빨리 끝난 GPU가 유휴 상태로 대기합니다.
+
+**핵심 발상**: 라운드로빈 폴링(0.5초 간격)을 **Event 시그널 기반**으로 교체하여, 워커가 작업을 완료하는 즉시 대기 중인 작업에 할당합니다.
+
+```python
+# 변경 전 (폴링, 최대 0.5초 지연)
+while time.time() - start < timeout:
+    worker = try_acquire()
+    if worker: return worker
+    await asyncio.sleep(0.5)  # 유휴 대기
+
+# 변경 후 (Event, 즉시 할당)
+while time.time() - start < timeout:
+    worker = try_acquire()
+    if worker: return worker
+    self._worker_available.clear()
+    await asyncio.wait_for(self._worker_available.wait(), ...)
+    # 워커 반환 즉시 깨어남
+```
+
+**효과**: TV(5초)가 먼저 끝나면 침대(17초) 완료를 기다리지 않고 즉시 다음 객체를 할당. 이질적 가구 크기 배치에서 **GPU 유휴 시간 최소화**.
+
+**코드**: `ai/gpu/sam3d_worker_pool.py:307-348`
+
+---
+
+#### D. 추론 엔진 최적화
+
+##### D-1. torch.compile 수동 적용 + AUTOTUNE 캐시 영속화
+
+**동기**: SAM-3D 내부의 `compile=True` 옵션은 `_warmup()` 메서드에서 `run_layout_model` 관련 버그를 유발하여 사용 불가합니다.
+
+**핵심 발상**: SAM-3D를 `compile=False`로 로드한 뒤, **핵심 모듈만 선별하여** 수동으로 `torch.compile`을 적용합니다. 또한 AUTOTUNE 벤치마크 결과를 영속 캐시로 보존합니다.
+
+```python
+# 1. SAM-3D를 compile=False로 로드 (버그 우회)
+self.sam3d_inference = Inference(config_path, compile=False)
+
+# 2. 핵심 모듈만 수동 compile (reduce-overhead 모드)
+compile_mode = "reduce-overhead"
+
+# SS Generator backbone (14 steps × 3 CFG = 42회 호출, 가장 빈번)
+ss_gen.reverse_fn.inner_forward = torch.compile(
+    ss_gen.reverse_fn.inner_forward, mode=compile_mode, fullgraph=True
+)
+# SS Decoder
+ss_dec.forward = torch.compile(ss_dec.forward, mode=compile_mode, fullgraph=True)
+# Condition Embedding
+pipe.embed_condition = torch.compile(
+    pipe.embed_condition, mode=compile_mode, fullgraph=False
+)
+
+# 3. AUTOTUNE 캐시 영속화 (워커 재시작 시 재컴파일 방지)
+os.environ["TORCHINDUCTOR_CACHE_DIR"] = ".cache/torch_compile"
+os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
+
+# 4. 자체 warmup (SAM-3D 내부 warmup 우회)
+_ = pipe.run(dummy_image, dummy_mask, seed=42, ...)
+```
+
+**효과**:
+
+| 객체 | compile 없음 | compile 적용 | 가속비 |
+|------|-------------|-------------|-------|
+| Bed | 25.6s | 18.7s | **1.37x** |
+| Television | 10.0s | 7.6s | **1.31x** |
+| AUTOTUNE 캐시 | 매번 재벤치마크 | 영속 (2,259 파일) | 재시작 시간 대폭 단축 |
+
+**의의**: Fast-SAM3D 논문은 torch.compile을 언급하지 않으며, SAM-3D 자체의 compile 버그를 우회하면서 선별적으로 적용하는 것은 본 프로젝트의 엔지니어링 기여.
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:468-540`
+
+##### D-2. Inference Steps 경험적 최적점 탐색
+
+**동기**: SAM-3D 기본값은 Stage1=25, Stage2=12 steps입니다. 단순히 줄이면 속도는 빨라지지만 부피 오차가 급증할 수 있습니다.
+
+**핵심 발상**: **시각적 품질(CD, F-Score)이 아닌 부피 정확도** 기준으로 최적 step 수를 탐색합니다.
+
+**Stage1 실험 결과**:
+
+| Steps | 부피 오차 | 속도 향상 | 판정 |
+|-------|----------|----------|------|
+| 25 | baseline | 1.00x | 기본값 |
+| 20 | +5.47% | 1.23x | 주의 |
+| 16 | ~+1% | ~1.4x | 권장 범위 |
+| **14** | **~+1.5%** | **~1.5x** | **채택 (최적점)** |
+| 12 | +11.04% | 1.65x | 부피 오차 과대 |
+| 10 | +15.09% | 1.84x | 비권장 |
+
+**Stage2 실험 결과**: 12→4 steps에서 **치수 오차 0.5% 이내, 30% 속도 향상** 확인.
+
+**의의**: Fast-SAM3D 논문은 25 steps를 기준으로 step caching을 적용하지만, **몇 steps가 최적인지는 분석하지 않음**. 본 실험은 부피 정확도 관점에서 14+4 steps가 이삿짐 서비스에 최적임을 실증.
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:69-74`
+
+##### D-3. in_place=True 최적화
+
+**동기**: SAM-3D의 `make_scene()` 및 `ready_gaussian_for_video_rendering()`이 기본적으로 deep copy를 수행하여 메모리와 시간을 낭비합니다.
+
+```python
+# 기존: deep copy 수행
+scene_gs = self.make_scene(output, in_place=False)
+
+# 최적화: deep copy 제거
+scene_gs = self.make_scene(output, in_place=True)
+scene_gs = self.ready_gaussian_for_video_rendering(
+    scene_gs, in_place=True, fix_alignment=False
+)
+```
+
+**효과**: 5-10% 속도 향상, 메모리 피크 감소.
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:652-656`
+
+---
+
+#### E. I/O 및 데이터 최적화
+
+##### E-1. Binary PLY 포맷
+
+**동기**: SAM-3D의 기본 ASCII PLY 출력은 파일 크기가 크고 직렬화가 느립니다. base64로 인코딩하여 JSON 프로토콜로 전송하므로 크기가 직접적으로 latency에 영향합니다.
+
+```python
+USE_BINARY_PLY = True  # ~70% 파일 크기 감소, ~50% 쓰기 속도 향상
+```
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:78`
+
+##### E-2. PLY 전처리 파이프라인 (GCS 업로드 전)
+
+**동기**: 생성된 PLY를 프론트엔드(Three.js)에서 렌더링하고 GCS에 저장하기 위해 전처리가 필요합니다.
+
+```
+SAM-3D PLY 원본
+    ↓
+1. OBB 기반 축 정렬 (임의 회전 보정)
+    ↓
+2. 바닥 배치 (Z-min = 0)
+    ↓
+3. 좌표계 변환 (Z-up → Y-up, Three.js 호환)
+    ↓
+4. 절대 치수 스케일링 (mm → m)
+    ↓
+5. Stride 다운샘플링 (max 72,000 points)
+    ↓
+GCS 업로드 (크기: ~2MB → ~290KB, 85% 감소)
+```
+
+**코드**: `ai/processors/ply_preprocessor.py`
+
+##### E-3. stdout 오염 방지
+
+**동기**: Warp/kaolin 라이브러리가 import 시 stdout으로 초기화 메시지를 출력하여 Worker Pool의 JSON 프로토콜을 깨뜨리는 문제가 발생했습니다.
+
+```python
+# 환경변수로 Warp 출력 억제
+os.environ["WARP_QUIET"] = "1"
+
+# 모델 로딩/추론 시 stdout을 /dev/null로 리다이렉트
+def suppress_stdout():
+    send_message._real_stdout = sys.stdout
+    sys.stdout = open(os.devnull, 'w')
+
+# JSON 메시지 전송 시만 real stdout 복원
+def send_message(msg_obj):
+    if hasattr(send_message, '_real_stdout'):
+        sys.stdout = send_message._real_stdout
+    print(msg_obj.to_json(), flush=True)
+```
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:114-128`
+
+---
+
+#### F. 부피 계산 파이프라인 (서비스 핵심 로직)
+
+##### F-1. OBB 기반 상대 치수 추출
+
+**동기**: 축 정렬된 Bounding Box(AABB)는 회전된 가구에서 부정확한 치수를 산출합니다.
+
+**핵심 발상**: 3D Gaussian 포인트 클라우드에서 PCA 기반 Oriented Bounding Box(OBB)를 계산하고, greedy coordinate mapping으로 width/depth/height를 추출합니다.
+
+```python
+# 1. PCA로 principal components 계산
+# 2. OBB extents 추출 (3개 축 길이)
+# 3. Greedy similarity mapping:
+#    - 회전 행렬의 |R^T| 유사도 행렬 계산
+#    - 내림차순 정렬 후 greedy 할당 (중복 방지)
+#    - → 고유한 (width, depth, height) 매핑
+```
+
+**의의**: SAM-3D 논문은 3D 재구성만 다루며 **치수 추출 방법론은 제시하지 않음**. 회전 불변 OBB + greedy mapping은 이삿짐 서비스의 부피 추정을 위한 고유 기여.
+
+**코드**: `ai/processors/7_volume_calculate.py:166-213`
+
+##### F-2. 절대 부피 계산 (표준 치수 DB 매칭)
+
+**동기**: SAM-3D가 출력하는 3D 모델은 상대 비율만 정확하며 절대 크기 정보가 없습니다. 이삿짐 견적에는 절대 부피(m³)가 필요합니다.
+
+**핵심 발상**: 52개 가구 타입별 표준 치수 DB를 구축하고, OBB에서 추출한 상대 비율을 매칭하여 절대 치수를 계산합니다.
+
+```python
+def calculate_absolute_volume(label, type_name, rel_w, rel_d, rel_h):
+    # 1. 가구 타입 매칭 (label + type_name → 표준 치수)
+    furniture_type = get_furniture_type(type_name)
+
+    # 2. 고정 치수 사용 (width, depth)
+    actual_width = furniture_type.width    # mm
+    actual_depth = furniture_type.depth    # mm
+
+    # 3. 가변 높이 계산 (height == -1인 경우)
+    if furniture_type.height != -1:
+        actual_height = furniture_type.height
+    else:
+        # 상대 비율로 높이 역산
+        sorted_rel = sorted([rel_w, rel_d, rel_h])
+        scale_factor = max(furniture_type.width, furniture_type.depth) / sorted_rel[2]
+        actual_height = sorted_rel[0] * scale_factor
+
+    # 4. 절대 부피 (m³)
+    return actual_width * actual_depth * actual_height * 1e-9
+```
+
+**데이터**: 52개 가구 타입 (`ai/data/furniture_dimensions.py`), YOLO 365 클래스 → 가구 매핑 (`ai/data/knowledge_base.py`)
+
+**코드**: `ai/processors/8_absolute_volume_calculate.py`, `ai/data/furniture_dimensions.py`
+
+---
+
+#### G. 환경 및 런타임 안정화
+
+##### G-1. 스레드 폭발 방지
+
+**동기**: PyTorch, OpenBLAS, MKL 등이 기본적으로 CPU 코어 수만큼 스레드를 생성하여, 다중 워커 환경에서 수백 개 스레드가 경쟁합니다.
+
+```python
+os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["OPENBLAS_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "4"
+os.environ["NUMEXPR_NUM_THREADS"] = "4"
+torch.set_num_threads(4)
+torch.set_num_interop_threads(2)
+```
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:44-56`
+
+##### G-2. spconv 튜닝 시간 제한
+
+**동기**: spconv가 최적 알고리즘을 찾기 위해 무한 튜닝하는 문제 방지.
+
+```python
+os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # 100ms 제한
+```
+
+**코드**: `ai/subprocess/persistent_3d_worker.py:30`
+
+---
+
+### 14.3 기여 분류 요약
+
+| 분류 | 기법 | 출처 | 효과 |
+|------|------|------|------|
+| **논문 적용** | SS Step Caching (단순화) | Fast-SAM3D §4.1 | 1.16-1.90x 가속 |
+| **서비스 독자 A** | Gaussian-Only 디코딩 | 이삿짐 서비스 | 67-135초/객체 절약 |
+| **서비스 독자 A** | V2 파이프라인 통합 | 이삿짐 서비스 | 3-7초/요청 절약 |
+| **서비스 독자 A** | 다운샘플링 비활성화 결정 | 부피 정확도 분석 | 부피 오차 91.7% 방지 |
+| **서비스 독자 B** | VRAM 모델 언로딩 | 이삿짐 서비스 | 48% VRAM 절감 |
+| **서비스 독자 B** | Synthetic Pinhole Pointmap | 이삿짐 서비스 | 안정성 + 3GB 절감 |
+| **서비스 독자 C** | Persistent Worker Pool | 시스템 아키텍처 | 모델 로딩 100% 제거 |
+| **서비스 독자 C** | 2단계 병렬 처리 | 시스템 아키텍처 | 23x 다중 객체 가속 |
+| **서비스 독자 C** | Event-Based Work-Stealing | 시스템 아키텍처 | GPU 유휴 시간 최소화 |
+| **서비스 독자 D** | torch.compile 수동 적용 | 엔지니어링 | 1.31-1.37x 가속 |
+| **서비스 독자 D** | Steps 최적점 탐색 (14+4) | 부피 기준 실험 | 1.5x 가속, ±1.5% 오차 |
+| **서비스 독자 D** | in_place=True | 엔지니어링 | 5-10% 가속 |
+| **서비스 독자 E** | Binary PLY + 전처리 | I/O 최적화 | 85% 크기 감소 |
+| **서비스 독자 E** | stdout 오염 방지 | 시스템 안정성 | JSON 프로토콜 보호 |
+| **서비스 독자 F** | OBB 상대 치수 추출 | 부피 추정 핵심 | 회전 불변 치수 |
+| **서비스 독자 F** | 절대 부피 계산 (52타입 DB) | 부피 추정 핵심 | 실제 m³ 부피 산출 |
+| **서비스 독자 G** | 스레드/spconv 안정화 | 런타임 안정성 | 다중 워커 안정 |
+
+> **결론**: Fast-SAM3D 논문의 3가지 기법 중 1가지(Step Caching)만 단순화하여 적용하고, **나머지 16가지 최적화는 이삿짐 부피 추정 서비스의 도메인 요구사항에 맞춰 독자적으로 설계·구현**한 것입니다.
 
 ---
 
