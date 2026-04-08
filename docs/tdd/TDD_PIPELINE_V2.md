@@ -5,7 +5,7 @@
 | 항목 | 내용 |
 |------|------|
 | Version | 2.5 |
-| Last Updated | 2026-02-01 |
+| Last Updated | 2026-04-08 |
 | Author | AI Team |
 | Status | Implemented |
 
@@ -19,54 +19,71 @@
 
 ### 1.2 Key Changes from V1
 
-| 항목 | V1 | V2 |
-|------|----|----|
+| 항목 | V1 | V2.5 (현재) |
+|------|----|------------|
 | 탐지 모델 | yolov8l-world.pt | yoloe-26x-seg.pt |
 | 마스크 생성 | SAM2 (center point prompt) | YOLOE-seg (직접 사용) |
 | 분류 | CLIP 분류 후 DB 매칭 | YOLO 클래스로 직접 DB 매칭 |
 | 탐지 | SAHI 타일링 + YOLO-World | YOLOE-seg 단일 추론 |
 | API 호출 | 3회 (YOLO → SAM2 → SAM-3D) | 2회 (YOLO → SAM-3D) |
 | 부피 계산 | 백엔드에서 계산 | **AI 서버에서 절대 부피 계산** (V2.5) |
+| PLY 저장 | 로컬 파일 | **GCS 업로드 후 `ply_url` 반환** (V2.5) |
+| SAM3D 스케줄링 | 매 요청마다 subprocess | **Persistent Worker Pool + Event 기반 work-stealing** |
+| 3D 출력 포맷 | PLY + GLB + Mesh + GIF | **PLY만** (Gaussian-only 모드) |
+| is_movable / dimensions | AI가 결정 | 제거 (모든 탐지 객체 이동 대상) |
 
 ### 1.3 Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     Pipeline V2.5 Architecture                       │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐        │
-│  │   Firebase   │     │   YOLOE-seg  │     │   SAM-3D     │        │
-│  │   Storage    │────▶│   Detection  │────▶│   Convert    │        │
-│  │              │     │   + Mask     │     │              │        │
-│  └──────────────┘     └──────────────┘     └──────────────┘        │
-│         │                    │                    │                 │
-│         ▼                    ▼                    ▼                 │
-│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐        │
-│  │  PIL Image   │     │  bbox, label │     │  PLY (3D)    │        │
-│  │              │     │  mask (seg)  │     │              │        │
-│  └──────────────┘     └──────────────┘     └──────────────┘        │
-│                              │                    │                 │
-│                              ▼                    ▼                 │
-│                       ┌──────────────┐     ┌──────────────┐        │
-│                       │  DB Matching │     │  Dimension   │        │
-│                       │ (base_name)  │     │  (OBB-based) │        │
-│                       └──────────────┘     └──────────────┘        │
-│                              │                    │                 │
-│                              └────────┬──────────┘                 │
-│                                       ▼                            │
-│                              ┌──────────────────┐                  │
-│                              │ Absolute Volume  │  ← V2.5 신규     │
-│                              │   Calculator     │                  │
-│                              │ (상대→절대 변환) │                  │
-│                              └──────────────────┘                  │
-│                                       │                            │
-│                                       ▼                            │
-│                              ┌──────────────────┐                  │
-│                              │  JSON Response   │                  │
-│                              │ (절대 치수+부피) │                  │
-│                              └──────────────────┘                  │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     Pipeline V2.5 Architecture                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────┐     ┌──────────────────┐     ┌───────────────────┐   │
+│  │   Firebase   │     │   GPUPoolManager │     │ SAM3DWorkerPool   │   │
+│  │   Storage    │────▶│  (YOLOE-seg,     │────▶│ (Persistent +     │   │
+│  │              │     │   round-robin)   │     │  work-stealing)   │   │
+│  └──────────────┘     └──────────────────┘     └───────────────────┘   │
+│         │                      │                         │              │
+│         ▼                      ▼                         ▼              │
+│  ┌──────────────┐     ┌──────────────────┐     ┌───────────────────┐   │
+│  │  PIL Image   │     │  bbox, label,    │     │  Binary PLY       │   │
+│  │              │     │  mask (seg)      │     │  (Gaussian Splat) │   │
+│  └──────────────┘     └──────────────────┘     └───────────────────┘   │
+│                                │                         │              │
+│                                ▼                         ▼              │
+│                       ┌──────────────────┐     ┌───────────────────┐   │
+│                       │  DB Matching     │     │  OBB Dimension    │   │
+│                       │  (base_name)     │     │  (상대 치수)       │   │
+│                       └──────────────────┘     └───────────────────┘   │
+│                                │                         │              │
+│                                └────────┬───────────────┘              │
+│                                         ▼                               │
+│                              ┌──────────────────────┐                   │
+│                              │ AbsoluteVolume       │  ← V2.5           │
+│                              │ Calculator           │                   │
+│                              │ (52 furniture DB)    │                   │
+│                              └──────────────────────┘                   │
+│                                         │                               │
+│                                         ▼                               │
+│                              ┌──────────────────────┐                   │
+│                              │ PLYPreprocessor      │  ← V2.5           │
+│                              │ (OBB 정렬 + Y-up +    │                   │
+│                              │  72k 다운샘플링)      │                   │
+│                              └──────────────────────┘                   │
+│                                         │                               │
+│                                         ▼                               │
+│                              ┌──────────────────────┐                   │
+│                              │ GCS Upload           │  ← V2.5           │
+│                              │ → ply_url            │                   │
+│                              └──────────────────────┘                   │
+│                                         │                               │
+│                                         ▼                               │
+│                              ┌──────────────────────┐                   │
+│                              │ Callback URL         │                   │
+│                              │ (비동기 POST)         │                   │
+│                              └──────────────────────┘                   │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -111,16 +128,25 @@ MovabilityChecker.check_from_label(label, score) → MovabilityResult {
 FurniturePipeline._yolo_mask_to_base64(mask) → str (base64 PNG)
 ```
 
-#### Stage 5: SAM-3D Conversion
+#### Stage 5: SAM-3D 3D 생성 (Persistent Worker Pool)
 ```python
-SAM3DConverter.convert(image_path, mask_path) → SAM3DResult {
+# SAM3DWorkerPool이 GPU당 하나의 persistent 워커를 관리
+# Event 기반 work-stealing으로 여러 객체를 병렬 처리
+sam3d_pool = get_sam3d_worker_pool()
+tasks = [{"task_id": f"obj_{i}", "image_b64": ..., "mask_b64": ..., "seed": 42}, ...]
+results: List[ResultMessage] = await sam3d_pool.submit_tasks_parallel(tasks)
+
+# ResultMessage (Gaussian-only 모드)
+ResultMessage {
+    task_id: str,
     success: bool,
-    ply_b64: str,
+    ply_b64: str,           # Binary PLY 포맷 (base64)
     ply_size_bytes: int,
-    gif_b64: str,
-    mesh_url: str
+    error: Optional[str],
+    processing_time_seconds: float
 }
 ```
+> **Note**: V2.2부터 GLB/Mesh 생성이 제거되었고, V2.5 현재는 Gaussian-only 모드에서 PLY만 생성합니다.
 
 #### Stage 6: Dimension Calculation (OBB-based)
 ```python
@@ -170,6 +196,38 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
 **표준 치수 데이터:** `ai/data/furniture_dimensions.py`
 - 52개 가구 타입 표준 치수 (FurnitureType.java 기반)
 - 29개 라벨 → 서브타입 매핑 (FurnitureLabel.java 기반)
+
+#### Stage 8: PLY 전처리 + GCS 업로드 (V2.5 신규)
+```python
+# PLYPreprocessor: 프론트엔드 렌더링 + 용량 최적화
+preprocessor = PLYPreprocessor(
+    max_points=Config.PLY_MAX_POINTS,         # 72000
+    convert_to_yup=Config.PLY_CONVERT_TO_YUP, # True (Three.js 호환)
+    enable_alignment=True,                    # OBB 기반 축 정렬
+    enable_scaling=True,                      # 절대 치수(mm → m) 스케일링
+    enable_downsampling=True,                 # Stride 다운샘플링
+)
+processed_ply_b64, preprocess_result = preprocessor.process(
+    ply_b64=raw_ply_b64,
+    target_width_mm=abs_result.width_mm,
+    target_depth_mm=abs_result.depth_mm,
+    target_height_mm=abs_result.height_mm,
+)
+
+# GCS 업로드
+ply_url = await self.gcs_service.upload_ply_base64(processed_ply_b64, filename)
+```
+
+**전처리 파이프라인:**
+1. OBB 기반 축 정렬 (`OBB.R.T` 역회전)
+2. 바닥 배치 (`Z-min = 0`)
+3. Z-up → Y-up 좌표계 변환
+4. 절대 치수(mm → m) 스케일링
+5. Stride 다운샘플링 (max 72,000 points)
+
+**파일 크기:** ~2MB → ~290KB (85% 감소)
+
+**GCS 경로:** `ply/est{estimate_id}_img{image_id}_{label}_{timestamp}_{uuid}.ply`
 
 ### 2.3 Output
 
@@ -244,6 +302,9 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
 | depth | float | mm | **절대 세로 길이** (표준 치수 기반) |
 | height | float | mm | **절대 높이** (고정 또는 스케일 팩터로 계산) |
 | volume | float | m³ | **절대 부피** (width × depth × height × 1e-9) |
+| ply_url | string | - | GCS Public URL (전처리 완료된 PLY 파일, V2.5 신규) |
+| center_x | float | px | 이미지 내 객체 중심의 X 좌표 |
+| center_y | float | px | 이미지 내 객체 중심의 Y 좌표 |
 
 > **Note (V2.5 변경사항)**:
 > - 절대 치수와 부피가 **AI 서버에서 계산**됩니다 (이전에는 백엔드).
@@ -276,23 +337,40 @@ AbsoluteVolumeCalculator.calculate_absolute_volume(
 **File:** `ai/gpu/sam3d_worker_pool.py`
 
 **Architecture:**
-- Persistent Worker Pool 패턴 (GPU당 1개 워커)
+- Persistent Worker Pool 패턴 (GPU당 1개 워커, 서버 시작 시 모델 1회 로드)
 - Worker script: `ai/subprocess/persistent_3d_worker.py`
 - JSON stdin/stdout 통신: `ai/subprocess/worker_protocol.py`
+- **Event 기반 work-stealing 스케줄링**: `asyncio.Event` 시그널로 먼저 끝난 워커가
+  다음 작업을 즉시 획득. 객체 크기가 불균등할 때 (TV 5초, Bed 17초) GPU 유휴 시간 최소화.
+- SAM-3D 전용 conda 환경 Python (`~/miniconda3/envs/sam3d-objects/bin/python`) 사용
 
 **Input Requirements:**
 - Image: Base64 encoded PNG
 - Mask: Base64 encoded grayscale PNG (0/255)
 
-**Output Files:**
-- PLY: Gaussian splat point cloud (Binary format, USE_BINARY_PLY=True)
-- GLB/Mesh: 비활성화 (GAUSSIAN_ONLY_MODE=True)
+**Output:**
+- PLY: Gaussian splat point cloud (Binary format, `USE_BINARY_PLY=True`)
+- GLB/Mesh/GIF/비디오 생성 없음 (Gaussian-only 모드)
 
-**최적화 설정 (persistent_3d_worker.py):**
-- `STAGE1_INFERENCE_STEPS=15`: 47% 속도 향상
-- `STAGE2_INFERENCE_STEPS=8`: 15-20% 속도 향상
-- `GAUSSIAN_ONLY_MODE=True`: 37.4% 속도 향상
-- `compile=True`: 10-20% 추론 속도 향상
+**최적화 설정 (`ai/subprocess/persistent_3d_worker.py`):**
+
+| 설정 | 값 | 효과 |
+|------|-----|------|
+| `MAX_IMAGE_SIZE` | `None` (비활성화) | 부피 정확도 유지 (다운샘플링이 91.7% 영향) |
+| `STAGE1_INFERENCE_STEPS` | `14` (기본 25) | ~50% 속도 향상, ~1.5% 부피 오차 |
+| `STAGE2_INFERENCE_STEPS` | `4` (기본 12) | ~30% 속도 향상, 치수 오차 0.5% 이내 |
+| `USE_BINARY_PLY` | `True` | 파일 크기 ~70% 감소, 쓰기 속도 ~50% 향상 |
+| `GAUSSIAN_ONLY_MODE` | `True` | 37.4% 속도 향상, 부피 오차 0.005% |
+| `ENABLE_SS_STEP_CACHING` | `True` (stride=3, warmup=2) | SS backbone 호출 42→18 (57% 감소) |
+| `ENABLE_SLAT_STEP_CACHING` | `False` | 4 steps에서 얇은 객체 품질 리스크 |
+| `ENABLE_COMPILE` | `True` (reduce-overhead) | 핵심 모듈 수동 compile, ~10-20% 속도 향상 |
+| `in_place=True` | - | deepcopy 제거, ~5-10% 속도 향상 |
+
+**VRAM 최적화 (Gaussian-only 모드 조건부 언로드):**
+- `slat_decoder_mesh` → CPU (~3-4GB 절감)
+- `slat_decoder_gs_4` → CPU (~2-3GB 절감)
+- `depth_model` (MoGe) → CPU + None (~1-3GB 절감, synthetic pointmap 사용)
+- **총 ~10GB 절감** (21GB → 11.25GB, L4 GPU에서 YOLOE + SAM-3D 동일 GPU 탑재 가능)
 
 ### 3.3 Absolute Volume Calculator (V2.5 신규)
 
@@ -488,20 +566,43 @@ abs_result = abs_calc.calculate_absolute_volume(
 
 ### 4.3 POST /analyze-furniture-base64
 
-**Description:** Base64 encoded image input (Firebase URL 없이 직접 이미지 전송)
+**Description:** Base64 encoded image input (Firebase URL 없이 직접 이미지 전송, 동기 방식)
 
 **Request:**
 ```json
 {
-  "image": "data:image/png;base64,iVBORw0KGgo..."
+  "image": "iVBORw0KGgo...",
+  "enable_mask": true,
+  "enable_3d": true,
+  "return_ply": false
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| image | string | Yes | Base64 인코딩된 이미지 |
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| image | string | Yes | - | Base64 인코딩된 이미지 |
+| enable_mask | bool | No | `true` | YOLOE-seg 마스크 생성 여부 |
+| enable_3d | bool | No | `true` | SAM-3D 3D 생성 여부 |
+| return_ply | bool | No | `false` | 응답에 PLY base64 데이터 포함 여부 (테스트용) |
 
-**Response:** `/analyze-furniture`와 동일
+**Response:**
+```json
+{
+  "objects": [
+    {
+      "label": "SOFA",
+      "subtype": "THREE_SEATER_SOFA",
+      "width": 1.5,
+      "depth": 0.8,
+      "height": 0.9,
+      "volume": 1.08
+    }
+  ]
+}
+```
+
+> **Note**: 이 엔드포인트는 동기 방식이며 상대 치수를 반환합니다 (`/analyze-furniture`의 비동기 callback과 다름).
+> `return_ply=true`일 때 각 객체에 `ply_b64` 필드가 추가됩니다.
 
 ### 4.4 POST /detect-furniture
 
@@ -535,17 +636,17 @@ abs_result = abs_calc.calculate_absolute_volume(
 
 ### 4.5 GET /health
 
-**Description:** 서버 상태 및 모델 로드 여부 확인
+**Description:** 서버 상태 확인 (간단한 liveness 체크)
 
 **Response:**
 ```json
 {
   "status": "healthy",
-  "model_loaded": true,
-  "device": "cuda:0",
-  "model": "facebook/sam2.1-hiera-large"
+  "device": "cuda:0"
 }
 ```
+
+> 모델 로드 여부 / GPU 상세 정보는 `/gpu-status` 참고
 
 ### 4.6 GET /gpu-status
 
@@ -574,87 +675,11 @@ abs_result = abs_calc.calculate_absolute_volume(
 }
 ```
 
-### 4.7 POST /generate-3d
+> **Note**: 이전 버전에 존재하던 `POST /generate-3d`와 `GET /generate-3d-status/{task_id}` 폴링 기반
+> 엔드포인트는 V2.2에서 제거되었습니다. 3D 생성은 이제 `/analyze-furniture*` 엔드포인트 내부에서
+> SAM3D Worker Pool을 통해 동기/callback 방식으로 처리됩니다.
 
-**Description:** 3D Gaussian Splat 생성 (비동기, task_id 반환)
-
-**Request:**
-```json
-{
-  "image": "base64_encoded_rgb_image",
-  "mask": "base64_encoded_binary_mask",
-  "seed": 42
-}
-```
-
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| image | string | Yes | - | Base64 인코딩된 RGB 이미지 (PNG/JPEG) |
-| mask | string | Yes | - | Base64 인코딩된 바이너리 마스크 (0-1 grayscale) |
-| seed | integer | No | 42 | 랜덤 시드 (재현성) |
-
-**Response:**
-```json
-{
-  "success": true,
-  "task_id": "uuid-task-id",
-  "status": "queued"
-}
-```
-
-### 4.8 GET /generate-3d-status/{task_id}
-
-**Description:** 3D 생성 작업 상태 조회 (폴링)
-
-**Path Parameter:**
-| Field | Type | Description |
-|-------|------|-------------|
-| task_id | string | /generate-3d에서 반환받은 task_id |
-
-**Response (Processing):**
-```json
-{
-  "task_id": "uuid-task-id",
-  "status": "processing",
-  "progress": 50
-}
-```
-
-**Response (Completed):**
-```json
-{
-  "task_id": "uuid-task-id",
-  "status": "completed",
-  "progress": 100,
-  "ply_b64": "base64_encoded_ply",
-  "ply_size_bytes": 1234567,
-  "gif_b64": "base64_encoded_gif",
-  "gif_size_bytes": 234567,
-  "mesh_url": "/assets/mesh_abc123.glb",
-  "mesh_b64": "base64_encoded_glb",
-  "mesh_size_bytes": 345678,
-  "mesh_format": "glb"
-}
-```
-
-**Response (Failed):**
-```json
-{
-  "task_id": "uuid-task-id",
-  "status": "failed",
-  "progress": 0,
-  "error": "Error message"
-}
-```
-
-| Status | Description |
-|--------|-------------|
-| queued | 대기 중 |
-| processing | 처리 중 |
-| completed | 완료 |
-| failed | 실패 |
-
-### 4.9 GET /assets-list
+### 4.7 GET /assets-list
 
 **Description:** 저장된 에셋 파일 목록 조회 (최신순 정렬)
 
@@ -674,34 +699,39 @@ abs_result = abs_calc.calculate_absolute_volume(
 }
 ```
 
-### 4.10 GET /assets/{filename}
+### 4.8 GET /assets/{filename}
 
-**Description:** 정적 에셋 파일 다운로드 (PLY, GLB, GIF)
+**Description:** 정적 에셋 파일 다운로드 (StaticFiles mount, `api/app.py:33`)
 
 **Path Parameter:**
 | Field | Type | Description |
 |-------|------|-------------|
-| filename | string | 파일명 (예: mesh_abc123.glb) |
+| filename | string | 파일명 (예: `obj_abc123.ply`) |
 
 **Response:** Binary file download
 
 **Supported Formats:**
-- `.ply` - Gaussian Splat Point Cloud
-- `.glb` - 3D Mesh (GLTF Binary)
-- `.gif` - 360° 회전 프리뷰
+- `.ply` - Gaussian Splat Point Cloud (현재 유일하게 생성되는 포맷)
+
+> **Note**: V2.5 현재는 PLY만 생성하며, 생성된 PLY는 GCS에 업로드되어 `ply_url`로 제공됩니다.
+> `/assets/` 는 로컬 static file mount로 남아있지만 실제 파이프라인은 GCS를 사용합니다.
 
 ---
 
-## 5. Multi-GPU Support
+## 5. Multi-GPU Support (2단계 병렬 처리)
 
-### 5.1 GPU Pool Manager
+파이프라인은 **두 단계에서 각각 다른 수준의 병렬성**을 사용합니다.
+
+### 5.1 1단계: GPU Pool Manager (YOLOE 탐지)
 
 **File:** `ai/gpu/gpu_pool_manager.py`
 
 **Features:**
-- Round-robin GPU allocation
-- Pipeline pre-initialization per GPU
-- Thread-safe acquire/release
+- 라운드로빈 GPU 할당 (`_next_gpu_index` 카운터)
+- Pipeline pre-initialization per GPU (서버 시작 시 YOLOE 모델 로드)
+- Thread-safe acquire/release (`asyncio.Lock`)
+- Health check 및 자동 failover
+- 획득 실패 시 `asyncio.sleep(0.5)` 폴링 재시도
 
 **Usage:**
 ```python
@@ -709,14 +739,47 @@ async with pool.pipeline_context(task_id="img_001") as (gpu_id, pipeline):
     result = await pipeline.process_single_image(url)
 ```
 
-### 5.2 Pipeline Pre-initialization
+### 5.2 2단계: SAM3D Worker Pool (3D 생성)
+
+**File:** `ai/gpu/sam3d_worker_pool.py`
+
+**Features:**
+- GPU당 하나의 persistent 워커 프로세스 (서버 시작 시 1회 spawn)
+- **Event 기반 work-stealing 스케줄링** (`asyncio.Event` + `_worker_available.set()`)
+- 모델 사전 로드 (매 요청마다 모델 로딩 오버헤드 0)
+- JSON stdin/stdout 통신 프로토콜
+
+**Work-Stealing 동작:**
+```python
+# ai/gpu/sam3d_worker_pool.py:307-348
+async def _acquire_worker(self, task_id):
+    while time.time() - start_time < self.task_timeout:
+        async with self._allocation_lock:
+            for _ in range(len(self.gpu_ids)):
+                # 빈 워커가 있으면 즉시 획득
+                if worker_info.is_ready and not worker_info.is_busy:
+                    return worker_info
+        # 빈 워커 없으면 Event 시그널 대기 (폴링 X)
+        await asyncio.wait_for(self._worker_available.wait(), timeout=remaining)
+```
+워커가 작업을 끝내면 `_release_worker()`가 `_worker_available.set()`을 호출 → 대기 중인 코루틴이
+즉시 깨어나서 다음 작업 획득. 객체 크기가 불균등할 때 GPU 유휴 시간 최소화.
+
+### 5.3 Pipeline Pre-initialization
 
 ```python
-# At server startup
+# At server startup (api/app.py:42-65)
+gpu_ids = Config.get_available_gpus()
+
+# 1단계: YOLOE Pipeline 사전 초기화
+pool = initialize_gpu_pool(gpu_ids)
 await pool.initialize_pipelines(
     lambda gpu_id: FurniturePipeline(device_id=gpu_id),
     skip_on_error=True
 )
+
+# 2단계: SAM3D Worker Pool 초기화 (GPU당 1개 워커 spawn + 모델 로드)
+sam3d_pool = await initialize_sam3d_worker_pool(gpu_ids)
 ```
 
 ---
@@ -735,9 +798,10 @@ await pool.initialize_pipelines(
 
 | Error | Handling |
 |-------|----------|
-| Subprocess timeout | Return error status |
-| Empty mask | Skip object |
-| GLB export failed | Continue with PLY only |
+| Worker subprocess timeout (`task_timeout=300s`) | ResultMessage(success=False, error="Task timeout") |
+| Worker process died | 다음 요청 시 자동 재시작 시도 |
+| Empty mask | ValueError raise → ResultMessage 실패 응답 |
+| PLY 저장/후처리 실패 | stderr에 로깅 후 success=False로 반환 |
 
 ### 6.3 Volume Calculation Errors
 
@@ -758,22 +822,28 @@ await pool.initialize_pipelines(
 | Mask Quality | Partial coverage | Full coverage | Improved |
 | Processing Time | Baseline | -SAM2 time | Reduced |
 
-### 7.2 Benchmarks (Single Image)
+### 7.2 Benchmarks (Single Image, L4 GPU)
 
 | Stage | Duration |
 |-------|----------|
 | Image Fetch | ~0.5s |
 | YOLOE-seg Detection | ~0.5-1.0s |
 | DB Matching | <0.1s |
-| SAM-3D (per object, optimized) | ~7-8s |
-| Volume Calculation | ~0.5s |
+| SAM-3D (객체당, Fast-SAM3D 적용 후) | **~13s** (Bed) / ~5s (TV) |
+| Dimension + Absolute Volume | <0.5s |
+| PLY 전처리 + GCS 업로드 | ~0.5-1s |
 
-**최적화 적용 (2026-01-25):**
-- `STAGE1_INFERENCE_STEPS=15`: 47% 속도 향상, 1.31% 부피 오차
-- `STAGE2_INFERENCE_STEPS=8`: 15-20% 속도 향상
-- `GAUSSIAN_ONLY_MODE=True`: 37.4% 속도 향상
-- `compile=True`: 10-20% 추론 속도 향상
-- `in_place=True`: 5-10% 속도/메모리 향상
+**현재 적용된 최적화 (2026-03-18 기준):**
+- `STAGE1_INFERENCE_STEPS=14`: ~50% 속도 향상, ~1.5% 부피 오차
+- `STAGE2_INFERENCE_STEPS=4`: ~30% 속도 향상, 치수 오차 0.5% 이내
+- `GAUSSIAN_ONLY_MODE=True`: 37.4% 속도 향상, 부피 오차 0.005%
+- `ENABLE_SS_STEP_CACHING=True` (stride=3, warmup=2): SS backbone 42→18 호출 (57% 감소)
+- `ENABLE_COMPILE=True` (reduce-overhead): Bed 25.6s→18.7s (1.37x), TV 10.0s→7.6s (1.31x)
+- `USE_BINARY_PLY=True`: 파일 크기 ~70% 감소, 쓰기 ~50% 빠름
+- `in_place=True`: deepcopy 제거, ~5-10% 속도/메모리 향상
+- VRAM 모델 언로드: 21GB → 11.25GB (48% 절감)
+
+자세한 내용은 `docs/PIPELINE_OPTIMIZATION.md` 참고.
 
 ---
 
@@ -782,32 +852,50 @@ await pool.initialize_pipelines(
 ### 8.1 Unit Tests
 
 ```bash
-# YOLOE vs SAM2 mask comparison
-python test_yoloe_vs_sam2_masks.py
+# 전체 테스트 실행
+pytest -v
 
-# Pipeline V2 QA
-python test_pipeline_qa.py
+# 주요 테스트 파일
+pytest tests/test_ply_preprocessor.py -v            # PLY 전처리 파이프라인
+pytest tests/test_furniture_pipeline_unit.py -v     # Furniture Pipeline 단위 테스트
+pytest tests/test_volume_calculator_real.py -v      # 실제 PLY 파일로 부피 계산 검증
+
+# 커버리지 포함
+pytest --cov=ai --cov-report=term-missing
 ```
 
 ### 8.2 Integration Tests
 
 ```bash
-# API server
-python api.py &
+# API 서버 실행
+uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
 
-# Test endpoint
-curl -X POST http://localhost:8000/analyze-furniture-single \
+# Base64 이미지 엔드포인트 테스트 (동기)
+curl -X POST http://localhost:8000/analyze-furniture-base64 \
   -H "Content-Type: application/json" \
-  -d '{"image_url": "..."}'
+  -d '{"image": "<base64>", "enable_mask": true, "enable_3d": true}'
+
+# Firebase URL 엔드포인트 테스트 (비동기 callback)
+curl -X POST http://localhost:8000/analyze-furniture \
+  -H "Content-Type: application/json" \
+  -d '{"estimate_id": 1, "image_urls": [{"id": 101, "url": "https://..."}]}'
+
+# GPU 상태 확인
+curl http://localhost:8000/gpu-status
 ```
 
 ### 8.3 QA Checklist
 
-- [ ] YOLOE detection returns masks
-- [ ] Masks are valid (>100 pixels, correct dimensions)
-- [ ] DB matching works for all detected classes
-- [ ] SAM-3D generates PLY/GLB/GIF
-- [ ] Volume calculation returns valid dimensions
+- [ ] YOLOE-seg detection returns masks (`detect_smart()` 앙상블 + CLAHE)
+- [ ] Masks are valid (>100 pixels, 원본 이미지 크기)
+- [ ] DB matching works for all detected classes (`knowledge_base.py`)
+- [ ] SAM-3D Worker Pool generates Binary PLY (`GAUSSIAN_ONLY_MODE=True`)
+- [ ] Work-stealing 분배 확인 (`/gpu-status`로 busy 워커 모니터링)
+- [ ] Dimension calculation returns OBB 기반 상대 치수
+- [ ] AbsoluteVolumeCalculator가 52개 타입 DB로 절대 치수/부피 산출
+- [ ] PLY 전처리 (OBB 정렬 + Y-up 변환 + 72k 포인트 다운샘플링)
+- [ ] GCS 업로드 성공 → `ply_url` 반환
+- [ ] Callback URL로 결과 전송 성공 (`/analyze-furniture` 비동기)
 
 ---
 
@@ -837,6 +925,25 @@ hydra-core>=1.3.2       # SAM-3D 설정
 ---
 
 ## 10. Changelog
+
+### V2.6 (2026-04-08) — Dead code 제거 및 문서 정합성 개선
+
+**Dead code 제거:**
+- `worker_protocol.py` TaskMessage에서 `skip_gif`, `volume_only` 제거
+- `worker_protocol.py` ResultMessage에서 `gif_b64`, `gif_size_bytes`, `mesh_url` 제거 (항상 None이었음)
+- `sam3d_worker_pool.py` `submit_task`/`submit_tasks_parallel`에서 `skip_gif` 파라미터 제거
+- `furniture_pipeline.py` generate_3d/_parallel_3d_generation 관련 필드 참조 제거
+- `api/models.py` `AnalyzeFurnitureBase64Request`에서 사용되지 않는 `skip_gif`, `max_image_size` 제거
+
+**일관성 개선:**
+- `PLYPreprocessor` 기본값 `max_points` 50000 → 72000 (Config와 일치)
+- TDD 문서 전체 재검토: SAM3DConverter 참조, stale 엔드포인트(`/generate-3d`), 잘못된 최적화 수치(15/8),
+  잘못된 `/health` 응답 등 모두 수정
+
+**문서 업데이트:**
+- `PIPELINE_OPTIMIZATION.md` Section 2, 5.2, 7, 3.1 내용 오류 수정 + stale 라인 번호 15건 갱신
+- `CLAUDE.md` SAM3D Worker Pool → Event 기반 work-stealing 반영
+- `TDD_PIPELINE_V2.md` 전체 재작성 (아키텍처, Stage 설명, 엔드포인트, 벤치마크, 테스트 가이드)
 
 ### V2.5 (2026-02-02)
 
