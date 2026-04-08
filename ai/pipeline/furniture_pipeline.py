@@ -334,8 +334,7 @@ class FurniturePipeline:
             "task_id": "single_obj",
             "image_b64": image_b64,
             "mask_b64": mask_b64,
-            "seed": 42,
-            "skip_gif": True
+            "seed": 42
         }]
 
         # Worker Pool에 제출
@@ -344,9 +343,7 @@ class FurniturePipeline:
         if results and results[0].success:
             return {
                 "ply_b64": results[0].ply_b64,
-                "ply_size_bytes": results[0].ply_size_bytes,
-                "gif_b64": results[0].gif_b64,
-                "mesh_url": results[0].mesh_url
+                "ply_size_bytes": results[0].ply_size_bytes
             }
 
         return None
@@ -386,8 +383,7 @@ class FurniturePipeline:
                 "task_id": f"obj_{obj_id}",
                 "image_b64": image_b64,
                 "mask_b64": obj.mask_base64,
-                "seed": 42,
-                "skip_gif": True
+                "seed": 42
             })
 
         # 병렬 제출
@@ -400,9 +396,7 @@ class FurniturePipeline:
             if worker_result.success:
                 results[obj_id] = {
                     "ply_b64": worker_result.ply_b64,
-                    "ply_size_bytes": worker_result.ply_size_bytes,
-                    "gif_b64": worker_result.gif_b64,
-                    "mesh_url": worker_result.mesh_url
+                    "ply_size_bytes": worker_result.ply_size_bytes
                 }
                 print(f"[FurniturePipeline] Object {obj_id} 3D generated: {worker_result.ply_size_bytes} bytes")
             else:

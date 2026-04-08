@@ -110,7 +110,7 @@ class TestPLYPreprocessorInit:
         """기본 초기화 테스트"""
         preprocessor = PLYPreprocessor()
 
-        assert preprocessor.max_points == 50000
+        assert preprocessor.max_points == 72000
         assert preprocessor.convert_to_yup is True
         assert preprocessor.enable_alignment is True
         assert preprocessor.enable_scaling is True

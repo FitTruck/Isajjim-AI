@@ -42,7 +42,7 @@ YOLOE-seg detect → mask (직접) → SAM-3D
 
 ### 코드 위치
 
-- `ai/pipeline/furniture_pipeline.py:1-19` - V2 파이프라인 설명
+- `ai/pipeline/furniture_pipeline.py:1-23` - V2.5 파이프라인 설명 (docstring)
 
 ### 효과
 
@@ -71,16 +71,20 @@ YOLOE-seg detect → mask (직접) → SAM-3D
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     2단계: 객체 병렬 처리                                 │
+│              2단계: 객체 병렬 처리 (Event 기반 Work-Stealing)              │
 │                     (SAM3DWorkerPool)                                   │
 │                                                                         │
-│   img1: [obj1, obj2, obj3] ──┬──► Worker0 (GPU0) → obj1 3D 생성         │
-│                              ├──► Worker1 (GPU1) → obj2 3D 생성         │
-│                              └──► Worker2 (GPU2) → obj3 3D 생성         │
+│   모든 객체 → asyncio.gather(N coroutines)                               │
+│                           │                                             │
+│                           ▼                                             │
+│   ┌─────────────────────────────────────────────────────────────┐      │
+│   │  빈 Worker가 있으면 즉시 획득 / 없으면 Event 대기             │      │
+│   │  Worker free → _worker_available.set() → 대기 코루틴 깨어남  │      │
+│   └─────────────────────────────────────────────────────────────┘      │
 │                                                                         │
-│   img2: [obj1, obj2] ────────┬──► Worker3 (GPU3) → obj1 3D 생성         │
-│                              └──► Worker0 (GPU0) → obj2 3D 생성         │
-│                                        ...                              │
+│   ※ 고정 라운드가 아닌 연속적 dispatch                                   │
+│      먼저 끝난 GPU가 다음 작업을 즉시 가져감 (work-stealing)             │
+│      → 객체 크기 불균등(TV 5초 vs Bed 17초)에 효율적                     │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -105,15 +109,17 @@ YOLOE-seg detect → mask (직접) → SAM-3D
 └────────────────────────────────────────────────────┘
                       │
                       ▼
-2단계 (SAM-3D - 객체 병렬):
+2단계 (SAM-3D - Event 기반 Work-Stealing):
 ┌────────────────────────────────────────────────────┐
-│  12개 객체를 4개 Worker에 분배                      │
+│  12개 객체를 asyncio.gather로 일괄 제출             │
 │                                                    │
-│  라운드 1: obj1,2,3,4 → Worker0,1,2,3 (동시)       │
-│  라운드 2: obj5,6,7,8 → Worker0,1,2,3 (동시)       │
-│  라운드 3: obj9,10,11,12 → Worker0,1,2,3 (동시)    │
+│  초기: obj1..4 → Worker0..3 (즉시 dispatch)        │
+│  obj5 이후: 워커가 free 되는 즉시 다음 작업 획득     │
 │                                                    │
-│  총 3 라운드 × 26초 = ~78초                        │
+│  객체 크기가 불균등해도 GPU 유휴 시간 최소화         │
+│  (고정 라운드 아님 - 자세한 동작은 Section 13.1)    │
+│                                                    │
+│  총 ~21-26초 (객체 크기 분포에 따라 변동)          │
 └────────────────────────────────────────────────────┘
                       │
                       ▼
@@ -132,22 +138,25 @@ YOLOE-seg detect → mask (직접) → SAM-3D
 #### 1단계: 이미지 병렬 처리
 
 ```python
-# ai/pipeline/furniture_pipeline.py:453-526
-async def process_multiple_images(self, image_urls, ...):
+# ai/pipeline/furniture_pipeline.py:610-699 (process_multiple_images_with_ids)
+async def process_multiple_images_with_ids(self, image_items, ...):
     pool = self.gpu_pool or get_gpu_pool()
+    semaphore = asyncio.Semaphore(max_concurrent)
 
-    async def process_with_gpu(url):
-        async with pool.pipeline_context(task_id=url) as (gpu_id, pipeline):
-            return await pipeline.process_single_image(url)
+    async def process_with_gpu(user_image_id, url):
+        async with semaphore:
+            async with pool.pipeline_context(task_id=f"img_{user_image_id}") as (gpu_id, pipeline):
+                return await pipeline.process_single_image(url, ...)
 
     # 모든 이미지 동시 처리
-    results = await asyncio.gather(*[process_with_gpu(url) for url in image_urls])
+    tasks = [process_with_gpu(user_id, url) for user_id, url in image_items]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 ```
 
 #### 2단계: 객체 병렬 처리
 
 ```python
-# ai/pipeline/furniture_pipeline.py:388-450
+# ai/pipeline/furniture_pipeline.py:354-411
 async def _parallel_3d_generation(self, image, objects_with_masks):
     sam3d_pool = get_sam3d_worker_pool()
 
@@ -158,9 +167,10 @@ async def _parallel_3d_generation(self, image, objects_with_masks):
             "task_id": f"obj_{obj_id}",
             "image_b64": image_b64,
             "mask_b64": obj.mask_base64,
+            "seed": 42
         })
 
-    # 모든 객체 동시 제출
+    # 모든 객체 동시 제출 → Event 기반 work-stealing으로 분배
     worker_results = await sam3d_pool.submit_tasks_parallel(tasks)
 ```
 
@@ -201,17 +211,29 @@ async def _parallel_3d_generation(self, image, objects_with_masks):
 #### 3.1 라운드로빈 GPU 할당
 
 ```python
-# ai/gpu/gpu_pool_manager.py:101-143
+# ai/gpu/gpu_pool_manager.py:101-142
 async def acquire(self, task_id: Optional[str] = None) -> int:
-    async with self._allocation_lock:
-        for _ in range(len(self.gpu_ids)):
-            gpu_id = self.gpu_ids[self._next_gpu_index]
-            self._next_gpu_index = (self._next_gpu_index + 1) % len(self.gpu_ids)
+    start_time = time.time()
+    while True:
+        async with self._allocation_lock:
+            for _ in range(len(self.gpu_ids)):
+                gpu_id = self.gpu_ids[self._next_gpu_index]
+                self._next_gpu_index = (self._next_gpu_index + 1) % len(self.gpu_ids)
 
-            if gpu_info.is_available:
-                gpu_info.is_available = False
-                return gpu_id
+                gpu_info = self._gpus[gpu_id]
+                if gpu_info.is_available and gpu_info.error_count < self.max_retries:
+                    if await self._check_gpu_health(gpu_id):
+                        gpu_info.is_available = False
+                        gpu_info.current_task_id = task_id
+                        return gpu_id
+        # 타임아웃 체크 후 0.5초 폴링 재시도
+        if time.time() - start_time > self.wait_timeout:
+            raise RuntimeError(...)
+        await asyncio.sleep(0.5)
 ```
+
+> **Note**: YOLOE GPU 풀(1단계)은 여전히 라운드로빈 + 0.5s 폴링 방식입니다.
+> SAM3D Worker Pool(2단계)은 Event 기반 work-stealing으로 업그레이드되었습니다 ([Section 13.1](#131-work-stealing-스케줄링) 참고).
 
 #### 3.2 파이프라인 사전 초기화
 
@@ -270,21 +292,27 @@ SAM-3D는 spconv 라이브러리의 GPU 상태 충돌 문제로 메인 프로세
 ### 구현 방식
 
 ```python
-# ai/gpu/sam3d_worker_pool.py:44-60
+# ai/gpu/sam3d_worker_pool.py:42-117
 class SAM3DWorkerPool:
     """
     GPU당 하나의 persistent 워커 프로세스를 관리합니다.
-    워커는 모델을 미리 로드하고, 작업 요청이 오면 즉시 처리합니다.
+    워커는 모델을 미리 로드하고, 작업 요청이 오면 Event 기반 work-stealing으로
+    대기 중인 작업에 즉시 dispatch합니다.
     """
 
+    # ai/gpu/sam3d_worker_pool.py:406-445
     async def submit_tasks_parallel(self, tasks):
-        """여러 작업을 병렬로 제출"""
+        """여러 작업을 병렬로 제출 (내부적으로 Event 기반 dispatch)"""
         results = await asyncio.gather(
-            *[self.submit_task(**t) for t in tasks],
+            *[submit_one(t) for t in tasks],
             return_exceptions=True
         )
         return results
 ```
+
+> **스케줄링 방식**: 초기에는 라운드로빈 + 0.5초 폴링이었으나, 2026-03-18부터
+> Event 기반 work-stealing으로 변경되어 객체 크기가 불균등할 때 GPU 유휴 시간을 최소화합니다.
+> 자세한 동작은 [Section 13.1](#131-work-stealing-스케줄링) 참고.
 
 ### 통신 프로토콜
 
@@ -317,7 +345,7 @@ MessageType:
 ### 5.1 불필요한 후처리 비활성화
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:631-644
+# ai/subprocess/persistent_3d_worker.py:635-648
 output = pipe.run(
     image=image,
     mask=mask,
@@ -337,21 +365,25 @@ output = pipe.run(
 | `with_mesh_postprocess` | True | **False** | 20-40초 |
 | `with_layout_postprocess` | True | **False** | 2-5초 |
 
-### 5.2 GIF 렌더링 스킵
+### 5.2 GIF/비디오 렌더링 미구현
 
-Gaussian-only 모드에서는 GIF 렌더링이 자동으로 스킵됩니다.
+이삿짐 서비스는 부피(m³) 계산만 필요하므로 워커에 **GIF/비디오 렌더링 코드가 아예 없습니다**.
+SAM-3D 원본에서는 렌더링 기능을 제공하지만, 본 프로젝트의 `persistent_3d_worker.py`는 PLY 저장만 수행합니다.
 
 ```python
-# ai/subprocess/persistent_3d_worker.py
-GAUSSIAN_ONLY_MODE = True  # GIF/GLB/Mesh 모두 스킵
-
-# 효과: 15-30초 절약
+# ai/subprocess/persistent_3d_worker.py — process_task() 내부
+scene_gs = self.make_scene(output, in_place=True)
+scene_gs = self.ready_gaussian_for_video_rendering(scene_gs, in_place=True, fix_alignment=False)
+scene_gs.save_ply(output_ply_path)  # ← PLY만 저장, GIF/비디오 생성 없음
 ```
+
+> **참고**: `ready_gaussian_for_video_rendering`은 이름과 달리 렌더링이 아닌 **정규화만 수행**합니다.
+> 실제 GIF/MP4 생성은 추가 단계가 필요하지만 본 프로젝트에서는 수행하지 않습니다.
 
 ### 5.3 Inference Steps 감소
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:58-62
+# ai/subprocess/persistent_3d_worker.py:73-74
 # Stage1 (Sparse Structure): 12~16 사이 최적값
 STAGE1_INFERENCE_STEPS = 14  # 기본값 25 → 14 (속도/정확도 균형)
 
@@ -375,7 +407,7 @@ STAGE2_INFERENCE_STEPS = 4   # 기본값 12 → 4 (치수 오차 0.5% 이내, 30
 ### 5.4 Binary PLY 포맷
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:66
+# ai/subprocess/persistent_3d_worker.py:78
 USE_BINARY_PLY = True
 
 # 효과: 파일 크기 70% 감소, 쓰기 속도 50% 향상
@@ -384,7 +416,7 @@ USE_BINARY_PLY = True
 ### 5.5 이미지 다운샘플링 (비활성화)
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:57
+# ai/subprocess/persistent_3d_worker.py:67
 MAX_IMAGE_SIZE = None  # 비활성화
 
 # 이유: 다운샘플링이 부피 정확도에 91.7% 영향
@@ -394,7 +426,7 @@ MAX_IMAGE_SIZE = None  # 비활성화
 ### 5.6 Gaussian-only 모드
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:68-71
+# ai/subprocess/persistent_3d_worker.py:80-83
 GAUSSIAN_ONLY_MODE = True  # GLB/Mesh 생성 스킵, decode_formats=["gaussian"]
 
 # 효과: 37.4% 속도 향상, 부피 오차 0.005% (무시 가능)
@@ -404,7 +436,7 @@ GAUSSIAN_ONLY_MODE = True  # GLB/Mesh 생성 스킵, decode_formats=["gaussian"]
 ### 5.7 in_place=True 최적화
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:455-458
+# ai/subprocess/persistent_3d_worker.py:652-656
 # deepcopy 제거로 메모리/속도 최적화
 scene_gs = self.make_scene(output, in_place=True)
 scene_gs = self.ready_gaussian_for_video_rendering(
@@ -417,7 +449,7 @@ scene_gs = self.ready_gaussian_for_video_rendering(
 ### 5.8 torch.compile 활성화
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:317-321
+# ai/subprocess/persistent_3d_worker.py:468
 ENABLE_COMPILE = True  # True = 추론 10-20% 빠름, False = 빠른 시작 (테스트용)
 
 # 워커 초기화 시 CUDA 커널 컴파일
@@ -452,14 +484,14 @@ self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cu
 ### 6.1 스레드 폭발 방지
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:32-37
+# ai/subprocess/persistent_3d_worker.py:45-49
 os.environ["OMP_NUM_THREADS"] = "4"
 os.environ["OPENBLAS_NUM_THREADS"] = "4"
 os.environ["MKL_NUM_THREADS"] = "4"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "4"
 os.environ["NUMEXPR_NUM_THREADS"] = "4"
 
-# PyTorch 스레드 제한
+# PyTorch 스레드 제한 (line 55-56)
 torch.set_num_threads(4)
 torch.set_num_interop_threads(2)
 ```
@@ -471,7 +503,7 @@ torch.set_num_interop_threads(2)
 ### 6.2 spconv 튜닝 시간 제한
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:29
+# ai/subprocess/persistent_3d_worker.py:30
 os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # 100ms 제한
 
 # 문제: spconv가 최적 알고리즘을 찾기 위해 무한 튜닝
@@ -495,25 +527,46 @@ os.environ["SPCONV_TUNE_DEVICE"] = "0"
 ### 문제점
 
 spconv 라이브러리는 GPU 상태를 유지하며, 같은 프로세스에서 여러 번 로드하면 충돌이 발생합니다.
+또한 SAM-3D는 전용 conda 환경(`sam3d-objects`)의 Python을 사용해야 합니다.
 
 ### 해결책: Persistent Worker Pool + Subprocess 격리
 
 ```python
-# ai/gpu/sam3d_worker_pool.py - 워커 프로세스 시작
-process = subprocess.Popen(
-    [sys.executable, worker_script, "--gpu-id", str(gpu_id)],
+# ai/gpu/sam3d_worker_pool.py:98-101 — SAM-3D 전용 Python 선택
+sam3d_python = os.path.expanduser("~/miniconda3/envs/sam3d-objects/bin/python")
+python_executable = sam3d_python if os.path.exists(sam3d_python) else sys.executable
+
+# ai/gpu/sam3d_worker_pool.py:168-185 — 워커 프로세스 시작 (positional args)
+cmd = [
+    self.python_executable,
+    self.worker_script,
+    str(worker_info.worker_id),   # argv[1] = worker_id
+    str(gpu_id)                   # argv[2] = gpu_id (워커가 자체적으로 CUDA_VISIBLE_DEVICES 설정)
+]
+worker_info.process = subprocess.Popen(
+    cmd,
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
-    env=env  # CUDA_VISIBLE_DEVICES로 GPU 격리
+    text=True,
+    bufsize=1,
 )
+```
+
+```python
+# ai/subprocess/persistent_3d_worker.py:21-25 — 워커에서 GPU 격리 설정
+if len(sys.argv) >= 3:
+    gpu_id = int(sys.argv[2])
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)  # torch/spconv import 이전에 설정
 ```
 
 ### 장점
 
-1. **GPU 메모리 자동 해제**: subprocess 종료 시 메모리 완전 해제
-2. **상태 격리**: 한 요청의 실패가 다른 요청에 영향 없음
-3. **spconv 충돌 방지**: 매번 새로운 프로세스에서 로드
+1. **spconv 충돌 방지**: 서버 시작 시 GPU당 1회만 SAM-3D 로드 → 같은 프로세스에서 중복 로드 이슈 회피
+2. **상태 격리**: 한 요청의 실패가 다른 요청/메인 프로세스에 영향 없음
+3. **전용 conda 환경 사용**: 메인 API는 일반 Python, 워커는 `sam3d-objects` 환경으로 분리
+4. **Persistent 구조**: 워커는 서버 라이프타임 동안 살아 있으며 (매 요청마다 재생성 아님),
+   stdin/stdout JSON 프로토콜로 작업을 주고받음 → 모델 로딩 오버헤드 0
 
 ---
 
@@ -526,7 +579,7 @@ SAM-3D의 MoGe 모듈이 카메라 intrinsics를 추정할 때 실패하거나 N
 ### 해결책
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:213-251
+# ai/subprocess/persistent_3d_worker.py:174-192
 def make_synthetic_pointmap(image, z=1.0, f=None):
     """
     Create a simple pinhole-camera pointmap:
@@ -916,7 +969,7 @@ TV 차이는 극히 얇은 객체(depth=0.02)의 깊이 추정 민감도 차이�
 
 ### 코드 위치
 
-- `ai/subprocess/persistent_3d_worker.py:347-390` - VRAM cleanup 로직
+- `ai/subprocess/persistent_3d_worker.py:369-412` - VRAM cleanup 로직
 
 ---
 
@@ -1352,7 +1405,7 @@ pipe.depth_model = None
 
 **의의**: Fast-SAM3D 논문은 **속도 최적화**만 다루며 메모리 최적화는 논의하지 않음. 본 기법은 동일 GPU에서 탐지+3D 생성을 동시 수행할 수 있게 하여, **적은 GPU로 전체 파이프라인을 운용**할 수 있게 하는 실용적 기여.
 
-**코드**: `ai/subprocess/persistent_3d_worker.py:347-390`
+**코드**: `ai/subprocess/persistent_3d_worker.py:369-412`
 
 ##### B-2. Synthetic Pinhole Pointmap (MoGe 대체)
 
@@ -1384,7 +1437,7 @@ def make_synthetic_pointmap(image, z=1.0, f=None):
 - **VRAM**: ~3GB 추가 절감 (B-1과 합산하여 총 48%)
 - **부피 정확도**: 일반 가구에서 1-2.6% 차이 (서비스 허용 범위 내)
 
-**코드**: `ai/subprocess/persistent_3d_worker.py:213-251`
+**코드**: `ai/subprocess/persistent_3d_worker.py:174-192`
 
 ---
 
@@ -1630,7 +1683,7 @@ def send_message(msg_obj):
     print(msg_obj.to_json(), flush=True)
 ```
 
-**코드**: `ai/subprocess/persistent_3d_worker.py:114-128`
+**코드**: `ai/subprocess/persistent_3d_worker.py:114-131`
 
 ---
 

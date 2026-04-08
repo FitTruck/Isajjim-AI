@@ -522,12 +522,10 @@ class TestFurniturePipelineGenerate3DSuccess:
         mock_pipeline.enable_3d_generation = True
 
         # Worker Pool 모킹
-        mock_result = MagicMock()
+        mock_result = MagicMock(spec=["success", "ply_b64", "ply_size_bytes"])
         mock_result.success = True
         mock_result.ply_b64 = "dGVzdA=="
         mock_result.ply_size_bytes = 100
-        mock_result.gif_b64 = "dGVzdA=="
-        mock_result.mesh_url = "/assets/mesh.glb"
 
         mock_pool = MagicMock()
         mock_pool.is_ready.return_value = True
@@ -541,7 +539,7 @@ class TestFurniturePipelineGenerate3DSuccess:
 
             assert result is not None
             assert result["ply_b64"] == "dGVzdA=="
-            assert result["mesh_url"] == "/assets/mesh.glb"
+            assert result["ply_size_bytes"] == 100
 
     @pytest.mark.asyncio
     async def test_generate_3d_status_failed(self, mock_pipeline):

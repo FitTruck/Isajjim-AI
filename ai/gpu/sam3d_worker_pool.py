@@ -249,8 +249,7 @@ class SAM3DWorkerPool:
         task_id: str,
         image_b64: str,
         mask_b64: str,
-        seed: int = 42,
-        skip_gif: bool = True
+        seed: int = 42
     ) -> ResultMessage:
         """
         3D 생성 작업을 워커에 제출합니다.
@@ -260,7 +259,6 @@ class SAM3DWorkerPool:
             image_b64: Base64 인코딩된 이미지
             mask_b64: Base64 인코딩된 마스크
             seed: 랜덤 시드
-            skip_gif: GIF 렌더링 스킵
 
         Returns:
             ResultMessage: 처리 결과
@@ -281,8 +279,7 @@ class SAM3DWorkerPool:
                 task_id=task_id,
                 image_b64=image_b64,
                 mask_b64=mask_b64,
-                seed=seed,
-                skip_gif=skip_gif
+                seed=seed
             )
 
             # 워커에 작업 전송
@@ -421,8 +418,7 @@ class SAM3DWorkerPool:
                 task_id=task["task_id"],
                 image_b64=task["image_b64"],
                 mask_b64=task["mask_b64"],
-                seed=task.get("seed", 42),
-                skip_gif=task.get("skip_gif", True)
+                seed=task.get("seed", 42)
             )
 
         results = await asyncio.gather(

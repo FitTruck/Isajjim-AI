@@ -89,11 +89,12 @@ SAM-3D 3D 생성을 위한 **Persistent Worker Pool** 패턴:
 │  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 │                              │                                       │
-│              Round-robin task distribution via stdin/stdout          │
+│        Event-based work-stealing dispatch via stdin/stdout           │
 │                              ▼                                       │
 │         ┌───────────────────────────────────────────┐               │
 │         │      submit_tasks_parallel()              │               │
-│         │  obj1→Worker0, obj2→Worker1, ...          │               │
+│         │  모든 객체 → asyncio.gather                │               │
+│         │  빈 Worker가 즉시 가져감 (크기 불균등 효율) │               │
 │         └───────────────────────────────────────────┘               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -101,7 +102,7 @@ SAM-3D 3D 생성을 위한 **Persistent Worker Pool** 패턴:
 **Key Features:**
 - **Model pre-loading**: 워커 시작 시 SAM-3D 모델 1회 로드
 - **JSON protocol**: stdin/stdout으로 JSON 메시지 교환
-- **Parallel processing**: 여러 객체를 동시에 다른 GPU에서 처리
+- **Event-based work-stealing**: `asyncio.Event` 시그널로 먼저 끝난 워커가 즉시 다음 작업 획득
 - **Auto-restart**: 워커 프로세스 종료 시 자동 재시작
 
 ### Multi-GPU Parallel Processing Architecture
@@ -153,7 +154,7 @@ Uses **GPU Pool Manager** pattern for parallelizing image processing across mult
 3. **SAM3D Worker Pool (`ai/gpu/sam3d_worker_pool.py`)**
    - SAM3DWorkerPool class: GPU당 하나의 persistent 워커 프로세스 관리
    - 모델 1회 로드 후 재사용 (모델 로딩 오버헤드 제거)
-   - 라운드로빈 작업 분배
+   - Event 기반 work-stealing 스케줄링 (`asyncio.Event` 시그널로 즉시 dispatch)
    - JSON 기반 stdin/stdout 통신 프로토콜
    - submit_tasks_parallel(): 여러 작업 동시 제출
 

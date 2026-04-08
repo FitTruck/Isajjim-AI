@@ -27,8 +27,6 @@ class TaskMessage:
     image_b64: str
     mask_b64: str
     seed: int = 42
-    skip_gif: bool = True
-    volume_only: bool = False  # Phase 4: Skip GLB/mesh if only volume needed
 
     def to_json(self) -> str:
         return json.dumps({
@@ -48,9 +46,6 @@ class ResultMessage:
     success: bool
     ply_b64: Optional[str] = None
     ply_size_bytes: Optional[int] = None
-    gif_b64: Optional[str] = None
-    gif_size_bytes: Optional[int] = None
-    mesh_url: Optional[str] = None
     error: Optional[str] = None
     processing_time_seconds: float = 0.0
 

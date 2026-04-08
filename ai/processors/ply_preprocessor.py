@@ -50,7 +50,7 @@ class PLYPreprocessor:
     PLY 전처리 파이프라인.
 
     Usage:
-        preprocessor = PLYPreprocessor(max_points=50000)
+        preprocessor = PLYPreprocessor(max_points=72000)
         processed_b64, result = preprocessor.process(
             ply_b64=original_b64,
             target_width_mm=1000,
@@ -61,7 +61,7 @@ class PLYPreprocessor:
 
     def __init__(
         self,
-        max_points: int = 50000,
+        max_points: int = 72000,
         convert_to_yup: bool = True,
         enable_alignment: bool = True,
         enable_scaling: bool = True,
@@ -597,7 +597,7 @@ def preprocess_ply(
     target_width_mm: float,
     target_depth_mm: float,
     target_height_mm: float,
-    max_points: int = 50000
+    max_points: int = 72000
 ) -> Tuple[str, PreprocessResult]:
     """
     PLY 전처리 편의 함수.
