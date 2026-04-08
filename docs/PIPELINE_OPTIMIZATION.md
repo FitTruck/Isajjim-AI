@@ -54,6 +54,10 @@ YOLOE-seg detect → mask (직접) → SAM-3D
 
 ## 2. 2단계 병렬 처리 아키텍처
 
+> **정의**: 파이프라인의 서로 다른 단계에서 서로 다른 granularity (이미지 단위 vs 객체 단위)로 병렬성을 각각 적용하는 아키텍처 패턴.
+>
+> **원리**: 단일 granularity로만 병렬 처리하면 작업량이 병목 단계에 쏠려 GPU 활용률이 낮아집니다. 각 단계의 자연스러운 병렬 단위(YOLOE는 이미지 단위, SAM-3D는 객체 단위)에 맞게 병렬성을 개별 적용하면 전체 throughput이 각 단계의 병렬성을 곱한 값에 가까워집니다.
+
 현재 파이프라인은 **2단계 병렬 처리**를 적용하여 이미지와 객체를 동시에 처리합니다.
 
 ### 전체 아키텍처
@@ -186,6 +190,10 @@ async def _parallel_3d_generation(self, image, objects_with_masks):
 
 ## 3. Multi-GPU 병렬 처리 (1단계)
 
+> **정의**: 여러 GPU를 리소스 풀로 관리하고, 요청마다 하나의 GPU를 할당/반환하는 리소스 풀링 패턴.
+>
+> **원리**: 딥러닝 모델은 GPU 1개에 고정(pinned)되는 경향이 있습니다 (weight가 특정 device에 올라감). 이를 여러 GPU에 복제해두고 요청마다 다른 GPU에 분배하면 이론상 N개 GPU → N배 throughput을 얻을 수 있습니다. 풀 매니저가 "사용 가능 여부" 상태를 추적하여 동시에 같은 GPU를 쓰지 않도록 보장합니다.
+
 ### 아키텍처
 
 ```
@@ -209,6 +217,10 @@ async def _parallel_3d_generation(self, image, objects_with_masks):
 ### 핵심 기능
 
 #### 3.1 라운드로빈 GPU 할당
+
+> **정의**: `N`개 리소스에 대해 `i % N` 순서로 순환하며 배분하는 가장 단순한 스케줄링 알고리즘.
+>
+> **원리**: 카운터 하나만 유지하면 되므로 구현과 동기화가 간단하고, 장기적으로 **균등 분배**를 보장합니다. 단점은 작업 크기가 불균등할 때 늦은 작업을 받은 GPU가 계속 밀리면서 전체 병목이 된다는 점 (Section 13.1의 work-stealing으로 해결).
 
 ```python
 # ai/gpu/gpu_pool_manager.py:101-142
@@ -236,6 +248,10 @@ async def acquire(self, task_id: Optional[str] = None) -> int:
 > SAM3D Worker Pool(2단계)은 Event 기반 work-stealing으로 업그레이드되었습니다 ([Section 13.1](#131-work-stealing-스케줄링) 참고).
 
 #### 3.2 파이프라인 사전 초기화
+
+> **정의**: 딥러닝 모델을 서버 시작 시점에 GPU에 미리 로드해두고 요청마다 재사용하는 기법.
+>
+> **원리**: 모델 로딩은 weight file 읽기 + CUDA로의 tensor 전송 + kernel 컴파일로 3-5초가 소요됩니다. 이를 요청 경로에서 제거하고 startup 시점으로 옮기면 사용자가 느끼는 latency에서 완전히 제거됩니다. N개 GPU에 각각 모델 인스턴스를 유지해 병렬 처리도 보장합니다.
 
 서버 시작 시 각 GPU에 YOLOE 모델을 미리 로드합니다.
 
@@ -270,6 +286,10 @@ async with pool.pipeline_context(task_id="image_1") as (gpu_id, pipeline):
 ---
 
 ## 4. SAM-3D Worker Pool (2단계)
+
+> **정의**: 서버 시작 시 워커 프로세스를 N개 spawn하고 종료하지 않은 채 IPC로 작업을 주고받는 **persistent process pool** 패턴.
+>
+> **원리**: subprocess spawn + 모델 로드 비용(3-5초/요청)을 제거하기 위해 프로세스를 살아있는 상태로 유지합니다. 메인 API와는 stdin/stdout JSON 프로토콜로 통신하여 언어/환경 독립적. 또한 spconv 같이 GPU 상태를 전역으로 유지하는 라이브러리의 충돌도 **프로세스 경계**로 격리되어 해결됩니다.
 
 ### 문제점
 
@@ -344,6 +364,10 @@ MessageType:
 
 ### 5.1 불필요한 후처리 비활성화
 
+> **정의**: SAM-3D 파이프라인의 선택적 후처리 단계(`texture_baking`, `mesh_postprocess`, `layout_postprocess`)를 끄는 설정.
+>
+> **원리**: 이들 후처리는 Gaussian latent 출력 이후에 실행되는 **선택적** 단계로, 시각적 품질(텍스처 굽기, 메시 리메시, 레이아웃 정규화)을 향상시키는 목적입니다. 본 서비스는 부피 계산에만 PLY를 사용하므로 시각적 품질이 불필요하고, 해당 단계를 스킵하면 52-105초 절약됩니다.
+
 ```python
 # ai/subprocess/persistent_3d_worker.py:635-648
 output = pipe.run(
@@ -382,6 +406,10 @@ scene_gs.save_ply(output_ply_path)  # ← PLY만 저장, GIF/비디오 생성 �
 
 ### 5.3 Inference Steps 감소
 
+> **정의**: Diffusion 모델의 denoising step 수를 기본값보다 줄여 추론 속도를 높이는 기법.
+>
+> **원리**: Diffusion 모델은 노이즈에서 출력까지 N번의 iterative step으로 생성합니다. 각 step이 backbone forward pass를 포함하므로 총 시간은 `O(N)`. N을 절반으로 줄이면 시간도 거의 절반. 단, 너무 줄이면 품질(본 서비스에선 **부피 정확도**)이 급격히 저하되므로 experimental sweet spot을 찾아야 합니다. Stage1은 3D 형상, Stage2는 텍스처/디테일을 담당하며 각각 다른 최적점이 있습니다.
+
 ```python
 # ai/subprocess/persistent_3d_worker.py:73-74
 # Stage1 (Sparse Structure): 12~16 사이 최적값
@@ -406,6 +434,10 @@ STAGE2_INFERENCE_STEPS = 4   # 기본값 12 → 4 (치수 오차 0.5% 이내, 30
 
 ### 5.4 Binary PLY 포맷
 
+> **정의**: PLY 파일을 사람이 읽을 수 있는 ASCII 대신 **little-endian binary**로 저장하는 포맷 선택.
+>
+> **원리**: ASCII PLY는 각 float을 `"1.23456789 "`처럼 문자열로 직렬화하여 vertex당 ~50-100 bytes가 필요합니다. Binary PLY는 `float32` 4 bytes 고정 + `uint8` 1 byte로 vertex당 고정 15 bytes. 크기 ~70% 감소 + 파싱/포맷팅 오버헤드 제거로 I/O 속도 ~50% 향상. base64 인코딩하여 JSON으로 전송하는 본 파이프라인에서는 payload 크기 감소가 네트워크 latency로도 직결됩니다.
+
 ```python
 # ai/subprocess/persistent_3d_worker.py:78
 USE_BINARY_PLY = True
@@ -414,6 +446,10 @@ USE_BINARY_PLY = True
 ```
 
 ### 5.5 이미지 다운샘플링 (비활성화)
+
+> **정의**: 일반적으로는 입력 이미지 해상도를 낮춰 추론 속도를 높이는 기법이지만, 본 서비스에서는 **의도적으로 비활성화**한 결정.
+>
+> **원리**: SAM-3D는 내부적으로 이미지를 518×518로 리사이즈하므로 사전 다운샘플링이 전처리 시간을 줄여줍니다. 그러나 본 서비스의 실험 결과 다운샘플링이 **부피 오차의 91.7%를 차지**하는 지배적 요인이었고, 특히 작은 객체(pillow, lamp)에서 최대 576% 오차가 발생했습니다. 이삿짐 견적은 부피가 금액에 직결되므로 속도 이득을 포기하고 정확도를 택했습니다.
 
 ```python
 # ai/subprocess/persistent_3d_worker.py:67
@@ -425,6 +461,10 @@ MAX_IMAGE_SIZE = None  # 비활성화
 
 ### 5.6 Gaussian-only 모드
 
+> **정의**: SAM-3D의 출력 포맷 중 3D Gaussian Splatting만 생성하고 Mesh/GLB 디코딩을 건너뛰는 모드.
+>
+> **원리**: SAM-3D는 같은 latent로부터 여러 출력 포맷을 생성합니다 (gaussian, mesh, glb). Mesh 디코딩은 별도 transformer(`slat_decoder_mesh`)를 통과하는 추가 단계입니다. 본 서비스는 부피 계산을 위해 **point cloud만** 필요하고, Gaussian Splatting의 각 점이 이미 3D 좌표를 가지므로 이것으로 OBB 부피를 계산할 수 있습니다. Mesh 관련 단계를 완전히 스킵하여 37.4% 속도 향상 + VRAM 절감을 동시에 달성.
+
 ```python
 # ai/subprocess/persistent_3d_worker.py:80-83
 GAUSSIAN_ONLY_MODE = True  # GLB/Mesh 생성 스킵, decode_formats=["gaussian"]
@@ -434,6 +474,10 @@ GAUSSIAN_ONLY_MODE = True  # GLB/Mesh 생성 스킵, decode_formats=["gaussian"]
 ```
 
 ### 5.7 in_place=True 최적화
+
+> **정의**: 함수가 새 객체를 만들지 않고 입력 객체를 직접 수정(mutate)하는 방식.
+>
+> **원리**: `make_scene()`과 `ready_gaussian_for_video_rendering()`의 기본 동작은 안전성을 위해 `deepcopy`로 입력을 복사한 뒤 수정합니다. 그러나 Gaussian tensor는 수백 MB 크기이므로 deepcopy에 메모리 할당 + 복사 시간이 누적됩니다. 본 파이프라인은 입력 객체를 더 이상 사용하지 않으므로 in-place mutation이 안전하고, ~5-10% 속도 향상 + 메모리 피크 감소 효과를 얻습니다.
 
 ```python
 # ai/subprocess/persistent_3d_worker.py:652-656
@@ -447,6 +491,10 @@ scene_gs = self.ready_gaussian_for_video_rendering(
 ```
 
 ### 5.8 torch.compile 활성화
+
+> **정의**: PyTorch 2.0+의 JIT 컴파일러로, Python 레벨의 모델 코드를 추적하여 최적화된 CUDA 커널로 변환하는 기법.
+>
+> **원리**: PyTorch의 eager mode는 매 연산마다 Python 인터프리터 오버헤드 + 개별 CUDA 커널 호출이 발생합니다. `torch.compile`은 TorchDynamo로 graph capture → TorchInductor가 **fused CUDA kernel**을 생성합니다. 효과는 (1) Python overhead 제거, (2) operator fusion (여러 연산이 하나의 커널로 병합), (3) kernel AUTOTUNE (여러 구현 중 최적 선택). Persistent worker 환경에서는 첫 실행 시에만 컴파일 비용을 지불하고 이후 모든 요청이 빠른 경로를 사용합니다.
 
 ```python
 # ai/subprocess/persistent_3d_worker.py:468
@@ -483,6 +531,10 @@ self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cu
 
 ### 6.1 스레드 폭발 방지
 
+> **정의**: BLAS/OpenMP 기반 라이브러리들이 자동으로 CPU 코어 수만큼 스레드를 생성하는 것을 환경 변수로 제한하는 기법.
+>
+> **원리**: OpenMP, OpenBLAS, MKL 등은 기본적으로 `nproc()`(시스템 CPU 코어 수)만큼 worker thread를 spawn합니다. 다중 워커 환경에서는 `워커 수 × 스레드 수 × 라이브러리 수` = 수백~수천 개 스레드가 같은 CPU 코어를 두고 경쟁하게 되어, 실제 연산 시간보다 **context switch 오버헤드가 압도적**이 됩니다. 4개로 제한하면 스레드 경쟁이 줄고 캐시 친화적이 되어 오히려 빨라집니다.
+
 ```python
 # ai/subprocess/persistent_3d_worker.py:45-49
 os.environ["OMP_NUM_THREADS"] = "4"
@@ -502,6 +554,10 @@ torch.set_num_interop_threads(2)
 
 ### 6.2 spconv 튜닝 시간 제한
 
+> **정의**: spconv(sparse convolution) 라이브러리의 알고리즘 auto-tuning에 시간 제한을 두는 환경 변수.
+>
+> **원리**: spconv는 입력 shape에 대한 최적 sparse convolution algorithm을 찾기 위해 여러 커널 variant를 벤치마킹합니다. 기본 설정에서는 튜닝이 수렴하지 않아 초반 추론이 매우 느려지거나 무한 루프에 걸릴 수 있습니다. `SPCONV_ALGO_TIME_LIMIT=100`(ms)으로 제한하면 충분히 빠른 알고리즘을 찾는 즉시 튜닝을 종료합니다.
+
 ```python
 # ai/subprocess/persistent_3d_worker.py:30
 os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # 100ms 제한
@@ -511,6 +567,10 @@ os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # 100ms 제한
 ```
 
 ### 6.3 CUDA 디바이스 격리
+
+> **정의**: `CUDA_VISIBLE_DEVICES` 환경 변수를 사용하여 프로세스가 인지하는 GPU를 한 개로 제한하는 기법.
+>
+> **원리**: CUDA 드라이버는 이 환경 변수에 명시된 GPU만 노출하고, **항상 device 0으로 remap**합니다. 즉 워커 0은 GPU 2를, 워커 1은 GPU 3을 보지만 둘 다 자신의 입장에서는 "device 0"입니다. 이 덕분에 (1) 멀티 워커가 서로의 GPU를 침범할 수 없고, (2) `cuda:0`을 하드코딩한 라이브러리(spconv 등)도 호환되며, (3) `SPCONV_TUNE_DEVICE=0`처럼 디바이스 ID도 항상 0으로 통일할 수 있습니다.
 
 ```python
 # Multi-GPU 환경에서 특정 GPU만 보이게 설정
@@ -523,6 +583,10 @@ os.environ["SPCONV_TUNE_DEVICE"] = "0"
 ---
 
 ## 7. 프로세스 격리
+
+> **정의**: 작업 단위를 OS 프로세스 경계로 분리하는 아키텍처 패턴.
+>
+> **원리**: Python 인터프리터의 GIL, CUDA context, spconv 같은 라이브러리의 전역 상태 등은 하나의 프로세스 내에서 격리하기 어렵습니다. 이를 별도 프로세스로 분리하면 (1) 메모리 누수가 프로세스 종료 시 자동 회수되고, (2) 한 프로세스의 crash가 다른 프로세스에 영향을 주지 않으며, (3) 각 프로세스가 독립된 CUDA context를 가져 GPU 상태 충돌이 없어집니다. 비용은 IPC overhead이지만, 본 케이스에서는 작업당 ~7-13초의 GPU 연산이라 IPC 비용이 무시할 수준입니다.
 
 ### 문제점
 
@@ -571,6 +635,10 @@ if len(sys.argv) >= 3:
 ---
 
 ## 8. Synthetic Pinhole Pointmap
+
+> **정의**: depth estimation 모델 대신 **균일 깊이(uniform depth) + pinhole 카메라 모델**로 합성한 3D point map.
+>
+> **원리**: SAM-3D는 2D 이미지에서 3D를 복원할 때 각 픽셀의 3D 위치(pointmap)를 입력으로 받습니다. 원래는 MoGe(monocular depth) 모델이 깊이를 예측하지만, 간헐적으로 NaN/Inf가 발생하고 ~3GB VRAM을 사용합니다. 본 서비스는 **절대 깊이가 아닌 상대 비율**만 필요하므로(부피 계산을 위한 OBB는 회전/스케일 불변), `Z=1` 균일 평면 + pinhole 공식 `X = (u-cx)/f * Z`로 합성해도 충분합니다. 안정성 + 메모리 절감을 동시 달성.
 
 ### 문제점
 
@@ -805,6 +873,10 @@ in_place=True                   # make_scene/ready_gaussian에서 deepcopy 제�
 
 ### 10.1 CLAHE 객체 캐싱
 
+> **정의**: OpenCV의 CLAHE(Contrast Limited Adaptive Histogram Equalization) 객체를 매 호출마다 재생성하지 않고 클래스 변수에 **싱글톤**으로 캐싱하는 기법.
+>
+> **원리**: `cv2.createCLAHE()`는 lookup table과 내부 grid 구조체를 초기화하는데 5-10ms가 소요됩니다. 이는 단일 호출에서는 무시할 수준이지만, 다중 이미지 ensemble detection에서는 이미지마다 호출되어 누적됩니다. 객체가 stateless하므로(파라미터: clipLimit, tileGridSize는 고정) 한 번 만들어두고 재사용해도 안전합니다.
+
 YOLOE 탐지 시 저조도/저대비 이미지 개선을 위해 CLAHE(Contrast Limited Adaptive Histogram Equalization)를 적용합니다.
 
 #### 문제점
@@ -843,6 +915,10 @@ class ImageUtils:
 ---
 
 ## 11. VRAM 최적화 (2026-03-18)
+
+> **정의**: Gaussian-only 모드에서 호출되지 않는 SAM-3D 서브 모델들의 weight를 GPU에서 CPU로 이동(또는 삭제)시켜 VRAM을 확보하는 기법.
+>
+> **원리**: PyTorch 모델의 `.cpu()` 메서드는 weight tensor를 GPU memory에서 CPU RAM으로 이동시킵니다. 이후 `del` + `torch.cuda.empty_cache()`로 GPU 메모리 fragment까지 정리. SAM-3D는 8개 서브 모델로 구성되는데, 본 서비스에선 5개만 실행 경로에 포함되고 나머지(`slat_decoder_mesh`, `slat_decoder_gs_4`, `depth_model`)는 절대 호출되지 않으므로 GPU에 둘 필요가 없습니다. 약 10GB(48%) VRAM 절감으로 L4(22GB) 단일 GPU에 YOLOE + SAM-3D를 함께 탑재할 수 있게 됩니다.
 
 ### 문제점
 
@@ -977,7 +1053,15 @@ TV 차이는 극히 얇은 객체(depth=0.02)의 깊이 추정 민감도 차이�
 
 Fast-SAM3D (arXiv:2602.05293) 논문의 기법을 적용한 training-free 추론 가속.
 
+> **상위 정의**: 모델을 재학습하지 않고(추가 학습 비용 0) inference path만 수정하여 속도를 높이는 **training-free acceleration** 기법군.
+>
+> **원리**: 기존 모델의 weight를 그대로 사용하면서 (1) 컴파일러 최적화(Phase C), (2) iterative step 중 일부 캐싱(Phase A), (3) 디코더 단순화(Gaussian-only)를 조합하여 정확도 손실을 최소화하면서 속도를 높입니다. Re-training이 필요한 quantization과 달리 즉시 적용 가능합니다.
+
 ### 12.1 Phase C: torch.compile + AUTOTUNE 캐시 영속화
+
+> **정의**: SAM3D 내부 `compile=True` 옵션의 버그를 우회하여 **핵심 모듈만 수동으로** `torch.compile` 적용하고, 컴파일 결과 캐시를 디스크에 영속화하여 워커 재시작 시 재컴파일을 방지하는 기법.
+>
+> **원리**: `torch.compile`의 mode 옵션은 컴파일 비용 vs 속도 향상의 trade-off가 있습니다. `max-autotune`은 가장 빠른 커널을 찾기 위해 여러 변형을 벤치마킹하여 첫 실행에 10분+가 걸리고, `reduce-overhead`는 Python 오버헤드만 제거하여 ~2분에 끝납니다. 후자를 선택해 합리적인 성능 + 빠른 시작을 얻고, 결과는 `TORCHINDUCTOR_CACHE_DIR`에 저장하여 다음 워커 시작 시 재사용됩니다. 핵심 모듈만 컴파일하는 이유는 SAM3D의 일부 모듈(`PointPatchEmbed` 등)이 `fullgraph=True`와 호환되지 않아 전체 컴파일이 실패하기 때문입니다.
 
 #### 문제점
 
@@ -1025,6 +1109,12 @@ _ = pipe.run(dummy_image, dummy_mask, seed=42, pointmap=dummy_pointmap, ...)
 | AUTOTUNE 캐시 | 재시작 시 손실 | **영속** (2,259 파일) | 재컴파일 방지 |
 
 ### 12.2 Phase A: SS Generator Step Caching
+
+> **정의**: Diffusion solver의 velocity field가 인접 step 간에 **완만하게 변한다는 관찰**을 이용해, 일부 step에서 backbone 호출 없이 이전 step의 velocity를 재사용하는 기법.
+>
+> **원리**: Diffusion 모델은 N step의 iterative denoising으로 출력을 생성합니다. SS Generator는 step마다 PointmapCFG를 통해 backbone을 3회(conditional + no-pointmap + unconditional) 호출하여 14 steps × 3 = 42회. Velocity field가 매 step 크게 바뀌지 않으므로, warmup step 후 `1/stride`만 full 계산하고 나머지는 캐시된 velocity를 재사용해도 결과가 거의 동일합니다. stride=3, warmup=2 설정에서 backbone 호출이 42 → 18로 57% 감소.
+>
+> **수학적 근거**: Velocity field `v(x_t, t)`는 t에 대해 Lipschitz continuous하므로, 인접 step 간 변화가 작습니다. Linear approximation `x_{t+dt} ≈ x_t + v(x_t, t) * dt`에서 `v`를 한 step만큼 stale하게 사용해도 오차는 `O(dt)`로 작은 편입니다.
 
 #### 배경
 
@@ -1111,6 +1201,10 @@ stride=2로 캐싱 시 TV 등 얇은 객체에서 5%+ 치수 오차 발생 → *
 
 ### 12.4 stdout 오염 방지
 
+> **정의**: 워커 프로세스의 stdout을 JSON 프로토콜 전용으로 보호하기 위해, 라이브러리 import/모델 추론 구간 동안 stdout을 `/dev/null`로 리다이렉트하는 기법.
+>
+> **원리**: SAM3DWorkerPool은 워커와 stdin/stdout JSON 메시지로 통신합니다. 그러나 Warp, kaolin 같은 GPU 라이브러리는 `import` 시점에 "Warp 0.x.y initialized..." 같은 init 메시지를 stdout으로 출력합니다. 이 텍스트가 JSON 메시지 사이에 끼면 매니저 측에서 `json.loads()` 실패. 해결책은 (1) `WARP_QUIET=1` 환경 변수로 일부 라이브러리 출력 억제, (2) `sys.stdout = open(os.devnull, 'w')`로 일시적 우회, (3) `send_message()` 호출 직전에만 real stdout 복원.
+
 Warp/kaolin 라이브러리가 import 시 stdout으로 초기화 메시지를 출력하여
 JSON 프로토콜을 깨뜨리는 문제 해결:
 
@@ -1164,6 +1258,12 @@ def send_message(msg_obj):
 ## 13. Multi-GPU 확장성 및 GPU 스펙별 성능 예측 (2026-03-18)
 
 ### 13.1 Work-Stealing 스케줄링
+
+> **정의**: 유휴 워커가 대기 중인 작업 큐에서 다음 작업을 즉시 "훔쳐(steal)" 가는 동적 스케줄링 전략. 본 구현에서는 `asyncio.Event` 시그널 기반.
+>
+> **원리**: 작업 크기가 균일하면 라운드로빈 = 최적입니다. 그러나 실제로는 객체마다 SAM-3D 추론 시간이 크게 다르고(TV ~5초, Bed ~17초), 라운드로빈 + 폴링은 빠른 GPU가 다음 폴링 cycle까지 유휴 상태로 대기합니다. Work-stealing은 워커가 작업을 끝낸 즉시 (1) 자신을 free 상태로 마킹, (2) `_worker_available.set()` 시그널 송신, (3) 대기 중인 코루틴이 깨어나 즉시 다음 작업 획득. 이렇게 하면 빠른 GPU가 작은 작업 여러 개를 병렬로 처리할 수 있어 GPU 유휴 시간이 거의 0에 가까워집니다.
+>
+> **이점**: 최악의 경우(모든 작업이 같은 크기)에도 라운드로빈과 동일한 성능을 보장하면서, 일반적인 경우(작업 크기 분포가 있음)에는 makespan이 개선됩니다. 추가 비용은 `asyncio.Event` 한 개와 boolean 체크뿐.
 
 기존 라운드로빈 스케줄링을 Event 기반 work-stealing으로 개선:
 
