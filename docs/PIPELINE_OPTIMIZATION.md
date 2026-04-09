@@ -158,7 +158,7 @@ YOLOE-seg detect → mask (직접) → SAM-3D
 #### 1단계: 이미지 병렬 처리
 
 ```python
-# ai/pipeline/furniture_pipeline.py:610-699 (process_multiple_images_with_ids)
+# ai/pipeline/furniture_pipeline.py:604-698 (process_multiple_images_with_ids)
 async def process_multiple_images_with_ids(self, image_items, ...):
     pool = self.gpu_pool or get_gpu_pool()
     semaphore = asyncio.Semaphore(max_concurrent)
@@ -176,7 +176,7 @@ async def process_multiple_images_with_ids(self, image_items, ...):
 #### 2단계: 객체 병렬 처리
 
 ```python
-# ai/pipeline/furniture_pipeline.py:354-411
+# ai/pipeline/furniture_pipeline.py:351-406
 async def _parallel_3d_generation(self, image, objects_with_masks):
     sam3d_pool = get_sam3d_worker_pool()
 
@@ -344,7 +344,7 @@ class SAM3DWorkerPool:
     대기 중인 작업에 즉시 dispatch합니다.
     """
 
-    # ai/gpu/sam3d_worker_pool.py:406-445
+    # ai/gpu/sam3d_worker_pool.py:403-441
     async def submit_tasks_parallel(self, tasks):
         """여러 작업을 병렬로 제출 (내부적으로 Event 기반 dispatch)"""
         results = await asyncio.gather(
@@ -1419,18 +1419,18 @@ SAM-3D 파이프라인과 논문 기법의 최적화 대상:
   - 14 steps × 3 CFG calls = 42회 backbone → **18회로 감소 (57%↓)**
   - Nightstand 1.16x, Bed 1.43x, Television 1.90x 가속
 - **단순화한 부분**: 논문은 shape 토큰(Taylor 외삽)과 layout 토큰(momentum-anchored smoothing)을 **분리**해서 각각 다른 방식으로 예측 → 구현 복잡도가 매우 높음.
-  본 프로젝트는 그냥 **이전 step의 velocity를 통째로 재사용**하는 linear approximation만 구현 → 코드 ~30 lines로 압축.
+  본 프로젝트는 그냥 **이전 step의 velocity를 통째로 재사용**하는 linear approximation만 구현 (`ai/subprocess/cached_solver.py`, 약 94 lines).
 - **단순 버전이 충분한 이유**: 부피 오차 3% 이내에서 기대한 속도 향상(1.16-1.90x)이 이미 확보됨. 논문의 분리 기법은 시각적 품질(Chamfer Distance)을 더 보존하기 위함이지만 본 서비스는 **부피만 정확하면 됨**.
 
 ##### ⚠️ §4.2 Joint Spatiotemporal Token Carving → **대체됨** (더 급진적인 방식으로)
 
 - **논문의 관찰**: SLaT Generator가 처리하는 토큰 수가 많아 비효율 → saliency(중요도) 기반으로 덜 중요한 토큰을 **pruning**하여 계산량 감소
 - **본 프로젝트의 더 급진적 선택**:
-  - `STAGE2_INFERENCE_STEPS = 4` (기본 12 → **4로 축소**, [Section 5.3](#53-inference-steps-감소))
-  - Gaussian-Only 모드에서 SLaT의 CFG(classifier-free guidance)도 비활성화 (strength=0)
-  - 결과: SLaT의 총 backbone 호출이 12 × 3 = 36회 → **4 × 1 = 4회로 감소 (~89%↓)**
-- **Token Carving이 무의미해진 이유**: 논문 Token Carving의 기대 효과는 SLaT 연산량 ~25-30% 감소. 본 프로젝트는 이미 **~89% 감소**를 달성했으므로 Token Carving을 추가해도 남은 여지가 거의 없음.
-- **추가 시도 결과**: [Section 13.4](#134-추가-최적화-실험-결과-2026-03-18)에서 `SLaT step caching` (stride=2)을 시도했지만 얇은 객체(TV 등)에서 5%+ 치수 오차 발생 → 비활성화 유지. 즉 **SLaT이 이미 너무 짧아 캐싱 여지조차 없는 상태**.
+  - `STAGE2_INFERENCE_STEPS = 4` (기본 12 → **4로 축소**, ~67% 감소, [Section 5.3](#53-inference-steps-감소))
+  - 본 파이프라인은 SLaT에서 CFG(classifier-free guidance)가 비활성화 상태 (`strength=0`, [Section 12.3](#123-phase-b-slat-generator-step-caching-비활성화))
+  - → SLaT Generator의 총 backbone 호출 횟수가 step 수에 비례해 1/3 수준으로 감소
+- **Token Carving이 무의미해진 이유**: 논문 Token Carving의 기대 효과는 SLaT 연산량 부분 감소이지만, 본 프로젝트는 이미 **steps 자체를 1/3로 축소**해 더 큰 감축을 달성. Token Carving을 추가해도 남은 여지가 매우 작음.
+- **추가 시도 결과**: [Section 13.4](#134-추가-최적화-실험-결과-2026-03-18)에서 `SLaT step caching` (stride=2)을 시도했지만 얇은 객체(TV 등)에서 5%+ 치수 오차 발생 → 비활성화 유지. 즉 **SLaT이 이미 너무 짧아 추가 캐싱 여지조차 없는 상태**.
 
 ##### ❌ §4.3 Spectral-Aware Token Aggregation → **적용 대상이 존재하지 않음**
 
@@ -1449,9 +1449,12 @@ SAM-3D 파이프라인과 논문 기법의 최적화 대상:
 | **최적화 기준** | 시각적 품질 (Chamfer Distance, F-Score) 유지 | 부피(m³) 정확도 유지 |
 | **전제** | Mesh/Texture는 반드시 생성되어야 함 | Mesh/Texture는 **불필요** |
 | **접근** | 기존 컴포넌트를 **더 효율적으로** 실행 | 불필요한 컴포넌트를 **아예 제거** |
-| **SS Generator** | Step Caching으로 20-50% 절약 | **동일 (CachedEuler 적용)** |
-| **SLaT Generator** | Token Carving으로 25-30% 절약 | **Steps 12→4로 89% 절약** (더 급진적) |
-| **Mesh Decoder** | Token Aggregation으로 30-40% 절약 | **완전 제거** (100% 절약) |
+| **SS Generator** | Step Caching (토큰 분리) | **Step Caching 적용 (단순화 버전)** |
+| **SLaT Generator** | Token Carving (토큰 pruning) | **Steps 12→4로 축소** (더 급진적) |
+| **Mesh Decoder** | Token Aggregation (토큰 축소) | **완전 제거** (dead code path) |
+
+> 논문 기법들의 정확한 수치(speedup %, 품질 메트릭)는 Fast-SAM3D 원논문(arXiv:2602.05293)을 직접 참고하세요.
+> 본 표는 "어느 단계에 무엇을 적용했는가" 라는 **접근 방식의 차이**를 보여주기 위한 것입니다.
 
 **비유**: 논문은 "냉장고 압축기 효율을 20% 개선"하는 접근, 본 프로젝트는 "냉장고가 필요 없는 공간이라 냉장고를 빼버림"하는 접근. **두 접근 모두 유효하지만, 서비스 요구사항이 "부피만 정확"이었기에 후자가 훨씬 큰 이득**을 가져왔습니다.
 
