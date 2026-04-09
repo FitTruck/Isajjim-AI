@@ -4,10 +4,74 @@
 
 | 항목 | 내용 |
 |------|------|
-| Version | 2.5 |
-| Last Updated | 2026-04-08 |
+| Version | 2.6 |
+| Last Updated | 2026-04-09 |
 | Author | AI Team |
 | Status | Implemented |
+
+---
+
+## 목차
+
+1. [Overview](#1-overview)
+   - 1.1 Purpose
+   - 1.2 Key Changes from V1
+   - 1.3 Architecture Diagram
+2. [Data Flow](#2-data-flow)
+   - 2.1 Input
+   - 2.2 Processing Stages (Stage 1 ~ 8)
+     - Stage 1: Image Fetch
+     - Stage 2: YOLOE-seg Detection
+     - Stage 3: DB Matching
+     - Stage 4: Mask to Base64
+     - Stage 5: SAM-3D 3D 생성 (Persistent Worker Pool)
+     - Stage 6: Dimension Calculation (OBB-based)
+     - Stage 7: Absolute Volume Calculation (V2.5 신규)
+     - Stage 8: PLY 전처리 + GCS 업로드 (V2.5 신규)
+   - 2.3 Output (JSON)
+   - 2.4 Output Field Description
+3. [Component Details](#3-component-details)
+   - 3.1 YOLOE-seg Detector
+   - 3.2 SAM-3D Worker Pool (Event 기반 work-stealing + VRAM 최적화)
+   - 3.3 Absolute Volume Calculator (V2.5 신규)
+   - 3.4 Furniture Pipeline
+4. [API Endpoints](#4-api-endpoints)
+   - 4.1 POST `/analyze-furniture` (비동기 callback)
+   - 4.2 POST `/analyze-furniture-single`
+   - 4.3 POST `/analyze-furniture-base64` (동기)
+   - 4.4 POST `/detect-furniture`
+   - 4.5 GET `/health`
+   - 4.6 GET `/gpu-status`
+   - 4.7 GET `/assets-list`
+   - 4.8 GET `/assets/{filename}` (StaticFiles mount)
+5. [Multi-GPU Support (2단계 병렬 처리)](#5-multi-gpu-support-2단계-병렬-처리)
+   - 5.1 1단계: GPU Pool Manager (YOLOE, 라운드로빈)
+   - 5.2 2단계: SAM3D Worker Pool (Event 기반 work-stealing)
+   - 5.3 Pipeline Pre-initialization
+6. [Error Handling](#6-error-handling)
+   - 6.1 Detection Errors
+   - 6.2 SAM-3D Errors
+   - 6.3 Volume Calculation Errors
+7. [Performance Metrics](#7-performance-metrics)
+   - 7.1 V1 vs V2 Comparison
+   - 7.2 Benchmarks (Single Image, L4 GPU)
+8. [Testing](#8-testing)
+   - 8.1 Unit Tests
+   - 8.2 Integration Tests
+   - 8.3 QA Checklist
+9. [Dependencies](#9-dependencies)
+   - 9.1 Python Packages
+   - 9.2 External Services
+10. [Changelog](#10-changelog)
+    - V2.6 (2026-04-08) — Dead code 제거 및 문서 정합성 개선
+    - V2.5 (2026-02-02) — Absolute Volume + PLY GCS 업로드
+    - V2.3 (2026-01-26) — AABB → OBB 전환
+    - V2.2 (2026-01-25) — SAM-3D 추론 최적화 (Gaussian-only, torch.compile)
+    - V2.1 (2026-01-21) — Multi-GPU 벤치마크
+    - V2.0 (2026-01-18) — SAM2/CLIP/SAHI 제거, Persistent Worker Pool
+    - V1.0 (Initial)
+
+> **관련 문서**: 최적화 기법의 정의/원리와 구현 세부사항은 [`PIPELINE_OPTIMIZATION.md`](../PIPELINE_OPTIMIZATION.md) 참고
 
 ---
 
