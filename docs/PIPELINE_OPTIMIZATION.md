@@ -221,11 +221,15 @@ async def _parallel_3d_generation(self, image, objects_with_masks):
 
 ### 효과
 
-| 처리 방식 | 4 이미지 × 3 객체 | 효율성 |
-|----------|------------------|--------|
-| 완전 순차 | 12 × 150초 = 1800초 | 기준 |
-| 이미지만 병렬 | 3 × 150초 = 450초 | 4배 |
-| **2단계 병렬** | 1초 + 78초 = **79초** | **23배** |
+4 이미지 × 3 객체 (총 12 객체), 4× L4 GPU 기준:
+
+| 처리 방식 | 소요 시간 | 효율성 |
+|----------|----------|--------|
+| V1 완전 순차 | ~1836초 | 1배 (기준) |
+| V1 이미지만 병렬 | ~459초 | ~4배 |
+| V2.5 + Fast-SAM3D (현재) | **~43초** | **~43배** |
+
+> 상세 breakdown은 [Section 9.2](#92-다중-이미지객체-처리-시간-비교) 참고.
 
 ---
 
@@ -411,12 +415,14 @@ MessageType:
 
 ```python
 # ai/subprocess/persistent_3d_worker.py:635-648
-output = pipe.run(
+output = self.pipe.run(
     image=image,
-    mask=mask,
-    seed=seed,
+    mask=mask_u8,
+    seed=task.seed,
     pointmap=pointmap,
-    decode_formats=["gaussian", "glb", "mesh"],
+    decode_formats=decode_formats,          # Gaussian-only 모드: ["gaussian"]
+    stage1_inference_steps=STAGE1_INFERENCE_STEPS,  # 14
+    stage2_inference_steps=STAGE2_INFERENCE_STEPS,  # 4
     with_mesh_postprocess=False,     # 비활성화: 20-40초 절약
     with_texture_baking=False,       # 비활성화: 30-60초 절약
     with_layout_postprocess=False,   # 비활성화: 2-5초 절약
@@ -538,17 +544,28 @@ scene_gs = self.ready_gaussian_for_video_rendering(
 > **원리**: PyTorch의 eager mode는 매 연산마다 Python 인터프리터 오버헤드 + 개별 CUDA 커널 호출이 발생합니다. `torch.compile`은 TorchDynamo로 graph capture → TorchInductor가 **fused CUDA kernel**을 생성합니다. 효과는 (1) Python overhead 제거, (2) operator fusion (여러 연산이 하나의 커널로 병합), (3) kernel AUTOTUNE (여러 구현 중 최적 선택). Persistent worker 환경에서는 첫 실행 시에만 컴파일 비용을 지불하고 이후 모든 요청이 빠른 경로를 사용합니다.
 
 ```python
-# ai/subprocess/persistent_3d_worker.py:468
+# ai/subprocess/persistent_3d_worker.py:361 — SAM3D 로드 시 compile=False
+# (SAM3D 내부 _warmup()의 run_layout_model 버그 우회)
+self.sam3d_inference = Inference(config_path, compile=False, device="cuda")
+
+# ai/subprocess/persistent_3d_worker.py:468 — Phase C에서 수동으로 선별 compile
 ENABLE_COMPILE = True  # True = 추론 10-20% 빠름, False = 빠른 시작 (테스트용)
-
-# 워커 초기화 시 CUDA 커널 컴파일
-self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cuda")
-
-# 효과:
-# - 초기화 시: warmup으로 추가 시간 소요
-# - 추론 시: CUDA 커널 재사용으로 ~10-20% 속도 향상
-# - Persistent Worker이므로 초기화 비용은 서버 시작 시 1회만 발생
+if ENABLE_COMPILE:
+    compile_mode = "reduce-overhead"  # max-autotune은 첫 실행 10분+
+    ss_gen.reverse_fn.inner_forward = torch.compile(..., mode=compile_mode, fullgraph=True)
+    ss_dec.forward = torch.compile(..., mode=compile_mode, fullgraph=True)
+    self.pipe.embed_condition = torch.compile(..., mode=compile_mode, fullgraph=False)
+    # 자체 warmup으로 AUTOTUNE 캐시 생성 (Section 12.1 참고)
 ```
+
+> **주의**: SAM3D는 항상 `compile=False`로 로드합니다. 전체 모델을 `compile=True`로 로드 시
+> `_warmup()`에서 `run_layout_model` 버그가 발생하므로, Phase C에서 핵심 모듈만 수동으로
+> `torch.compile`을 적용합니다. 자세한 내용은 [Section 12.1](#121-phase-c-torchcompile--autotune-캐시-영속화) 참고.
+
+**효과:**
+- 초기화 시: warmup으로 추가 시간 소요 (AUTOTUNE 캐시 영속화로 재시작 시 재사용)
+- 추론 시: CUDA 커널 재사용으로 Bed 1.37x, TV 1.31x 속도 향상
+- Persistent Worker이므로 초기화 비용은 서버 시작 시 1회만 발생
 
 ### 효과 요약
 
@@ -560,11 +577,14 @@ self.sam3d_inference = Inference(config_path, compile=ENABLE_COMPILE, device="cu
 | 3 | Binary PLY | 쓰기 50% 빠름 | 없음 |
 | 5 | Gaussian-only 모드 | **37.4% 속도 향상** | 0.005% |
 | - | in_place=True | 5-10% 속도 향상 | 없음 |
-| - | torch.compile | 10-20% 속도 향상 | 없음 |
+| - | torch.compile (Phase C) | Bed 1.37x / TV 1.31x | 없음 |
+| - | SS Step Caching (Phase A) | Bed 1.43x / TV 1.90x | ~1-3% |
 | - | 후처리 비활성화 | 52-105초 절약 | 없음 |
-| - | GIF 스킵 | 15-30초 절약 | 없음 |
 
-**총 예상 성능 향상**: 단일 객체 기준 ~2-3배 빠름 (부피 정확도 유지)
+> **Note**: GIF/비디오 렌더링은 본 파이프라인에 **구현되어 있지 않으므로** 별도 최적화 대상이 아닙니다.
+> V1에서 있던 GIF 15-30초 오버헤드는 V2에서 해당 코드 경로 자체가 제거된 상태입니다 (Section 5.2 참고).
+
+**총 예상 성능 향상** (Fast-SAM3D 적용 후, 단일 객체 L4 GPU 기준): **~11-12배 빠름** (150초 → ~13초, 부피 정확도 유지)
 
 ---
 
@@ -720,6 +740,8 @@ def make_synthetic_pointmap(image, z=1.0, f=None):
 
 ## 9. 초기 대비 최적화 효과 분석
 
+> **벤치마크 기준**: L4 GPU, 단일 객체 기준. 수치는 [Section 12.5](#125-종합-최적화-효과-2026-03-18)의 Fast-SAM3D 적용 후 측정값과 일관됩니다.
+
 ### 9.1 단일 객체 처리 시간 비교
 
 #### 초기 상태 (V1 파이프라인, 최적화 없음)
@@ -737,33 +759,37 @@ def make_synthetic_pointmap(image, z=1.0, f=None):
 | 9 | GIF 렌더링 | 15-30초 |
 | | **총합** | **112-188초 (~150초)** |
 
-#### 현재 상태 (V2 파이프라인, 최적화 적용)
+#### 현재 상태 (V2.5 + Fast-SAM3D, 2026-03-18 이후)
 
 | 단계 | 작업 | 시간 |
 |------|------|------|
 | 1 | YOLOE-seg 탐지 (사전 로드) | 0.5-1초 |
-| 2 | SAM-3D 모델 로드 (Worker Pool) | 0초 |
-| 3 | SAM-3D 추론 (stage1=14, stage2=4, compile=True) | ~6-7초 |
+| 2 | SAM-3D 모델 로드 (Persistent Worker Pool) | 0초 |
+| 3 | SAM-3D 추론 (stage1=14, stage2=4, SS Step Caching, torch.compile) | ~11-12초 |
 | 4 | Gaussian-only 디코딩 | ~0.5초 |
-| 5 | 후처리/GIF | 0초 (비활성화/스킵) |
-| | **총합** | **~7-8초** |
+| 5 | 후처리 | 0초 (비활성화) |
+| | **총합** | **~13초** (L4 기준) |
 
-**적용된 최적화**:
-- Stage1 Steps: 25 → 14 (~50% 빠름)
-- Stage2 Steps: 12 → 4 (~30% 빠름)
-- torch.compile: 10-20% 빠름
-- in_place=True: 5-10% 빠름
-- Gaussian-only: 37% 빠름
+**적용된 최적화 (V2.2 + V2.5 + Fast-SAM3D)**:
+- Stage1 Steps: 25 → 14 (~50% 빠름, V2.2)
+- Stage2 Steps: 12 → 4 (~30% 빠름, V2.2)
+- Gaussian-only 모드: 37.4% 빠름 (V2.2)
+- in_place=True: 5-10% 빠름 (V2.2)
+- VRAM 모델 언로드: 21GB → 11.25GB (Fast-SAM3D, 2026-03-18)
+- torch.compile Phase C (reduce-overhead): Bed 1.37x, TV 1.31x (Fast-SAM3D)
+- SS Step Caching Phase A (stride=3): Bed 1.43x, TV 1.90x (Fast-SAM3D)
 
 #### 단일 객체 최적화 효과
 
 ```
 초기:  ████████████████████████████████████████████████████  ~150초
-현재:  ███                                                    ~7-8초
+현재:  █████                                                  ~13초
 
-절약:  약 142-143초 (95% 감소)
-속도:  약 19-21배 향상
+절약:  약 137초 (91% 감소)
+속도:  약 11.5배 향상 (L4 GPU 기준)
 ```
+
+> **참고**: V2.2 시점(2026-01) 벤치마크에서는 ~20초였고, Fast-SAM3D 적용(2026-03-18) 후 ~13초로 추가 개선되었습니다.
 
 ---
 
@@ -782,51 +808,59 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 총: ~1836초 (30.6분)
 ```
 
-##### 현재 (2단계 병렬 처리 + 추론 최적화)
+##### 현재 (2단계 병렬 처리 + Fast-SAM3D)
 
 ```
-1단계 (YOLOE 병렬):
+1단계 (YOLOE 병렬, 라운드로빈):
   GPU0: img1 ─┐
   GPU1: img2 ─┼── ~1초 (동시)
   GPU2: img3 ─┤
   GPU3: img4 ─┘
 
-2단계 (SAM-3D 객체 병렬):
-  12개 객체 → 4 Workers (라운드로빈)
-  라운드 1: obj1,2,3,4 → ~7초
-  라운드 2: obj5,6,7,8 → ~7초
-  라운드 3: obj9,10,11,12 → ~7초
-  총: ~21초
+2단계 (SAM-3D, Event 기반 Work-Stealing):
+  12개 객체 → asyncio.gather로 일괄 제출
+  초기: obj1..4 → Worker0..3 (즉시 dispatch)
+  이후: 워커가 free 되는 즉시 다음 작업 획득 (크기 차이 흡수)
+  총: ~40-43초 (객체당 평균 ~13초, 4 GPU에서 3 라운드)
 
-3단계 (취합): ~0초
+3단계 (취합): ~2초
 ────────────────────────────────────────────────────────────────────────────────
-총: ~22초 (0.4분)
+총: ~43초 (0.72분)
 ```
+
+> **Note**: Work-stealing 덕분에 객체 크기가 불균등해도 (TV 5초 vs Bed 17초) GPU 유휴
+> 시간이 거의 없습니다. 고정 라운드로빈이라면 각 라운드가 최대 크기 객체에 의해 제한되지만,
+> work-stealing은 빠른 GPU가 작은 작업 여러 개를 연속 처리합니다.
 
 ##### 비교
 
 ```
 초기:  ████████████████████████████████████████████████████████████  1836초 (30.6분)
-현재:  █                                                              22초 (0.4분)
+현재:  ██                                                             43초 (0.72분)
 
-절약:  1814초 (98.8% 감소)
-속도:  약 83배 향상
+절약:  1793초 (97.7% 감소)
+속도:  약 43배 향상
 ```
 
 ---
 
 ### 9.3 규모별 최적화 효과
 
+4 GPU(L4) + Fast-SAM3D(stride=3, compile reduce-overhead) + Event 기반 work-stealing 기준:
+
 | 시나리오 | 초기 | 현재 | 절약 | 배수 |
 |----------|------|------|------|------|
-| 1 이미지 × 1 객체 | 150초 | 8초 | 94.7% | **~19배** |
-| 1 이미지 × 3 객체 | 450초 | 21초 | 95.3% | **~21배** |
-| 4 이미지 × 1 객체 | 600초 | 9초 | 98.5% | **~67배** |
-| 4 이미지 × 3 객체 | 1836초 | 22초 | 98.8% | **~83배** |
-| 10 이미지 × 3 객체 | 4590초 | 54초 | 98.8% | **~85배** |
-| 10 이미지 × 5 객체 | 7650초 | 89초 | 98.8% | **~86배** |
+| 1 이미지 × 1 객체 | 150초 | ~13초 | 91.3% | **~11배** |
+| 1 이미지 × 3 객체 | 450초 | ~15초 | 96.7% | **~30배** |
+| 4 이미지 × 1 객체 | 600초 | ~15초 | 97.5% | **~40배** |
+| 4 이미지 × 3 객체 | 1836초 | ~43초 | 97.7% | **~43배** |
+| 10 이미지 × 3 객체 | 4590초 | ~100초 | 97.8% | **~46배** |
+| 10 이미지 × 5 객체 | 7650초 | ~165초 | 97.8% | **~46배** |
 
-> **Note**: 현재 시간은 stage1=14, stage2=4, compile=True, Gaussian-only 모드 적용 기준
+> **Note**: 현재 시간은 `stage1=14`, `stage2=4`, `Gaussian-only`, `ENABLE_SS_STEP_CACHING=True`,
+> `ENABLE_COMPILE=True (reduce-overhead)` 설정에 L4 GPU 4개 + work-stealing 기준.
+> 객체 수 ÷ GPU 수가 작아질수록(1 이미지 × 1 객체 등) YOLOE 오버헤드의 상대적 비중이 커져 배수가 감소합니다.
+> 자세한 GPU 수별 예측은 [Section 13.2](#132-gpu-수별-처리-시간-예측) 참고.
 
 ---
 
@@ -834,28 +868,32 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 
 각 최적화 기법이 전체 성능 향상에 기여한 정도를 분석합니다.
 
-#### 단일 객체 기준 (150초 → 8초)
+#### 단일 객체 기준 (V1 150초 → V2.5+Fast-SAM3D 13초, L4 GPU)
 
-| 최적화 | 절약 시간 | 기여도 |
-|--------|----------|--------|
-| 후처리 비활성화 (texture_baking 등) | 52-105초 | **37-43%** |
-| GIF 스킵 | 15-30초 | **11-13%** |
-| V2 파이프라인 (SAM2/CLIP 제거) | 3-7초 | **2-3%** |
-| 모델 사전 로드 (YOLOE + SAM-3D) | 7-11초 | **5-6%** |
-| Stage1 Steps 감소 (25→14) | ~4초 | **~3%** |
-| Stage2 Steps 감소 (12→4) | ~4초 | **~3%** |
-| Gaussian-only 모드 | ~9초 | **~6%** |
-| torch.compile | ~3-5초 | **~3%** |
-| in_place=True | ~1-2초 | **~1%** |
-| **합계** | **~142초** | **~95%** |
+| 최적화 | 절약 시간 | 기여도 | 버전 |
+|--------|----------|--------|------|
+| 후처리 비활성화 (texture_baking 등) | 52-105초 | **36-77%** | V2.0 |
+| V1의 GIF 렌더링 단계 제거 | 15-30초 | **11-22%** | V2.0 |
+| V2 파이프라인 (SAM2/CLIP 제거) | 3-7초 | **2-5%** | V2.0 |
+| 모델 사전 로드 (YOLOE + SAM-3D) | 7-11초 | **5-8%** | V2.0 |
+| Stage1 Steps 감소 (25→14) | ~4초 | **~3%** | V2.2 |
+| Stage2 Steps 감소 (12→4) | ~4초 | **~3%** | V2.2 |
+| Gaussian-only 모드 | ~9초 | **~7%** | V2.2 |
+| in_place=True | ~1-2초 | **~1%** | V2.2 |
+| torch.compile Phase C (reduce-overhead) | ~3-5초 | **~3%** | 2026-03-18 |
+| SS Step Caching Phase A (stride=3) | ~5-7초 | **~4-5%** | 2026-03-18 |
+| **합계** | **~137초** | **~91%** | |
 
-#### 다중 이미지/객체 기준 (추가 최적화)
+> V1의 "GIF 렌더링 15-30초"는 V1 파이프라인에서 실제로 수행되던 단계였으며, V2에서는 해당
+> 코드 경로 자체가 제거되었습니다 (Section 5.2 참고). 이는 "스킵"이 아니라 "미구현" 상태입니다.
+
+#### 다중 이미지/객체 기준 (추가 병렬화 효과)
 
 | 최적화 | 효과 |
 |--------|------|
-| 이미지 병렬 처리 (GPUPoolManager) | N개 GPU → N배 속도 |
-| 객체 병렬 처리 (SAM3DWorkerPool) | M개 객체 → ceil(M/N)배 속도 |
-| **복합 효과** | **~23배 속도 향상** |
+| 이미지 병렬 처리 (GPUPoolManager, 라운드로빈) | N개 GPU → 최대 N배 속도 |
+| 객체 병렬 처리 (SAM3DWorkerPool + Work-Stealing) | M개 객체 → ~`ceil(M/N)` 라운드 (크기 불균등 흡수) |
+| **복합 효과 (4 GPU, 4×3 시나리오)** | **~43배 속도 향상** |
 
 ---
 
@@ -863,19 +901,22 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        최적화 전후 비교 (4 이미지 × 3 객체)                    │
+│                  최적화 전후 비교 (4 이미지 × 3 객체, 4× L4 GPU)              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  초기 (V1, 순차):                                                           │
 │  ████████████████████████████████████████████████████████████  1836초       │
 │  |-------- 30.6분 --------|                                                 │
 │                                                                             │
-│  현재 (V2, 2단계 병렬 + 추론 최적화):                                         │
-│  █  22초                                                                    │
-│  |22초|                                                                     │
+│  V2.2 (2단계 병렬 + 추론 최적화, 라운드로빈, 2026-01-25):                     │
+│  ██  ~60초                                                                  │
+│                                                                             │
+│  V2.5 + Fast-SAM3D + Work-Stealing (현재, 2026-03-18):                      │
+│  █  ~43초                                                                   │
 │                                                                             │
 │  ─────────────────────────────────────────────────────────────────────────  │
-│  개선율: 98.8% 감소 (83배 빠름)                                              │
+│  초기 → 현재: 97.7% 감소 (43배 빠름)                                         │
+│  V2.2 → 현재: 28% 추가 개선                                                  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -884,14 +925,16 @@ img4 → YOLO(5s) → SAM2(3s) → CLIP(1s) → obj1(150s) → obj2(150s) → ob
 
 ### 9.6 결론
 
-| 측면 | 초기 | 현재 | 개선율 |
-|------|------|------|--------|
-| **단일 객체 처리** | ~150초 | ~8초 | **95% 감소** |
-| **다중 이미지/객체 처리** (4×3) | ~1836초 | ~22초 | **98.8% 감소** |
-| **처리 속도** | 1배 | 83배 | **83배 향상** |
+L4 GPU 기준, V1 대비 V2.5 + Fast-SAM3D 적용 후 측정/추정값:
+
+| 측면 | 초기 (V1) | 현재 (V2.5 + Fast-SAM3D) | 개선율 |
+|------|----------|--------------------------|--------|
+| **단일 객체 처리** | ~150초 | ~13초 | **91% 감소 (11.5x)** |
+| **다중 이미지/객체 처리** (4 이미지 × 3 객체, 4 GPU) | ~1836초 | ~43초 | **97.7% 감소 (43x)** |
 | **파이프라인 단계** | 5단계 | 2단계 | **60% 감소** |
-| **모델 로드 오버헤드** | 7-11초/요청 | 0초 | **100% 제거** |
-| **GPU 활용률** | 단일 GPU | N GPU 병렬 | **N배 향상** |
+| **모델 로드 오버헤드** | 7-11초/요청 | 0초 (Persistent Worker Pool) | **100% 제거** |
+| **SAM-3D VRAM** | ~21GB | 11.25GB (Gaussian-only 모델 언로드) | **48% 감소** |
+| **GPU 스케줄링** | 단일 GPU 순차 | Multi-GPU + Event work-stealing | **N배 + 불균등 분포 흡수** |
 
 #### 적용된 최적화 설정 (2026-03-18 업데이트)
 
