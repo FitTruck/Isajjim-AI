@@ -1388,10 +1388,82 @@ L4 GPU에서 양자화의 실질적 효과를 검증:
 | 기법 | 논문 섹션 | 설명 | 본 프로젝트 적용 |
 |------|----------|------|-----------------|
 | Modality-Aware Step Caching | §4.1 | Shape/Layout 토큰을 분리하여 shape은 Taylor 외삽, layout은 momentum-anchored smoothing | **단순화 적용**: CachedEuler 솔버 (stride=3, warmup=2)로 velocity 재사용만 구현. 논문의 shape/layout 토큰 분리 및 momentum-anchored smoothing은 미적용 |
-| Joint Spatiotemporal Token Carving | §4.2 | 시공간 saliency 기반 토큰 pruning + 동적 adaptive step caching | **미적용**: Gaussian-Only 모드에서 SLaT 자체가 간소화되어 효과 제한적 |
-| Spectral-Aware Token Aggregation | §4.3 | FFT 기반 기하학적 복잡도 분석으로 mesh 디코딩 토큰 축소 | **미적용**: mesh 디코딩 자체를 완전 제거 (Gaussian-Only 모드) |
+| Joint Spatiotemporal Token Carving | §4.2 | 시공간 saliency 기반 토큰 pruning + 동적 adaptive step caching | **대체됨**: SLaT 자체를 12→4 steps + CFG 비활성화로 축소 (논문보다 더 급진적) |
+| Spectral-Aware Token Aggregation | §4.3 | FFT 기반 기하학적 복잡도 분석으로 mesh 디코딩 토큰 축소 | **해당 없음**: mesh 디코딩 자체를 완전 제거 (Gaussian-Only 모드) |
 
-> **요약**: 논문의 3가지 핵심 기법 중 Step Caching의 단순화 버전만 적용. 나머지 2가지(Token Carving, Token Aggregation)는 Gaussian-Only 전략으로 대체됨.
+> **요약**: 논문의 3가지 핵심 기법 중 Step Caching의 단순화 버전만 적용. 나머지 2가지(Token Carving, Token Aggregation)는 **이삿짐 서비스가 더 급진적인 우회 전략(Gaussian-Only + SLaT 간소화)을 먼저 선택**했기 때문에 적용할 대상 자체가 사라졌습니다.
+
+#### 왜 3개 중 1개만 적용되는가 — 논문의 대상 컴포넌트와 본 서비스의 선택
+
+논문의 3가지 기법은 각각 SAM-3D의 **특정 컴포넌트를 대상**으로 하는데, 본 서비스는 그 컴포넌트들을 **더 급진적인 방식으로 우회·단순화**했기 때문에 2/3가 적용 대상 자체가 사라졌습니다.
+
+```
+SAM-3D 파이프라인과 논문 기법의 최적화 대상:
+
+  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐  ┌──────────────┐
+  │ SS Generator │─▶│ SLaT         │─▶│ GS Decoder      │─▶│ Mesh Decoder │
+  │ (Stage 1)    │  │ Generator    │  │ (Gaussian 출력) │  │ (Stage 3)    │
+  │ 3D 구조 생성 │  │ (Stage 2)    │  │                 │  │              │
+  │              │  │ 텍스처/디테일│  │                 │  │              │
+  └──────┬───────┘  └──────┬───────┘  └─────────────────┘  └──────┬───────┘
+         ↑                 ↑                                      ↑
+       §4.1              §4.2                                   §4.3
+    Step Caching     Token Carving                       Token Aggregation
+    (✅ 적용)         (⚠ 대체됨)                          (❌ 해당 없음)
+```
+
+##### ✅ §4.1 Modality-Aware Step Caching → **단순화 적용**
+
+- **논문의 관찰**: SS Generator의 iterative denoising에서 인접 step 간 velocity field가 완만하게 변함 → 매 step 재계산 불필요
+- **본 프로젝트 적용**: [Section 12.2](#122-phase-a-ss-generator-step-caching)의 `CachedEuler` 솔버
+  - 14 steps × 3 CFG calls = 42회 backbone → **18회로 감소 (57%↓)**
+  - Nightstand 1.16x, Bed 1.43x, Television 1.90x 가속
+- **단순화한 부분**: 논문은 shape 토큰(Taylor 외삽)과 layout 토큰(momentum-anchored smoothing)을 **분리**해서 각각 다른 방식으로 예측 → 구현 복잡도가 매우 높음.
+  본 프로젝트는 그냥 **이전 step의 velocity를 통째로 재사용**하는 linear approximation만 구현 → 코드 ~30 lines로 압축.
+- **단순 버전이 충분한 이유**: 부피 오차 3% 이내에서 기대한 속도 향상(1.16-1.90x)이 이미 확보됨. 논문의 분리 기법은 시각적 품질(Chamfer Distance)을 더 보존하기 위함이지만 본 서비스는 **부피만 정확하면 됨**.
+
+##### ⚠️ §4.2 Joint Spatiotemporal Token Carving → **대체됨** (더 급진적인 방식으로)
+
+- **논문의 관찰**: SLaT Generator가 처리하는 토큰 수가 많아 비효율 → saliency(중요도) 기반으로 덜 중요한 토큰을 **pruning**하여 계산량 감소
+- **본 프로젝트의 더 급진적 선택**:
+  - `STAGE2_INFERENCE_STEPS = 4` (기본 12 → **4로 축소**, [Section 5.3](#53-inference-steps-감소))
+  - Gaussian-Only 모드에서 SLaT의 CFG(classifier-free guidance)도 비활성화 (strength=0)
+  - 결과: SLaT의 총 backbone 호출이 12 × 3 = 36회 → **4 × 1 = 4회로 감소 (~89%↓)**
+- **Token Carving이 무의미해진 이유**: 논문 Token Carving의 기대 효과는 SLaT 연산량 ~25-30% 감소. 본 프로젝트는 이미 **~89% 감소**를 달성했으므로 Token Carving을 추가해도 남은 여지가 거의 없음.
+- **추가 시도 결과**: [Section 13.4](#134-추가-최적화-실험-결과-2026-03-18)에서 `SLaT step caching` (stride=2)을 시도했지만 얇은 객체(TV 등)에서 5%+ 치수 오차 발생 → 비활성화 유지. 즉 **SLaT이 이미 너무 짧아 캐싱 여지조차 없는 상태**.
+
+##### ❌ §4.3 Spectral-Aware Token Aggregation → **적용 대상이 존재하지 않음**
+
+- **논문의 관찰**: Mesh 디코딩 단계에서 FFT로 기하학적 복잡도를 분석, **덜 복잡한 영역의 토큰을 합쳐서** 계산량 감소
+- **본 프로젝트의 상황**: **Mesh 디코더 자체를 실행하지 않음**
+  - `GAUSSIAN_ONLY_MODE = True` → `decode_formats=["gaussian"]`만 사용 ([Section 5.6](#56-gaussian-only-모드))
+  - `slat_decoder_mesh` 모델을 GPU에서 `.cpu()`로 **언로드** (~3-4GB VRAM 절감, [Section 11](#11-vram-최적화-2026-03-18))
+  - Mesh 디코딩 코드 경로가 runtime에 **실행되지 않는 dead path**
+- **근본 이유**: 이삿짐 부피 계산에는 3D mesh가 불필요함. Gaussian Splat의 점 분포만으로도 OBB 기반 부피 산출이 가능 ([Section 14.2 F-1](#f-1-obb-기반-상대-치수-추출)).
+- 즉 Token Aggregation은 "더 효율적으로 mesh 디코딩"을 위한 기법인데, 본 프로젝트는 **"mesh 디코딩 자체를 하지 않는다"**를 먼저 선택했으므로 적용 대상이 사라진 상태.
+
+##### 두 접근 방식의 철학적 차이
+
+| 관점 | Fast-SAM3D 논문 | 이삿짐 서비스 |
+|------|-----------------|---------------|
+| **최적화 기준** | 시각적 품질 (Chamfer Distance, F-Score) 유지 | 부피(m³) 정확도 유지 |
+| **전제** | Mesh/Texture는 반드시 생성되어야 함 | Mesh/Texture는 **불필요** |
+| **접근** | 기존 컴포넌트를 **더 효율적으로** 실행 | 불필요한 컴포넌트를 **아예 제거** |
+| **SS Generator** | Step Caching으로 20-50% 절약 | **동일 (CachedEuler 적용)** |
+| **SLaT Generator** | Token Carving으로 25-30% 절약 | **Steps 12→4로 89% 절약** (더 급진적) |
+| **Mesh Decoder** | Token Aggregation으로 30-40% 절약 | **완전 제거** (100% 절약) |
+
+**비유**: 논문은 "냉장고 압축기 효율을 20% 개선"하는 접근, 본 프로젝트는 "냉장고가 필요 없는 공간이라 냉장고를 빼버림"하는 접근. **두 접근 모두 유효하지만, 서비스 요구사항이 "부피만 정확"이었기에 후자가 훨씬 큰 이득**을 가져왔습니다.
+
+##### 결론
+
+논문의 3가지 기법은 "SAM-3D의 표준 사용 사례(시각적 품질 유지)"에서 유의미한 기여를 합니다. 하지만 본 서비스의 **Gaussian-Only + SLaT 단순화 전략**이 논문 기법이 겨냥하던 병목들을 더 급진적으로 해소했기에, 결과적으로:
+
+- **§4.1 Step Caching** — 여전히 SS Generator에서 유효하므로 **단순화 버전 적용** (1.16-1.90x)
+- **§4.2 Token Carving** — SLaT이 이미 매우 짧아 여지 없음 → **대체됨**
+- **§4.3 Token Aggregation** — Mesh 디코딩이 실행되지 않음 → **적용 대상 없음**
+
+"3개 중 1개만 적용"이라는 표현보다는 **"3개 모두의 목표를 달성했으나, 1개는 논문 방식으로, 2개는 더 급진적인 제거 방식으로 달성"**이 더 정확한 설명입니다.
 
 ---
 
