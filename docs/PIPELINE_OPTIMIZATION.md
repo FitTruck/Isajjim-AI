@@ -324,9 +324,13 @@ async with pool.pipeline_context(task_id="image_1") as (gpu_id, pipeline):
 
 ### 효과
 
-- **처리량 증가**: N개 GPU로 N배 병렬 처리
-- **모델 로드 시간 제거**: 요청당 3-5초 절약
-- **GPU 활용률 최적화**: 유휴 GPU 최소화
+- **처리량 증가**: N개 GPU로 최대 N배 병렬 처리 (이미지 수 ≥ GPU 수일 때)
+- **모델 로드 시간 제거**: 요청당 3-5초 절약 (YOLOE pre-initialization)
+- **균등 분배**: 라운드로빈으로 이미지가 N개 GPU에 번갈아가며 할당됨
+
+> YOLOE 추론은 이미지당 ~0.5-1초로 매우 빠르므로, 1단계에서는 라운드로빈의 "균등 분배" 특성이
+> 더 중요합니다. 2단계 SAM-3D처럼 작업 크기 불균등(TV 5초 vs Bed 17초)이 크지 않기 때문에
+> work-stealing으로의 업그레이드 우선순위는 낮습니다.
 
 ---
 
@@ -549,7 +553,7 @@ scene_gs = self.ready_gaussian_for_video_rendering(
 self.sam3d_inference = Inference(config_path, compile=False, device="cuda")
 
 # ai/subprocess/persistent_3d_worker.py:468 — Phase C에서 수동으로 선별 compile
-ENABLE_COMPILE = True  # True = 추론 10-20% 빠름, False = 빠른 시작 (테스트용)
+ENABLE_COMPILE = True
 if ENABLE_COMPILE:
     compile_mode = "reduce-overhead"  # max-autotune은 첫 실행 10분+
     ss_gen.reverse_fn.inner_forward = torch.compile(..., mode=compile_mode, fullgraph=True)
@@ -562,10 +566,11 @@ if ENABLE_COMPILE:
 > `_warmup()`에서 `run_layout_model` 버그가 발생하므로, Phase C에서 핵심 모듈만 수동으로
 > `torch.compile`을 적용합니다. 자세한 내용은 [Section 12.1](#121-phase-c-torchcompile--autotune-캐시-영속화) 참고.
 
-**효과:**
+**효과** (Phase C 단독 측정, baseline: compile=False, Step Caching off):
 - 초기화 시: warmup으로 추가 시간 소요 (AUTOTUNE 캐시 영속화로 재시작 시 재사용)
-- 추론 시: CUDA 커널 재사용으로 Bed 1.37x, TV 1.31x 속도 향상
+- 추론 시: CUDA 커널 재사용으로 **Bed 25.6→18.7s (1.37x), TV 10.0→7.6s (1.31x)**
 - Persistent Worker이므로 초기화 비용은 서버 시작 시 1회만 발생
+- 실제 배포에서는 Phase A(SS Step Caching)와 조합 적용 → 객체당 ~13초 (Section 9.1 참고)
 
 ### 효과 요약
 
@@ -1187,7 +1192,7 @@ os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 _ = pipe.run(dummy_image, dummy_mask, seed=42, pointmap=dummy_pointmap, ...)
 ```
 
-#### 효과
+#### 효과 (Phase C 단독, baseline: compile=False + Step Caching off)
 
 | 항목 | 변경 전 | 변경 후 | 개선 |
 |------|---------|---------|------|
@@ -1196,6 +1201,9 @@ _ = pipe.run(dummy_image, dummy_mask, seed=42, pointmap=dummy_pointmap, ...)
 | 워커 초기화 warmup | N/A | ~280s (첫 실행, AUTOTUNE 벤치마크) | 서버 시작 시 1회 |
 | 워커 재시작 warmup | N/A | ~수십초 (캐시 재사용) | 재컴파일 방지 |
 | AUTOTUNE 캐시 파일 수 | 0 | **2,259** (`.cache/torch_compile/`) | 영속 저장 |
+
+> **Note**: 실제 배포는 Phase C + Phase A를 **함께** 사용하므로 단독 수치보다 더 빠릅니다.
+> Phase A 단독 측정은 Section 12.2, 복합 결과는 Section 9.1(객체당 ~13초) 참고.
 
 ### 12.2 Phase A: SS Generator Step Caching
 
@@ -1375,12 +1383,12 @@ while time.time() - start < timeout:
 
 ### 13.2 GPU 수별 처리 시간 예측
 
-#### 조건: 3 이미지, 12 객체, 평균 13초/객체
+#### 조건: 4 이미지 × 3 객체 (총 12 객체), 평균 13초/객체, L4 GPU
 
 ```
-1단계 (YOLOE): ~2초 (이미지 수 / GPU 수 라운드, 매우 빠름)
-2단계 (SAM-3D): 객체 수 / GPU 수 라운드 × 13초
-3단계 (후처리): ~2초
+1단계 (YOLOE): ~1-2초 (이미지 수 / GPU 수 라운드, 매우 빠름)
+2단계 (SAM-3D): ⌈객체 수 / GPU 수⌉ 라운드 × ~13초
+3단계 (후처리 + 취합): ~2초
 ```
 
 | GPU 수 | SAM-3D 라운드 | 예상 총 시간 | 1GPU 대비 |
@@ -1970,7 +1978,7 @@ os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # 100ms 제한
 | **서비스 독자 A** | V2 파이프라인 통합 | 이삿짐 서비스 | 3-7초/요청 절약 |
 | **서비스 독자 A** | 다운샘플링 비활성화 결정 | 부피 정확도 분석 | 부피 오차 91.7% 방지 |
 | **서비스 독자 B** | VRAM 모델 언로딩 | 이삿짐 서비스 | 48% VRAM 절감 |
-| **서비스 독자 B** | Synthetic Pinhole Pointmap | 이삿짐 서비스 | 안정성 + 3GB 절감 |
+| **서비스 독자 B** | Synthetic Pinhole Pointmap | 이삿짐 서비스 | 안정성 향상 (NaN/Inf 방지) + MoGe 언로드 가능 |
 | **서비스 독자 C** | Persistent Worker Pool | 시스템 아키텍처 | 모델 로딩 100% 제거 |
 | **서비스 독자 C** | 2단계 병렬 처리 | 시스템 아키텍처 | ~43x 다중 객체 가속 (4 GPU) |
 | **서비스 독자 C** | Event-Based Work-Stealing | 시스템 아키텍처 | GPU 유휴 시간 최소화 |
