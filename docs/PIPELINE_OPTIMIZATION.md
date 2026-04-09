@@ -154,7 +154,7 @@ YOLOE-seg detect → mask (직접) → SAM-3D
 └────────────────────────────────────────────────────┘
                       │
                       ▼
-2단계 (SAM-3D - Event 기반 Work-Stealing):
+2단계 (SAM-3D - Event 기반 Work-Stealing, L4 GPU):
 ┌────────────────────────────────────────────────────┐
 │  12개 객체를 asyncio.gather로 일괄 제출             │
 │                                                    │
@@ -164,7 +164,7 @@ YOLOE-seg detect → mask (직접) → SAM-3D
 │  객체 크기가 불균등해도 GPU 유휴 시간 최소화         │
 │  (고정 라운드 아님 - 자세한 동작은 Section 13.1)    │
 │                                                    │
-│  총 ~21-26초 (객체 크기 분포에 따라 변동)          │
+│  총 ~40-43초 (객체당 평균 ~13초 × ~3 라운드)       │
 └────────────────────────────────────────────────────┘
                       │
                       ▼
@@ -940,15 +940,17 @@ L4 GPU 기준, V1 대비 V2.5 + Fast-SAM3D 적용 후 측정/추정값:
 
 ```python
 # ai/subprocess/persistent_3d_worker.py
-MAX_IMAGE_SIZE = None           # Phase 1: 다운샘플링 비활성화 (부피 정확도 유지)
-STAGE1_INFERENCE_STEPS = 14     # Phase 2: Stage1 (25→14, 속도/정확도 균형)
-STAGE2_INFERENCE_STEPS = 4      # Phase 2: Stage2 (12→4, 치수 오차 0.5% 이내, 30% 빠름)
-USE_BINARY_PLY = True           # Phase 3: Binary PLY (70% 작음, 50% 빠름)
-GAUSSIAN_ONLY_MODE = True       # Phase 5: Gaussian-only (37.4% 빠름, 0.005% 오차)
-ENABLE_COMPILE = True           # Phase C: torch.compile reduce-overhead (20-30% 빠름)
-ENABLE_SS_STEP_CACHING = True   # Phase A: SS Step Caching (stride=3, 1.5x 빠름)
+MAX_IMAGE_SIZE = None            # Phase 1: 다운샘플링 비활성화 (부피 정확도 유지)
+STAGE1_INFERENCE_STEPS = 14      # Phase 2: Stage1 (25→14, ~50% 빠름, ~1.5% 오차)
+STAGE2_INFERENCE_STEPS = 4       # Phase 2: Stage2 (12→4, ~30% 빠름, <0.5% 오차)
+USE_BINARY_PLY = True            # Phase 3: Binary PLY (파일 크기 -70%, 쓰기 +50%)
+GAUSSIAN_ONLY_MODE = True        # Phase 5: Gaussian-only (+37.4% 빠름, 0.005% 오차)
+ENABLE_COMPILE = True            # Phase C: torch.compile reduce-overhead
+                                 #          (Bed 1.37x, TV 1.31x)
+ENABLE_SS_STEP_CACHING = True    # Phase A: SS Step Caching (stride=3, warmup=2)
+                                 #          (Nightstand 1.16x, Bed 1.43x, TV 1.90x)
 ENABLE_SLAT_STEP_CACHING = False # Phase B: SLaT Step Caching (비활성화, 품질 리스크)
-in_place=True                   # make_scene/ready_gaussian에서 deepcopy 제거 (5-10% 빠름)
+# in_place=True                  # make_scene/ready_gaussian deepcopy 제거 (5-10% 빠름)
 ```
 
 ---
@@ -1006,10 +1008,12 @@ class ImageUtils:
 
 ### 문제점
 
-SAM-3D 모델이 L4 GPU (22GB) VRAM의 ~21GB를 사용하여:
+SAM-3D 모델이 L4 GPU (24GB 공식 / ~22GB 실사용 가능) VRAM의 ~21GB를 사용하여:
 - YOLOE와 동일 GPU에 동시 탑재 불가
 - 2 GPU 환경에서 1 GPU는 YOLOE 전용, 1 GPU는 SAM-3D 전용으로 사용해야 함
 - 병렬 SAM-3D 처리 불가
+
+> L4 공식 스펙은 24GB GDDR6이지만, CUDA context, driver overhead 등을 제외한 실사용 가능 메모리는 약 22GB입니다.
 
 ### SAM-3D 모델 구성 및 GPU 로딩 현황
 
@@ -1103,7 +1107,7 @@ pipe.depth_model = None
 |------|---------|---------|------|
 | SAM-3D VRAM | ~21GB | **11.25GB** | **~10GB (48%)** |
 | YOLOE VRAM | 0.36GB | 0.36GB | - |
-| 합계 (동일 GPU) | **OOM** | **11.61GB / 22GB** | 2GPU 병렬 가능 |
+| 합계 (동일 GPU) | **OOM** (~21.4GB > 22GB 가용) | **11.61GB / ~22GB** | 동일 GPU에 탑재 가능 |
 
 ### MoGe (depth_model) 비활성화 근거
 
@@ -1189,8 +1193,9 @@ _ = pipe.run(dummy_image, dummy_mask, seed=42, pointmap=dummy_pointmap, ...)
 |------|---------|---------|------|
 | Bed 추론 시간 | 25.6s | 18.7s | **1.37x** |
 | Television 추론 시간 | 10.0s | 7.6s | **1.31x** |
-| 첫 실행 warmup | N/A | ~280s (캐시 있을 때) | 1회 비용 |
-| AUTOTUNE 캐시 | 재시작 시 손실 | **영속** (2,259 파일) | 재컴파일 방지 |
+| 워커 초기화 warmup | N/A | ~280s (첫 실행, AUTOTUNE 벤치마크) | 서버 시작 시 1회 |
+| 워커 재시작 warmup | N/A | ~수십초 (캐시 재사용) | 재컴파일 방지 |
+| AUTOTUNE 캐시 파일 수 | 0 | **2,259** (`.cache/torch_compile/`) | 영속 저장 |
 
 ### 12.2 Phase A: SS Generator Step Caching
 
@@ -1318,10 +1323,10 @@ def send_message(msg_obj):
 │  초기 (V1, 순차):                                                    │
 │  ████████████████████████████████████████  ~150초                    │
 │                                                                      │
-│  V2 파이프라인 최적화 (2026-03-13):                                   │
+│  V2.2 (Gaussian-only + Steps 14/4, 2026-01-25):                      │
 │  ████████  ~20초                                                     │
 │                                                                      │
-│  V2.5 + Fast-SAM3D (2026-03-18):                                    │
+│  V2.5 + Fast-SAM3D (Phase A/C + VRAM, 2026-03-18):                  │
 │  █████  ~13초                                                        │
 │                                                                      │
 │  개선율: 150s → 13s = 11.5x 가속                                     │
@@ -1330,11 +1335,11 @@ def send_message(msg_obj):
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-| 시나리오 | 2026-03-13 | 2026-03-18 | 개선 |
-|----------|-----------|-----------|------|
+| 시나리오 | V2.2 (2026-01-25) | V2.5 + Fast-SAM3D (2026-03-18) | 개선 |
+|----------|-------------------|--------------------------------|------|
 | 1 객체 | ~20초 | ~13초 | 1.5x |
 | 3 객체 (1 GPU) | ~60초 | ~40초 | 1.5x |
-| 3 객체 (2 GPU) | ~40초 (역할분리) | ~27초 (동일GPU) | 1.5x |
+| 3 객체 (2 GPU, 역할분리 vs 동일GPU) | ~40초 | ~27초 | 1.5x |
 | VRAM/GPU | 21GB | 11.25GB | 48% 절감 |
 
 ---
@@ -1563,7 +1568,7 @@ MAX_IMAGE_SIZE = None  # 부피 정확도 유지를 위해 비활성화
 
 ##### B-1. 불필요 모델 GPU 언로딩 (48% VRAM 절감)
 
-**동기**: SAM-3D가 L4 GPU(24GB) VRAM의 21GB를 점유하여 YOLOE(0.36GB)와 동일 GPU에 동시 탑재가 불가능했습니다. GPU 수가 제한된 환경에서 이는 병렬 처리의 직접적 병목입니다.
+**동기**: SAM-3D가 L4 GPU(24GB 공식 / ~22GB 실사용) VRAM의 21GB를 점유하여 YOLOE(0.36GB)와 동일 GPU에 동시 탑재가 불가능했습니다. GPU 수가 제한된 환경에서 이는 병렬 처리의 직접적 병목입니다.
 
 **핵심 발상**: Gaussian-Only 모드에서 **실제로 호출되지 않는 모듈**을 식별하여 GPU에서 제거합니다.
 
@@ -1618,7 +1623,7 @@ def make_synthetic_pointmap(image, z=1.0, f=None):
 
 **효과**:
 - **안정성**: MoGe 실패율 0% (이전: 간헐적 NaN/Inf)
-- **VRAM**: ~3GB 추가 절감 (B-1과 합산하여 총 48%)
+- **VRAM**: ~3GB (depth_model 자체는 B-1의 48% 절감에 포함됨)
 - **부피 정확도**: 일반 가구에서 1-2.6% 차이 (서비스 허용 범위 내)
 
 **코드**: `ai/subprocess/persistent_3d_worker.py:174-192`
@@ -1670,28 +1675,28 @@ MessageType:
 
 **동기**: 이삿짐 견적은 평균 4-10장 이미지, 이미지당 2-5개 객체 = 총 8-50개 객체를 처리합니다. 순차 처리 시 서비스 SLA(1분)를 절대 충족할 수 없습니다.
 
-**핵심 발상**: 파이프라인을 2단계로 분리하여 각각 다른 수준의 병렬성을 활용합니다.
+**핵심 발상**: 파이프라인을 2단계로 분리하여 각각 다른 수준의 병렬성을 활용합니다. 스케줄링 전략도 단계별로 다릅니다.
 
 ```
-1단계 (이미지 수준 병렬): GPUPoolManager
+1단계 (이미지 수준 병렬): GPUPoolManager — 라운드로빈
   - 4개 이미지 → 4 GPU에 동시 분배
   - 각 GPU에서 YOLOE-seg 독립 실행
   - 소요: ~1초 (4개 이미지 동시)
 
-2단계 (객체 수준 병렬): SAM3DWorkerPool
-  - 12개 객체 → 4 Worker에 라운드로빈 분배
-  - 라운드 1: obj 1,2,3,4 → Worker 0,1,2,3 (동시)
-  - 라운드 2: obj 5,6,7,8 → Worker 0,1,2,3 (동시)
-  - 라운드 3: obj 9,10,11,12 → Worker 0,1,2,3 (동시)
-  - 소요: ~21초 (3 라운드 × 7초)
+2단계 (객체 수준 병렬): SAM3DWorkerPool — Event 기반 Work-Stealing (C-3 참고)
+  - 12개 객체 → asyncio.gather로 일괄 제출
+  - 빈 워커가 있으면 즉시 획득, 없으면 Event 시그널 대기
+  - 먼저 끝난 GPU가 다음 작업을 즉시 가져감 (고정 라운드 없음)
+  - 소요: ~40-43초 (객체당 평균 ~13초, 4 GPU에서 ~3 라운드)
 ```
 
-**효과**:
+**효과** (4 이미지 × 3 객체 = 12 객체, L4 GPU 기준):
 
-| 시나리오 (12 객체) | 순차 처리 | 2단계 병렬 | 가속비 |
-|------------------|----------|-----------|-------|
-| V1 (최적화 없음) | ~1,836초 | N/A | 기준 |
-| V2.5 (최적화 적용) | ~96초 | **~22초** | **83x** |
+| 구성 | 총 소요 시간 | V1 대비 가속 |
+|------|------------|-------------|
+| V1 (완전 순차 처리) | ~1,836초 | 1x (기준) |
+| V2.2 (2단계 병렬 + 추론 최적화, 라운드로빈) | ~60초 | ~31x |
+| **V2.5 + Fast-SAM3D + Work-Stealing (현재)** | **~43초** | **~43x** |
 
 **코드**: `ai/gpu/gpu_pool_manager.py`, `ai/gpu/sam3d_worker_pool.py`, `ai/pipeline/furniture_pipeline.py`
 
@@ -1967,7 +1972,7 @@ os.environ["SPCONV_ALGO_TIME_LIMIT"] = "100"  # 100ms 제한
 | **서비스 독자 B** | VRAM 모델 언로딩 | 이삿짐 서비스 | 48% VRAM 절감 |
 | **서비스 독자 B** | Synthetic Pinhole Pointmap | 이삿짐 서비스 | 안정성 + 3GB 절감 |
 | **서비스 독자 C** | Persistent Worker Pool | 시스템 아키텍처 | 모델 로딩 100% 제거 |
-| **서비스 독자 C** | 2단계 병렬 처리 | 시스템 아키텍처 | 23x 다중 객체 가속 |
+| **서비스 독자 C** | 2단계 병렬 처리 | 시스템 아키텍처 | ~43x 다중 객체 가속 (4 GPU) |
 | **서비스 독자 C** | Event-Based Work-Stealing | 시스템 아키텍처 | GPU 유휴 시간 최소화 |
 | **서비스 독자 D** | torch.compile 수동 적용 | 엔지니어링 | 1.31-1.37x 가속 |
 | **서비스 독자 D** | Steps 최적점 탐색 (14+4) | 부피 기준 실험 | 1.5x 가속, ±1.5% 오차 |
