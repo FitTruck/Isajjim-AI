@@ -48,7 +48,7 @@
 | 1 | **Gaussian-Only Decoding** | Thesis의 출발점 | "mesh 디코딩 불필요"라는 핵심 발상 |
 | 2 | **VRAM Model Unloading** (48%) | Task-Aware Pruning 적용 | 불변성의 직접적 결과 |
 | 3 | **Synthetic Pinhole Pointmap** | Task-Aware Pruning 적용 | MoGe 대체, 추가 안정성 + VRAM |
-| 4 | **Inference Steps Reduction** (25→14, 12→4) | 부피 기준 최적점 탐색 | 부피 정확도 관점 실험 (논문은 시각 품질 기준) |
+| 4 | **Inference Steps Reduction** (25→14, 12→4) | 상대 치수 기준 최적점 탐색 | 상대 치수 정확도 관점 실험 (논문은 시각 품질 기준) |
 | 5 | **SS Step Caching** (Fast-SAM3D Phase A) | 직교적 가속 추가 | 기존 연구 적용의 ablation 비교 |
 
 ### 제외할 것 (3페이지에 안 들어감)
@@ -76,7 +76,7 @@
 mesh 디코딩 경로를 완전히 우회하는 **Gaussian-Only 모드**, 이로 인해 dead-code가 된 서브 모델을
 언로드하는 **VRAM 최적화**, 그리고 **OBB 기반 부피 추출 + 52개 가구 표준 치수 DB 매칭**을 통해
 절대 부피를 산출한다. 실험 결과 L4 GPU에서 객체당 처리 시간을 150초에서 13초로 단축(11.5배 가속)하고
-VRAM을 48% 절감하면서 부피 오차를 3% 이내로 유지했다.
+VRAM을 48% 절감하면서 상대 치수 오차를 3% 이내로 유지했다.
 
 #### 1. 서론 (0.5p)
 - 배경: 이삿짐 견적 시 트럭 크기 결정을 위해 가구 부피 측정 필요
@@ -90,7 +90,7 @@ VRAM을 48% 절감하면서 부피 오차를 3% 이내로 유지했다.
 #### 2. 관련 연구 (0.3p)
 - **2D → 3D 복원 모델**: TripoSR, Hunyuan3D, SAM-3D [Meta, 2025]
 - **추론 가속**: Fast-SAM3D [arXiv:2602.05293] — step caching + token pruning
-- **차별점**: 기존 연구는 시각적 품질(Chamfer Distance, F-Score) 유지가 목표. 본 연구는 **부피(m³) 정확도**가 유일한 제약
+- **차별점**: 기존 연구는 시각적 품질(Chamfer Distance, F-Score) 유지가 목표. 본 연구는 **상대 치수 정확도** (OBB extent 보존)가 유일한 제약
 
 ### Page 2
 
@@ -118,11 +118,11 @@ VRAM을 48% 절감하면서 부피 오차를 3% 이내로 유지했다.
 ##### 3.4 Synthetic Pinhole Pointmap
 - MoGe: 학습된 depth model, ~3GB, NaN/Inf 위험
 - 대체: `z=1` uniform plane + pinhole camera model
-- 부피 오차: 일반 가구 1-2.6% (절대 깊이 불필요, 상대 비율만 중요)
+- 상대 치수 오차: 일반 가구 1-2.6% (절대 깊이 불필요, 상대 비율만 중요)
 
-##### 3.5 Inference Steps: 부피 기준 최적점 탐색
+##### 3.5 Inference Steps: 상대 치수 기준 최적점 탐색
 - 기존 Fast-SAM3D: Chamfer Distance 기준 스윕
-- 본 연구: **부피 오차 기준** 스윕
+- 본 연구: **상대 치수 오차 기준** 스윕
 - Stage1 25→14 (50% 가속, 1.5% 오차), Stage2 12→4 (30% 가속, 0.5% 오차)
 - Table 1: Stage1 Steps 테스트 결과
 
@@ -141,9 +141,9 @@ VRAM을 48% 절감하면서 부피 오차를 3% 이내로 유지했다.
 
 ##### 4.2 Table 2: 최적화 단계별 Ablation (가장 중요한 표)
 
-각 최적화를 점진적으로 추가하며 **Original 대비 치수 변화**를 측정:
+각 최적화를 점진적으로 추가하며 **Original SAM-3D 대비 상대 치수 변화**를 측정:
 
-| Configuration | Time/obj | VRAM | W err | D err | H err | V err |
+| Configuration | Time/obj | VRAM | W err | D err | H err | V dev |
 |---------------|---------|------|-------|-------|-------|-------|
 | Original SAM-3D (baseline) | ~150s | 21GB | 0% | 0% | 0% | 0% |
 | + Gaussian-Only | ~94s | 18GB | — | — | — | <0.1% |
@@ -171,7 +171,7 @@ VRAM을 48% 절감하면서 부피 오차를 3% 이내로 유지했다.
 - Gaussian-Only + VRAM Unload는 **수학적으로 동일한 출력** (dead path 제거일 뿐)
   → 37% 속도↑ + 48% VRAM↓ 가 **무손실**
 - Synthetic Pointmap은 1-3% 치수 변화이지만 **NaN/Inf 발생률 0%** (안정성 관점에서 개선)
-- Steps 14/4: 부피 기준 sweet spot. 시각 품질 기준(CD/F-Score)보다 더 공격적 값이 허용됨
+- Steps 14/4: 상대 치수 기준 sweet spot. 시각 품질 기준(CD/F-Score)보다 더 공격적 값이 허용됨
   → **"평가 metric이 바뀌면 최적화 경계도 달라진다"**는 insight
 
 #### 5. 결론 (0.2p)
@@ -199,7 +199,7 @@ VRAM을 48% 절감하면서 부피 오차를 3% 이내로 유지했다.
 
 ### Nice-to-have (1-2개)
 4. **Figure 2**: VRAM 변화 막대 그래프 (21GB → 8.2GB)
-5. **Table 4**: 가구별 부피 오차 (정확도 검증)
+5. **Table 4**: 가구별 상대 치수 오차 (정확도 검증)
 
 ---
 
@@ -329,7 +329,7 @@ VRAM을 48% 절감하면서 부피 오차를 3% 이내로 유지했다.
 본 연구의 claim은 "우리 부피가 실제 가구와 얼마나 같은가"가 **아니라**
 "**최적화해도 원본 SAM-3D의 품질이 유지되는가**"입니다.
 
-절대 부피 정확도(실측 vs AI)는 **SAM-3D 원 논문이 이미 증명**한 것이고,
+3D 복원 정확도(CD, F-Score 등)는 **SAM-3D 원 논문이 이미 검증**한 것이고,
 우리는 그걸 전제로 **"최적화해도 그 품질이 보존됨"만 실증**하면 됩니다.
 
 ```
@@ -371,7 +371,7 @@ Metric: dimension_error(%) = |w₁ - w₀| / w₀ × 100  (w, d, h 각각)
 
 **Primary (필수):**
 1. **치수 오차 (%)**: 각 축(w, d, h)별로 Original vs Optimized 비교
-2. **부피 오차 (%)**: V = w × d × h 기준
+2. **상대 치수 종합 오차 (%)**: V = w × d × h 기반 volume deviation
 3. **추론 시간**: 객체당 초 (baseline vs ours)
 4. **VRAM 사용량**: peak GPU memory (MB)
 
@@ -381,9 +381,9 @@ Metric: dimension_error(%) = |w₁ - w₀| / w₀ × 100  (w, d, h 각각)
 
 #### Ablation Table 설계 (Table 2 — 가장 중요한 표)
 
-각 최적화를 하나씩 추가하면서 **원본 대비 치수 변화**를 측정:
+각 최적화를 하나씩 추가하면서 **Original SAM-3D 대비 상대 치수 변화**를 측정:
 
-| Configuration | Time/obj | VRAM | W err | D err | H err | V err |
+| Configuration | Time/obj | VRAM | W err | D err | H err | V dev |
 |---------------|---------|------|-------|-------|-------|-------|
 | Original SAM-3D (25+25, full) | ~150s | 21GB | 0% | 0% | 0% | 0% |
 | + Gaussian-Only | ~94s | 18GB | ? | ? | ? | ? |
@@ -393,8 +393,10 @@ Metric: dimension_error(%) = |w₁ - w₀| / w₀ × 100  (w, d, h 각각)
 | + SS Step Caching | ~13s | ~8.2GB | ? | ? | ? | ? |
 | **Final (Ours)** | **13s** | **8.2GB** | **?** | **?** | **?** | **<3%** |
 
-> Note: VRAM Unload는 dead-code path 제거이므로 출력에 영향 0%.
-> 치수에 영향을 주는 것은 Synthetic Pointmap, Steps Reduction, Step Caching 3가지.
+> W/D/H err = Original SAM-3D 대비 각 축 상대 치수 오차 (%)
+> V dev = w×d×h 기반 종합 치수 편차 (%)
+> VRAM Unload: dead-code path 제거이므로 출력에 영향 0%.
+> 상대 치수에 영향을 주는 것은 Synthetic Pointmap, Steps Reduction, Step Caching 3가지.
 
 #### 논문에서의 논리 구조
 
