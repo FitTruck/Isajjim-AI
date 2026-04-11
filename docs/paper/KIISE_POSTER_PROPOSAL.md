@@ -99,13 +99,17 @@ VRAM을 48% 절감하면서 상대 치수 오차를 3% 이내로 유지했다.
 ##### 3.1 Task-Aware Pruning의 근거
 각 파이프라인 단계가 OBB 상대 치수에 미치는 영향을 분석:
 
-| 파이프라인 단계 | OBB 치수 영향 | Pruning 가능 여부 | 근거 | VRAM 절감 |
-|---------------|-------------|-----------------|------|----------|
-| mesh 디코딩 (`slat_decoder_mesh`) | 없음 | **완전 제거** | OBB는 Gaussian에서 계산 | **~3-4GB** |
-| `slat_decoder_gs_4` | 없음 | **완전 제거** | 기본 GS decoder로 충분 | **~2-3GB** |
-| texture baking | 없음 | **완전 제거** | 색상은 치수에 영향 없음 | (시간만 절약) |
-| layout post-optimization | 미미 | **비활성화** | test-time optimization (모델 아님), R/t 변화는 OBB 불변, scale 변화는 경험적 <δ | (시간만 절약, VRAM 0) |
-| depth 추정 (`depth_model`, MoGe) | 간접적 | **analytical 대체** | 상대 비율만 중요 | **~1-3GB** |
+| 파이프라인 단계 | OBB 치수 영향 | Pruning 방법 | 근거 | VRAM 절감 |
+|---------------|-------------|-------------|------|----------|
+| mesh 디코딩 (`slat_decoder_mesh`) | 없음 | **모델 언로드** | OBB는 Gaussian에서 계산, mesh 불필요 | **~3-4GB** |
+| `slat_decoder_gs_4` | 없음 | **모델 언로드** | 기본 GS decoder로 충분 | **~2-3GB** |
+| texture baking / mesh postprocess | 없음 | **비활성화** | 색상/메시 후처리는 치수에 영향 없음 | (시간만 절약) |
+| depth 추정 (`depth_model`, MoGe) | 간접적 | **analytical 대체** | 상대 비율만 중요, 절대 깊이 불필요 | **~1-3GB** |
+
+> **참고**: `with_layout_postprocess`는 SAM-3D 원본에서 **이미 기본값이 False**이므로
+> 본 연구의 최적화 대상이 아닙니다. layout post-optimization은 test-time gradient descent로
+> pose/scale을 보정하는 함수이며 (neural network 아님), 활성화해도 VRAM 영향은 없고
+> 추론 시간만 2-5초 추가됩니다.
 
 수식 (rotation/translation 불변성):
 `OBB_extent(R · pts + t) = OBB_extent(pts), ∀ rotation R, translation t`
