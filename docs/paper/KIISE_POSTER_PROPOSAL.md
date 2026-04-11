@@ -28,7 +28,7 @@
 
 ### 한 줄 핵심 주장
 
-> **"상대 치수 추출만 필요한 downstream task에서는, SAM-3D 출력(point cloud)에서 PCA 기반 OBB를 계산하면 치수(w, d, h)가 회전·이동에 불변이므로, mesh 디코딩·자세 정렬·depth 추정 등 OBB 치수에 영향을 주지 않는 파이프라인 단계를 적극적으로 제거할 수 있다. 이를 통해 L4 GPU에서 객체당 150초 → 13초 (11.5×) 가속과 48% VRAM 절감을 training-free로 달성한다."**
+> **"상대 치수 추출만 필요한 downstream task에서는, SAM-3D 파이프라인의 여러 단계가 OBB 상대 치수에 미치는 영향이 제한적이라는 점을 활용하여 적극적 pruning이 가능하다. 구체적으로: (1) mesh 디코딩은 Gaussian point cloud와 무관하므로 완전 제거, (2) depth 추정(MoGe)은 analytical pointmap으로 대체 가능(상대 비율만 중요), (3) layout post-optimization은 주로 rotation/translation을 보정하며(OBB에 불변) scale 변화는 경험적으로 <3%이므로 비활성화 가능. 이를 통해 L4 GPU에서 객체당 150초 → 13초 (11.5×) 가속과 48% VRAM 절감을 training-free로 달성한다."**
 
 ### 왜 이 angle인가
 
@@ -96,11 +96,22 @@ VRAM을 48% 절감하면서 상대 치수 오차를 3% 이내로 유지했다.
 
 #### 3. 제안 방법 (1p)
 
-##### 3.1 Volume Invariance Observation
-- OBB = PCA(point cloud) → extent가 rotation-invariant
-- Canonical pose 불필요, mesh 불필요
-- Gaussian Splatting point cloud만으로 OBB 계산 가능
-- 수식: `OBB_extent(R · pts + t) = OBB_extent(pts), ∀R, t → V = w · d · h 는 pose에 불변`
+##### 3.1 Task-Aware Pruning의 근거
+각 파이프라인 단계가 OBB 상대 치수에 미치는 영향을 분석:
+
+| 파이프라인 단계 | OBB 치수 영향 | Pruning 가능 여부 | 근거 |
+|---------------|-------------|-----------------|------|
+| mesh 디코딩 | 없음 | **완전 제거** | OBB는 Gaussian point cloud에서 계산, mesh 불필요 |
+| texture baking | 없음 | **완전 제거** | 색상은 치수에 영향 없음 |
+| layout post-optimization (R, t 부분) | 없음 | **비활성화** | PCA OBB extent는 rotation/translation에 불변 |
+| layout post-optimization (scale 부분) | 있으나 미미 | **비활성화** | 경험적으로 <3% (SS Generator 초기 예측이 충분히 정확) |
+| depth 추정 (MoGe) | 간접적 | **analytical 대체** | 상대 비율만 중요, 절대 깊이 불필요 |
+
+수식 (rotation/translation 불변성):
+`OBB_extent(R · pts + t) = OBB_extent(pts), ∀ rotation R, translation t`
+> 단, **scale은 불변이 아님**: `OBB_extent(s · pts) = s · OBB_extent(pts)`.
+> layout post-optimization의 scale 보정이 치수에 영향을 줄 수 있으나,
+> 실험에서 비활성화 시 <3% 편차로 확인됨 (SS Generator 초기 scale의 정확도가 높음).
 
 ##### 3.2 Gaussian-Only Decoding
 - SAM-3D 기본: `decode_formats = [gaussian, mesh, glb]`
