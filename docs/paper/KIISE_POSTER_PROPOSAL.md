@@ -28,7 +28,7 @@
 
 ### 한 줄 핵심 주장
 
-> **"부피 계산만 필요한 downstream task에서는, SAM-3D의 출력이 회전·스케일에 불변인 OBB로 귀결되므로, 이 불변성을 역으로 활용하여 inference pipeline의 상당 부분을 제거·단순화할 수 있다. 결과적으로 L4 GPU에서 객체당 150초 → 13초 (11.5×) 가속과 48% VRAM 절감을 training-free로 달성한다."**
+> **"상대 치수 추출만 필요한 downstream task에서는, SAM-3D 출력(point cloud)에서 PCA 기반 OBB를 계산하면 치수(w, d, h)가 회전·이동에 불변이므로, mesh 디코딩·자세 정렬·depth 추정 등 OBB 치수에 영향을 주지 않는 파이프라인 단계를 적극적으로 제거할 수 있다. 이를 통해 L4 GPU에서 객체당 150초 → 13초 (11.5×) 가속과 48% VRAM 절감을 training-free로 달성한다."**
 
 ### 왜 이 angle인가
 
