@@ -48,25 +48,43 @@ SAM-3D는 diffusion model이므로 같은 입력이라도 seed에 따라 출력�
 2. **마스크 품질**: YOLOE-seg로 탐지 가능한 명확한 객체
 3. **이삿짐 서비스 대표성**: 실제 견적 이미지와 유사한 조건 (실내, 자연광, 부분 가려짐)
 
-### 제안 구성 (최소 3장, 권장 5-10장)
+### 데이터셋 규모
 
-| # | 가구 | 특성 | 이미지 소스 |
-|---|------|------|-----------|
-| 1 | Nightstand (협탁) | 소형, 정육면체에 가까움 | 서비스 이미지 or 공개 |
-| 2 | Bed (침대) | 대형, 납작한 형태 (h << w, d) | 서비스 이미지 or 공개 |
-| 3 | Television (TV) | 극박 (depth ≈ 0.02), 높은 variance 예상 | 서비스 이미지 or 공개 |
-| 4 | Sofa (소파) | 중형, 비대칭 형태 (등받이) | 서비스 이미지 or 공개 |
-| 5 | Dining Table (식탁) | 다리 구조, 빈 공간 있음 | 서비스 이미지 or 공개 |
+**최소 50개 객체, 8개 이상 카테고리** 확보하여 통계적 신뢰성 확보.
+
+| 카테고리 | 목표 수량 | 특성 | 비고 |
+|---------|----------|------|------|
+| Bed (침대) | 6-8장 | 대형, 납작 (h << w, d) | single/double/queen 다양하게 |
+| Sofa (소파) | 6-8장 | 중형, 비대칭 (등받이) | 1인/2인/3인 포함 |
+| Chair (의자) | 6-8장 | 소형, 다리 구조 | 사무용/식탁용/안락의자 |
+| Table (테이블) | 6-8장 | 중형, 빈 공간 (다리 사이) | 식탁/책상/커피테이블 |
+| Nightstand (협탁) | 4-6장 | 소형, 정육면체에 가까움 | |
+| Television (TV) | 4-6장 | 극박 (depth ≈ 0.02) | 높은 variance 예상 |
+| Bookshelf (책장) | 4-6장 | 세로로 긴 형태 | |
+| Dresser/Wardrobe (서랍장/옷장) | 4-6장 | 대형, 직육면체 | |
+| **합계** | **~50장** | **8 카테고리** | |
+
+### 이미지 소스
+
+| 소스 | 수량 | 장점 | 단점 |
+|------|------|------|------|
+| **이삿짐 서비스 실제 이미지** | 20-30장 | 실서비스 context, practical impact | 비공개, 재현 불가 |
+| **공개 데이터셋 (Pix3D/ABO)** | 20-30장 | 재현 가능, 심사자 검증 가능 | 이삿짐 context 약함 |
+| **합계** | **~50장** | hybrid로 양쪽 장점 | |
+
+> **Pix3D** (pix3d.csail.mit.edu): chair, bed, desk, sofa, table, bookcase, wardrobe — 가구 7개 카테고리, 실제 이미지 + 정확한 3D 모델 pair
+>
+> **ABO** (Amazon Berkeley Objects): 가구 카테고리 풍부, 상품 사양에 실측 치수 포함
 
 ---
 
 ## 실행 절차
 
-### Phase 1: Seed Variance 측정 (Original SAM-3D)
+### Phase 1: Seed Variance 측정 (Original SAM-3D, 250회)
 
 ```
-for each image_i in test_images:
-    for seed_k in [1, 2, 3, ..., 10]:
+for each image_i in test_images:           # 50 images
+    for seed_k in [1, 2, 3, 4, 5]:         # 5 seeds
         output = original_sam3d.run(
             image=image_i,
             mask=mask_i,
@@ -84,10 +102,10 @@ for each image_i in test_images:
         record(image_i, seed_k, obb.width, obb.depth, obb.height)
 ```
 
-### Phase 2: Optimization Deviation 측정 (Optimized SAM-3D)
+### Phase 2: Optimization Deviation 측정 (Optimized SAM-3D, 50회)
 
 ```
-for each image_i in test_images:
+for each image_i in test_images:           # 50 images
     # seed 고정 (예: seed=42)
     output = optimized_sam3d.run(
         image=image_i,
@@ -237,16 +255,21 @@ Original과 Optimized 양쪽의 seed variance를 비교하면:
 
 | 항목 | 수량 | 비고 |
 |------|------|------|
-| GPU | L4 1대 (또는 A100) | SAM-3D full model 로드 (~21GB) |
-| 테스트 이미지 | 5장 | YOLOE-seg 마스크 포함 |
-| Phase 1 실행 횟수 | 5 images × 10 seeds = **50회** | Original SAM-3D |
-| Phase 2 실행 횟수 | 5 images × 1 seed = **5회** | Optimized SAM-3D |
-| 예상 시간 (Phase 1) | 50 × ~150초 = **~2시간** | Original은 느림 |
-| 예상 시간 (Phase 2) | 5 × ~13초 = **~1분** | Optimized는 빠름 |
-| 총 예상 시간 | **~2시간** | Phase 1이 지배적 |
+| GPU | L4 4대 (또는 A100 1-2대) | SAM-3D full model 로드 (~21GB/GPU) |
+| 테스트 이미지 | **50장** (8 카테고리) | YOLOE-seg 마스크 포함 |
+| Phase 1 실행 횟수 | 50 images × 5 seeds = **250회** | Original SAM-3D |
+| Phase 2 실행 횟수 | 50 images × 1 seed = **50회** | Optimized SAM-3D |
+| 예상 시간 (Phase 1, 단일 GPU) | 250 × ~150초 = **~10.4시간** | Original은 느림 |
+| 예상 시간 (Phase 1, 4× GPU 병렬) | **~2.5시간** | 배치 병렬 실행 |
+| 예상 시간 (Phase 2) | 50 × ~13초 = **~11분** | Optimized는 빠름 |
+| **총 예상 시간 (4× GPU)** | **~3시간** | Phase 1이 지배적 |
 
 > Phase 1이 느리므로 **밤에 배치로 돌리는 것** 권장.
-> GPU 서버에서 스크립트 실행 후 결과만 수집.
+> 4 GPU 병렬이면 ~3시간이면 끝남. 단일 GPU면 ~11시간.
+>
+> **통계적 신뢰성**: 50개 객체 × 5 seeds = 250개 측정점.
+> 카테고리당 평균 6개 객체 → 카테고리별 분산도 보고 가능.
+> 논문에서 "8개 가구 카테고리, 50개 객체에 대해 측정" 기술 가능.
 
 ---
 
@@ -257,29 +280,32 @@ Original과 Optimized 양쪽의 seed variance를 비교하면:
 # experiments/seed_variance.py
 #
 # 1. Original SAM-3D 로드 (compile=False, full decoder)
-# 2. 테스트 이미지 + 마스크 로드
-# 3. seed 1~10으로 각각 실행 → PLY 저장
+# 2. 테스트 이미지 50장 + 마스크 로드
+# 3. seed 1~5로 각각 실행 → PLY 저장 (250회)
 # 4. PLY → PCA OBB → (w, d, h) 기록
 # 5. CSV 출력
 #
 # 실행 방법:
 #   python experiments/seed_variance.py \
-#     --images imgs/nightstand.png imgs/bed.png imgs/tv.png \
-#     --masks masks/nightstand.png masks/bed.png masks/tv.png \
-#     --seeds 10 \
-#     --output results/seed_variance.csv
+#     --image-dir datasets/furniture_50/ \
+#     --mask-dir datasets/furniture_50_masks/ \
+#     --seeds 5 \
+#     --output results/seed_variance.csv \
+#     --gpu-ids 0,1,2,3
 ```
 
 ---
 
 ## 체크리스트
 
-- [ ] 테스트 이미지 5장 + 마스크 준비
+- [ ] **데이터셋 구축**: 50장 확보 (서비스 이미지 20-30장 + Pix3D/ABO 20-30장)
+- [ ] 각 이미지에 대해 YOLOE-seg 마스크 생성
 - [ ] GPU 서버에서 Original SAM-3D(25+25 steps, full decoder) 실행 가능 확인
-- [ ] Phase 1 실행 (50회, ~2시간)
-- [ ] Phase 2 실행 (5회, ~1분)
-- [ ] Table B (Seed Variance) 작성 → δ 확정
+- [ ] Phase 1 배치 실행 (250회, 4×GPU ~2.5시간)
+- [ ] Phase 2 배치 실행 (50회, ~11분)
+- [ ] Table B (Seed Variance 카테고리별) 작성 → δ 확정
 - [ ] Table C (Optimization Deviation vs δ) 작성 → 판정
+- [ ] 카테고리별 분석 (TV 등 극박 객체 별도 보고)
 - [ ] 논문 Table 1/4에 반영
 - [ ] (Optional) Ablation 실험
 - [ ] (Optional) Optimized SAM-3D의 seed variance도 측정
