@@ -685,6 +685,20 @@ if len(sys.argv) >= 3:
 
 SAM-3D의 MoGe 모듈이 카메라 intrinsics를 추정할 때 실패하거나 NaN/Inf 값을 생성하는 경우가 있었습니다.
 
+### 왜 MoGe를 대체해도 되는가
+
+MoGe가 **절대 depth(미터 단위)**를 정확히 예측하면, pinhole camera 공식(`X = (u-cx)/f × Z`)으로 각 픽셀의 절대 3D 좌표를 복원할 수 있고, 이론상 OBB 치수도 **절대 길이(미터)**로 나옵니다.
+
+그러나 실제로는 절대 길이를 **신뢰할 수 없습니다**:
+
+1. **단안(monocular) depth 추정의 근본적 한계**: 이미지 1장에서 depth를 추정하는 건 scale ambiguity가 존재합니다. 사진 속 소파가 실제 2m인지 20cm 모형인지 단안 depth만으로는 구분 불가능합니다.
+2. **카메라 intrinsics 미지수**: 이삿짐 서비스에서는 고객이 **어떤 스마트폰으로 어떤 설정으로** 촬영했는지 알 수 없어 정확한 focal length(fx, fy)를 모릅니다. Intrinsics가 틀리면 depth가 정확해도 3D 좌표가 왜곡됩니다.
+3. **MoGe 자체 오차**: MoGe는 학습 기반 추정이므로 out-of-distribution 이미지(실내 가구 사진)에서 scale 오차가 커질 수 있습니다.
+
+**그러나 OBB 상대 치수(w:d:h 비율)는 보존됩니다.** 소파 사진에서 "가로가 세로의 2.5배"라는 비율은 절대 depth가 맞든 틀리든 이미지 자체에서 이미 결정되기 때문입니다. SAM-3D의 diffusion model은 pointmap을 조건(condition)으로 받지만, 출력 형상의 **축 간 비율**은 주로 **이미지 내용**에 의해 결정됩니다.
+
+따라서: **어차피 절대 길이를 신뢰할 수 없으므로, 처음부터 절대 depth를 포기하고 `Z=1` 균일 평면으로 대체해도 상대 치수(w:d:h 비율)는 보존됩니다.**
+
 ### 해결책
 
 ```python
@@ -712,9 +726,12 @@ def make_synthetic_pointmap(image, z=1.0, f=None):
 
 ### 효과
 
-- **안정성 향상**: MoGe intrinsics recovery 실패 방지
-- **NaN/Inf 제거**: 유효한 좌표값 보장
+- **안정성 향상**: MoGe intrinsics recovery 실패 방지 (NaN/Inf 발생률 0%)
+- **VRAM 절감**: MoGe 모델(~1-3GB) GPU에서 언로드 가능 ([Section 11](#11-vram-최적화-2026-03-18))
 - **일관된 결과**: 모든 이미지에서 동일한 방식으로 pointmap 생성
+- **상대 치수 보존**: 절대 depth를 포기하되, OBB 축 간 비율(w:d:h)은 보존됨 (일반 가구 1-2.6% 편차)
+
+> **핵심**: MoGe가 절대 depth를 예측하면 이론상 절대 3D 크기를 얻을 수 있지만, 단안 depth 추정의 scale ambiguity + 카메라 intrinsics 미지수 때문에 **실제로는 절대 길이를 신뢰할 수 없습니다.** 따라서 비율만 보존하는 Synthetic Pointmap으로 대체해도 downstream task(OBB 상대 치수 추출)에는 영향이 제한적입니다.
 
 ---
 
