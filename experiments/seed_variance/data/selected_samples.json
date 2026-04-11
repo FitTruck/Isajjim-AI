@@ -1,0 +1,552 @@
+[
+  {
+    "category": "bed",
+    "img": "img/bed/0342.jpg",
+    "mask": "mask/bed/0342.png",
+    "model": "model/bed/IKEA_HEMNES_1/model.obj",
+    "img_size": [
+      950,
+      633
+    ],
+    "mask_pixels": 143349
+  },
+  {
+    "category": "bed",
+    "img": "img/bed/0262.jpg",
+    "mask": "mask/bed/0262.png",
+    "model": "model/bed/IKEA_FJELLSE_2/model.obj",
+    "img_size": [
+      1500,
+      1028
+    ],
+    "mask_pixels": 460013
+  },
+  {
+    "category": "bed",
+    "img": "img/bed/0961.jpg",
+    "mask": "mask/bed/0961.png",
+    "model": "model/bed/IKEA_TROMSO/model.obj",
+    "img_size": [
+      550,
+      650
+    ],
+    "mask_pixels": 69699
+  },
+  {
+    "category": "bed",
+    "img": "img/bed/0025.png",
+    "mask": "mask/bed/0025.png",
+    "model": "model/bed/IKEA_MALM_3/model.obj",
+    "img_size": [
+      1024,
+      768
+    ],
+    "mask_pixels": 285164
+  },
+  {
+    "category": "bed",
+    "img": "img/bed/0187.jpg",
+    "mask": "mask/bed/0187.png",
+    "model": "model/bed/IKEA_BRIMNES_2/model.obj",
+    "img_size": [
+      2000,
+      2000
+    ],
+    "mask_pixels": 993883
+  },
+  {
+    "category": "bed",
+    "img": "img/bed/0887.jpg",
+    "mask": "mask/bed/0887.png",
+    "model": "model/bed/IKEA_NORDLI/model.obj",
+    "img_size": [
+      696,
+      520
+    ],
+    "mask_pixels": 167716
+  },
+  {
+    "category": "bed",
+    "img": "img/bed/0749.jpg",
+    "mask": "mask/bed/0749.png",
+    "model": "model/bed/IKEA_MALM_1/model.obj",
+    "img_size": [
+      2000,
+      2000
+    ],
+    "mask_pixels": 1339176
+  },
+  {
+    "category": "bed",
+    "img": "img/bed/0362.jpeg",
+    "mask": "mask/bed/0362.png",
+    "model": "model/bed/IKEA_HEMNES_2/model.obj",
+    "img_size": [
+      1500,
+      1500
+    ],
+    "mask_pixels": 726682
+  },
+  {
+    "category": "sofa",
+    "img": "img/sofa/1506.jpg",
+    "mask": "mask/sofa/1506.png",
+    "model": "model/sofa/IKEA_SATER/model.obj",
+    "img_size": [
+      800,
+      598
+    ],
+    "mask_pixels": 189858
+  },
+  {
+    "category": "sofa",
+    "img": "img/sofa/0525.jpg",
+    "mask": "mask/sofa/0525.png",
+    "model": "model/sofa/IKEA_KARLSTAD_2/model.obj",
+    "img_size": [
+      800,
+      600
+    ],
+    "mask_pixels": 102602
+  },
+  {
+    "category": "sofa",
+    "img": "img/sofa/1609.jpg",
+    "mask": "mask/sofa/1609.png",
+    "model": "model/sofa/IKEA_SKOGABY/model.obj",
+    "img_size": [
+      697,
+      523
+    ],
+    "mask_pixels": 123504
+  },
+  {
+    "category": "sofa",
+    "img": "img/sofa/0446.jpg",
+    "mask": "mask/sofa/0446.png",
+    "model": "model/sofa/IKEA_KARLSTAD_1/model.obj",
+    "img_size": [
+      1280,
+      720
+    ],
+    "mask_pixels": 294292
+  },
+  {
+    "category": "sofa",
+    "img": "img/sofa/0677.jpg",
+    "mask": "mask/sofa/0677.png",
+    "model": "model/sofa/IKEA_KARLSTAD_4/model.obj",
+    "img_size": [
+      736,
+      549
+    ],
+    "mask_pixels": 88142
+  },
+  {
+    "category": "sofa",
+    "img": "img/sofa/1943.jpg",
+    "mask": "mask/sofa/1943.png",
+    "model": "model/sofa/IKEA_VRETA/model.obj",
+    "img_size": [
+      1200,
+      675
+    ],
+    "mask_pixels": 332690
+  },
+  {
+    "category": "sofa",
+    "img": "img/sofa/1731.jpg",
+    "mask": "mask/sofa/1731.png",
+    "model": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj",
+    "img_size": [
+      1024,
+      768
+    ],
+    "mask_pixels": 469046
+  },
+  {
+    "category": "sofa",
+    "img": "img/sofa/1859.jpg",
+    "mask": "mask/sofa/1859.png",
+    "model": "model/sofa/IKEA_TIDAFORS/model.obj",
+    "img_size": [
+      600,
+      600
+    ],
+    "mask_pixels": 95739
+  },
+  {
+    "category": "chair",
+    "img": "img/chair/0134.jpg",
+    "mask": "mask/chair/0134.png",
+    "model": "model/chair/SS_003/model.obj",
+    "img_size": [
+      3024,
+      4032
+    ],
+    "mask_pixels": 1643083
+  },
+  {
+    "category": "chair",
+    "img": "img/chair/0434.jpg",
+    "mask": "mask/chair/0434.png",
+    "model": "model/chair/SS_047/model.obj",
+    "img_size": [
+      3024,
+      4032
+    ],
+    "mask_pixels": 5265254
+  },
+  {
+    "category": "chair",
+    "img": "img/chair/0479.jpg",
+    "mask": "mask/chair/0479.png",
+    "model": "model/chair/SS_059/model.obj",
+    "img_size": [
+      3024,
+      4032
+    ],
+    "mask_pixels": 5169707
+  },
+  {
+    "category": "chair",
+    "img": "img/chair/2615.jpg",
+    "mask": "mask/chair/2615.png",
+    "model": "model/chair/IKEA_MARKUS/model_-1.33853767195_-0.0281107832252.obj",
+    "img_size": [
+      1200,
+      1200
+    ],
+    "mask_pixels": 265085
+  },
+  {
+    "category": "chair",
+    "img": "img/chair/3275.jpeg",
+    "mask": "mask/chair/3275.png",
+    "model": "model/chair/IKEA_SNILLE_1/model_0.0201792515943_0.0919684294267.obj",
+    "img_size": [
+      600,
+      600
+    ],
+    "mask_pixels": 60216
+  },
+  {
+    "category": "chair",
+    "img": "img/chair/0265.jpg",
+    "mask": "mask/chair/0265.png",
+    "model": "model/chair/SS_019/model.obj",
+    "img_size": [
+      3024,
+      4032
+    ],
+    "mask_pixels": 2844713
+  },
+  {
+    "category": "chair",
+    "img": "img/chair/3346.jpg",
+    "mask": "mask/chair/3346.png",
+    "model": "model/chair/IKEA_SOLSTA_OLARP/model.obj",
+    "img_size": [
+      570,
+      760
+    ],
+    "mask_pixels": 227605
+  },
+  {
+    "category": "chair",
+    "img": "img/chair/2337.jpg",
+    "mask": "mask/chair/2337.png",
+    "model": "model/chair/IKEA_JULES_2/model.obj",
+    "img_size": [
+      1024,
+      768
+    ],
+    "mask_pixels": 12981
+  },
+  {
+    "category": "table",
+    "img": "img/table/0106.jpg",
+    "mask": "mask/table/0106.png",
+    "model": "model/table/IKEA_BJORKUDDEN_1/model.obj",
+    "img_size": [
+      600,
+      800
+    ],
+    "mask_pixels": 121222
+  },
+  {
+    "category": "table",
+    "img": "img/table/1074.jpg",
+    "mask": "mask/table/1074.png",
+    "model": "model/table/IKEA_LACK_3/model.obj",
+    "img_size": [
+      1200,
+      1200
+    ],
+    "mask_pixels": 335912
+  },
+  {
+    "category": "table",
+    "img": "img/table/1733.png",
+    "mask": "mask/table/1733.png",
+    "model": "model/table/IKEA_VEJMON_2/model.obj",
+    "img_size": [
+      527,
+      572
+    ],
+    "mask_pixels": 30556
+  },
+  {
+    "category": "table",
+    "img": "img/table/0616.jpg",
+    "mask": "mask/table/0616.png",
+    "model": "model/table/IKEA_HEMNES_1/model.obj",
+    "img_size": [
+      768,
+      1024
+    ],
+    "mask_pixels": 242893
+  },
+  {
+    "category": "table",
+    "img": "img/table/0845.jpg",
+    "mask": "mask/table/0845.png",
+    "model": "model/table/IKEA_ISALA_2/model.obj",
+    "img_size": [
+      1500,
+      1500
+    ],
+    "mask_pixels": 395763
+  },
+  {
+    "category": "table",
+    "img": "img/table/1280.jpg",
+    "mask": "mask/table/1280.png",
+    "model": "model/table/IKEA_NESNA/model.obj",
+    "img_size": [
+      720,
+      960
+    ],
+    "mask_pixels": 176043
+  },
+  {
+    "category": "table",
+    "img": "img/table/0072.png",
+    "mask": "mask/table/0072.png",
+    "model": "model/table/IKEA_LACK_1/model.obj",
+    "img_size": [
+      768,
+      884
+    ],
+    "mask_pixels": 329930
+  },
+  {
+    "category": "table",
+    "img": "img/table/0128.jpg",
+    "mask": "mask/table/0128.png",
+    "model": "model/table/IKEA_BJORKUDDEN_2/model.obj",
+    "img_size": [
+      600,
+      1066
+    ],
+    "mask_pixels": 109116
+  },
+  {
+    "category": "desk",
+    "img": "img/desk/0005.jpg",
+    "mask": "mask/desk/0005.png",
+    "model": "model/desk/IKEA_BESTA_1/model.obj",
+    "img_size": [
+      1024,
+      768
+    ],
+    "mask_pixels": 314773
+  },
+  {
+    "category": "desk",
+    "img": "img/desk/0103.jpg",
+    "mask": "mask/desk/0103.png",
+    "model": "model/desk/IKEA_EXPEDIT_1/model.obj",
+    "img_size": [
+      1024,
+      768
+    ],
+    "mask_pixels": 264039
+  },
+  {
+    "category": "desk",
+    "img": "img/desk/0584.jpg",
+    "mask": "mask/desk/0584.png",
+    "model": "model/desk/IKEA_MICKE_2/model.obj",
+    "img_size": [
+      600,
+      600
+    ],
+    "mask_pixels": 73479
+  },
+  {
+    "category": "desk",
+    "img": "img/desk/0033.jpg",
+    "mask": "mask/desk/0033.png",
+    "model": "model/desk/IKEA_BESTA_2/model.obj",
+    "img_size": [
+      1080,
+      1621
+    ],
+    "mask_pixels": 56353
+  },
+  {
+    "category": "desk",
+    "img": "img/desk/0231.jpg",
+    "mask": "mask/desk/0231.png",
+    "model": "model/desk/IKEA_HEMNES/model.obj",
+    "img_size": [
+      1024,
+      614
+    ],
+    "mask_pixels": 254672
+  },
+  {
+    "category": "desk",
+    "img": "img/desk/0679.jpeg",
+    "mask": "mask/desk/0679.png",
+    "model": "model/desk/IKEA_VITTSJO/model.obj",
+    "img_size": [
+      2000,
+      1125
+    ],
+    "mask_pixels": 80661
+  },
+  {
+    "category": "bookcase",
+    "img": "img/bookcase/0007.jpg",
+    "mask": "mask/bookcase/0007.png",
+    "model": "model/bookcase/IKEA_BILLY_1/model.obj",
+    "img_size": [
+      625,
+      801
+    ],
+    "mask_pixels": 221393
+  },
+  {
+    "category": "bookcase",
+    "img": "img/bookcase/0229.jpg",
+    "mask": "mask/bookcase/0229.png",
+    "model": "model/bookcase/IKEA_LACK_1/model.obj",
+    "img_size": [
+      1024,
+      699
+    ],
+    "mask_pixels": 76690
+  },
+  {
+    "category": "bookcase",
+    "img": "img/bookcase/0292.jpg",
+    "mask": "mask/bookcase/0292.png",
+    "model": "model/bookcase/IKEA_LACK_3/model.obj",
+    "img_size": [
+      852,
+      1136
+    ],
+    "mask_pixels": 145938
+  },
+  {
+    "category": "bookcase",
+    "img": "img/bookcase/0339.jpg",
+    "mask": "mask/bookcase/0339.png",
+    "model": "model/bookcase/IKEA_BILLY_2/model.obj",
+    "img_size": [
+      768,
+      1024
+    ],
+    "mask_pixels": 217947
+  },
+  {
+    "category": "bookcase",
+    "img": "img/bookcase/0331.jpg",
+    "mask": "mask/bookcase/0331.png",
+    "model": "model/bookcase/IKEA_BILLY_6/model.obj",
+    "img_size": [
+      1024,
+      768
+    ],
+    "mask_pixels": 120283
+  },
+  {
+    "category": "bookcase",
+    "img": "img/bookcase/0187.jpg",
+    "mask": "mask/bookcase/0187.png",
+    "model": "model/bookcase/IKEA_HEMNES/model.obj",
+    "img_size": [
+      2000,
+      2000
+    ],
+    "mask_pixels": 1124788
+  },
+  {
+    "category": "wardrobe",
+    "img": "img/wardrobe/0046.jpg",
+    "mask": "mask/wardrobe/0046.png",
+    "model": "model/wardrobe/IKEA_ANEBODA_1/model.obj",
+    "img_size": [
+      675,
+      1200
+    ],
+    "mask_pixels": 384345
+  },
+  {
+    "category": "wardrobe",
+    "img": "img/wardrobe/0234.jpg",
+    "mask": "mask/wardrobe/0234.png",
+    "model": "model/wardrobe/IKEA_ODDA_2/model.obj",
+    "img_size": [
+      596,
+      842
+    ],
+    "mask_pixels": 166759
+  },
+  {
+    "category": "wardrobe",
+    "img": "img/wardrobe/0142.jpg",
+    "mask": "mask/wardrobe/0142.png",
+    "model": "model/wardrobe/IKEA_DOMBAS/model.obj",
+    "img_size": [
+      700,
+      525
+    ],
+    "mask_pixels": 38103
+  },
+  {
+    "category": "wardrobe",
+    "img": "img/wardrobe/0102.jpg",
+    "mask": "mask/wardrobe/0102.png",
+    "model": "model/wardrobe/IKEA_ANEBODA_2/model.obj",
+    "img_size": [
+      576,
+      1024
+    ],
+    "mask_pixels": 424219
+  },
+  {
+    "category": "wardrobe",
+    "img": "img/wardrobe/0214.jpg",
+    "mask": "mask/wardrobe/0214.png",
+    "model": "model/wardrobe/IKEA_HEMNES/model.obj",
+    "img_size": [
+      747,
+      922
+    ],
+    "mask_pixels": 514320
+  },
+  {
+    "category": "wardrobe",
+    "img": "img/wardrobe/0126.jpg",
+    "mask": "mask/wardrobe/0126.png",
+    "model": "model/wardrobe/IKEA_DOMBAS/model.obj",
+    "img_size": [
+      1024,
+      575
+    ],
+    "mask_pixels": 166474
+  }
+]

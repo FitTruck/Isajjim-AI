@@ -1,0 +1,12 @@
+{
+  "delta": 4.486625577701992,
+  "seed_dev_mean": 3.6598591642478278,
+  "pure_opt_dev_mean": 3.2818743118364013,
+  "mixed_dev_mean": 4.602255483878979,
+  "seed_dev_median": 1.9141272152110342,
+  "pure_opt_dev_median": 1.4122709061143386,
+  "mixed_dev_median": 2.655935825328652,
+  "pure_opt_within_delta": 125,
+  "total_axes": 150,
+  "pure_opt_within_ratio": 0.8333333333333334
+}
