@@ -61,6 +61,13 @@ htmlcov/
 # Cache directories
 .pytest_cache/
 .ruff_cache/
+.cache/
+
+# Experiment data (large, download via setup)
+experiments/seed_variance/data/pix3d/img/
+experiments/seed_variance/data/pix3d/mask/
+experiments/seed_variance/data/pix3d/model/
+experiments/seed_variance/data/pix3d/pix3d.json
 
 # TorchScript files (CLIP models - deprecated)
 *.ts
