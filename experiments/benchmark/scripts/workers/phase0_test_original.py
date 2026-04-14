@@ -53,7 +53,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Paths
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 PIX3D_DIR = PROJECT_ROOT / "experiments" / "seed_variance" / "data" / "pix3d"
 SAM3D_NOTEBOOK_DIR = PROJECT_ROOT / "sam-3d-objects" / "notebook"
 SAM3D_CONFIG = PROJECT_ROOT / "sam-3d-objects" / "checkpoints" / "hf" / "pipeline.yaml"

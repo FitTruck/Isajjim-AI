@@ -1,0 +1,110 @@
+[
+  {
+    "sample_id": 413,
+    "category": "bed",
+    "model_path": "model/bed/IKEA_MALM_3/model.obj",
+    "avg_rde": 5.12
+  },
+  {
+    "sample_id": 429,
+    "category": "bed",
+    "model_path": "model/bed/IKEA_HEMNES_3/model.obj",
+    "avg_rde": 10.14
+  },
+  {
+    "sample_id": 469,
+    "category": "bookcase",
+    "model_path": "model/bookcase/IKEA_HEMNES/model.obj",
+    "avg_rde": 5.12
+  },
+  {
+    "sample_id": 466,
+    "category": "bookcase",
+    "model_path": "model/bookcase/IKEA_EXPEDIT_2/model.obj",
+    "avg_rde": 11.75
+  },
+  {
+    "sample_id": 177,
+    "category": "chair",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj",
+    "avg_rde": 4.22
+  },
+  {
+    "sample_id": 147,
+    "category": "chair",
+    "model_path": "model/chair/IKEA_EKTORP_2/model.obj",
+    "avg_rde": 6.33
+  },
+  {
+    "sample_id": 455,
+    "category": "desk",
+    "model_path": "model/desk/IKEA_LAIVA/model.obj",
+    "avg_rde": 6.46
+  },
+  {
+    "sample_id": 457,
+    "category": "desk",
+    "model_path": "model/desk/IKEA_VITTSJO/model.obj",
+    "avg_rde": 11.25
+  },
+  {
+    "sample_id": 495,
+    "category": "misc",
+    "model_path": "model/misc/SS_04/model.obj",
+    "avg_rde": 2.92
+  },
+  {
+    "sample_id": 493,
+    "category": "misc",
+    "model_path": "model/misc/SS_09/model.obj",
+    "avg_rde": 6.33
+  },
+  {
+    "sample_id": 276,
+    "category": "sofa",
+    "model_path": "model/sofa/IKEA_MANSTAD/model.obj",
+    "avg_rde": 5.07
+  },
+  {
+    "sample_id": 303,
+    "category": "sofa",
+    "model_path": "model/sofa/IKEA_KARLSTAD_3/model.obj",
+    "avg_rde": 7.89
+  },
+  {
+    "sample_id": 317,
+    "category": "table",
+    "model_path": "model/table/IKEA_INGATORP/model.obj",
+    "avg_rde": 3.04
+  },
+  {
+    "sample_id": 335,
+    "category": "table",
+    "model_path": "model/table/IKEA_MALM_1/model.obj",
+    "avg_rde": 5.8
+  },
+  {
+    "sample_id": 497,
+    "category": "tool",
+    "model_path": "model/tool/SS_8/model.obj",
+    "avg_rde": 10.35
+  },
+  {
+    "sample_id": 499,
+    "category": "tool",
+    "model_path": "model/tool/SS_6/model.obj",
+    "avg_rde": 20.09
+  },
+  {
+    "sample_id": 479,
+    "category": "wardrobe",
+    "model_path": "model/wardrobe/IKEA_ANEBODA_1/model.obj",
+    "avg_rde": 3.79
+  },
+  {
+    "sample_id": 484,
+    "category": "wardrobe",
+    "model_path": "model/wardrobe/IKEA_DOMBAS/model.obj",
+    "avg_rde": 5.33
+  }
+]

@@ -69,6 +69,10 @@ experiments/seed_variance/data/pix3d/mask/
 experiments/seed_variance/data/pix3d/model/
 experiments/seed_variance/data/pix3d/pix3d.json
 
+# Benchmark large artifacts (PLY point clouds, visual comparison renders)
+experiments/benchmark/results/ply_for_cd/
+experiments/benchmark/results/visual_compare/
+
 # TorchScript files (CLIP models - deprecated)
 *.ts
 !simulation/binPacking/**/*.ts

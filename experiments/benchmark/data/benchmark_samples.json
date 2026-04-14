@@ -1,0 +1,3502 @@
+[
+  {
+    "sample_id": 0,
+    "category": "chair",
+    "img_path": "img/chair/3194.jpg",
+    "mask_path": "mask/chair/3194.png",
+    "model_path": "model/chair/IKEA_SIGURD/model.obj"
+  },
+  {
+    "sample_id": 1,
+    "category": "chair",
+    "img_path": "img/chair/0533.jpg",
+    "mask_path": "mask/chair/0533.png",
+    "model_path": "model/chair/SS_069/model.obj"
+  },
+  {
+    "sample_id": 2,
+    "category": "chair",
+    "img_path": "img/chair/0171.jpg",
+    "mask_path": "mask/chair/0171.png",
+    "model_path": "model/chair/SS_008/model.obj"
+  },
+  {
+    "sample_id": 3,
+    "category": "chair",
+    "img_path": "img/chair/3815.jpg",
+    "mask_path": "mask/chair/3815.png",
+    "model_path": "model/chair/IKEA_VILMAR_2/model.obj"
+  },
+  {
+    "sample_id": 4,
+    "category": "chair",
+    "img_path": "img/chair/1257.jpg",
+    "mask_path": "mask/chair/1257.png",
+    "model_path": "model/chair/SS_149/model.obj"
+  },
+  {
+    "sample_id": 5,
+    "category": "chair",
+    "img_path": "img/chair/1130.jpg",
+    "mask_path": "mask/chair/1130.png",
+    "model_path": "model/chair/SS_137/model.obj"
+  },
+  {
+    "sample_id": 6,
+    "category": "chair",
+    "img_path": "img/chair/1037.jpg",
+    "mask_path": "mask/chair/1037.png",
+    "model_path": "model/chair/SS_126/model.obj"
+  },
+  {
+    "sample_id": 7,
+    "category": "chair",
+    "img_path": "img/chair/0658.jpg",
+    "mask_path": "mask/chair/0658.png",
+    "model_path": "model/chair/SS_086/model.obj"
+  },
+  {
+    "sample_id": 8,
+    "category": "chair",
+    "img_path": "img/chair/3793.jpg",
+    "mask_path": "mask/chair/3793.png",
+    "model_path": "model/chair/IKEA_VILMAR_2/model.obj"
+  },
+  {
+    "sample_id": 9,
+    "category": "chair",
+    "img_path": "img/chair/0493.jpg",
+    "mask_path": "mask/chair/0493.png",
+    "model_path": "model/chair/SS_061/model.obj"
+  },
+  {
+    "sample_id": 10,
+    "category": "chair",
+    "img_path": "img/chair/3393.jpg",
+    "mask_path": "mask/chair/3393.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 11,
+    "category": "chair",
+    "img_path": "img/chair/3811.jpg",
+    "mask_path": "mask/chair/3811.png",
+    "model_path": "model/chair/IKEA_VILMAR_2/model.obj"
+  },
+  {
+    "sample_id": 12,
+    "category": "chair",
+    "img_path": "img/chair/2685.jpg",
+    "mask_path": "mask/chair/2685.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_-0.115145579663_-0.050547346245.obj"
+  },
+  {
+    "sample_id": 13,
+    "category": "chair",
+    "img_path": "img/chair/0430.jpg",
+    "mask_path": "mask/chair/0430.png",
+    "model_path": "model/chair/SS_046/model.obj"
+  },
+  {
+    "sample_id": 14,
+    "category": "chair",
+    "img_path": "img/chair/2929.jpg",
+    "mask_path": "mask/chair/2929.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 15,
+    "category": "chair",
+    "img_path": "img/chair/2009.jpg",
+    "mask_path": "mask/chair/2009.png",
+    "model_path": "model/chair/IKEA_INGOLF/model.obj"
+  },
+  {
+    "sample_id": 16,
+    "category": "chair",
+    "img_path": "img/chair/0199.jpg",
+    "mask_path": "mask/chair/0199.png",
+    "model_path": "model/chair/SS_011/model.obj"
+  },
+  {
+    "sample_id": 17,
+    "category": "chair",
+    "img_path": "img/chair/0191.jpg",
+    "mask_path": "mask/chair/0191.png",
+    "model_path": "model/chair/SS_010/model.obj"
+  },
+  {
+    "sample_id": 18,
+    "category": "chair",
+    "img_path": "img/chair/0457.jpg",
+    "mask_path": "mask/chair/0457.png",
+    "model_path": "model/chair/SS_054/model.obj"
+  },
+  {
+    "sample_id": 19,
+    "category": "chair",
+    "img_path": "img/chair/1017.jpg",
+    "mask_path": "mask/chair/1017.png",
+    "model_path": "model/chair/SS_124/model.obj"
+  },
+  {
+    "sample_id": 20,
+    "category": "chair",
+    "img_path": "img/chair/1077.jpg",
+    "mask_path": "mask/chair/1077.png",
+    "model_path": "model/chair/SS_130/model.obj"
+  },
+  {
+    "sample_id": 21,
+    "category": "chair",
+    "img_path": "img/chair/2483.jpg",
+    "mask_path": "mask/chair/2483.png",
+    "model_path": "model/chair/IKEA_KLAPPSTA_2/model.obj"
+  },
+  {
+    "sample_id": 22,
+    "category": "chair",
+    "img_path": "img/chair/2992.jpg",
+    "mask_path": "mask/chair/2992.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 23,
+    "category": "chair",
+    "img_path": "img/chair/0177.jpg",
+    "mask_path": "mask/chair/0177.png",
+    "model_path": "model/chair/SS_008/model.obj"
+  },
+  {
+    "sample_id": 24,
+    "category": "chair",
+    "img_path": "img/chair/2763.jpg",
+    "mask_path": "mask/chair/2763.png",
+    "model_path": "model/chair/IKEA_PATRIK/model_0.218465510842_-0.0787120753573.obj"
+  },
+  {
+    "sample_id": 25,
+    "category": "chair",
+    "img_path": "img/chair/0927.jpg",
+    "mask_path": "mask/chair/0927.png",
+    "model_path": "model/chair/SS_112/model.obj"
+  },
+  {
+    "sample_id": 26,
+    "category": "chair",
+    "img_path": "img/chair/3682.jpg",
+    "mask_path": "mask/chair/3682.png",
+    "model_path": "model/chair/IKEA_URBAN/model.obj"
+  },
+  {
+    "sample_id": 27,
+    "category": "chair",
+    "img_path": "img/chair/3252.jpg",
+    "mask_path": "mask/chair/3252.png",
+    "model_path": "model/chair/IKEA_SNILLE_1/model_0.885091505154_-0.0157731206494.obj"
+  },
+  {
+    "sample_id": 28,
+    "category": "chair",
+    "img_path": "img/chair/3562.jpg",
+    "mask_path": "mask/chair/3562.png",
+    "model_path": "model/chair/IKEA_TOBIAS/model.obj"
+  },
+  {
+    "sample_id": 29,
+    "category": "chair",
+    "img_path": "img/chair/2682.jpg",
+    "mask_path": "mask/chair/2682.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_-0.656766089778_-0.0322199574009.obj"
+  },
+  {
+    "sample_id": 30,
+    "category": "chair",
+    "img_path": "img/chair/1994.jpg",
+    "mask_path": "mask/chair/1994.png",
+    "model_path": "model/chair/IKEA_INGOLF/model.obj"
+  },
+  {
+    "sample_id": 31,
+    "category": "chair",
+    "img_path": "img/chair/1024.jpg",
+    "mask_path": "mask/chair/1024.png",
+    "model_path": "model/chair/SS_126/model.obj"
+  },
+  {
+    "sample_id": 32,
+    "category": "chair",
+    "img_path": "img/chair/2195.jpg",
+    "mask_path": "mask/chair/2195.png",
+    "model_path": "model/chair/IKEA_JOKKMOKK/model.obj"
+  },
+  {
+    "sample_id": 33,
+    "category": "chair",
+    "img_path": "img/chair/2920.jpg",
+    "mask_path": "mask/chair/2920.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 34,
+    "category": "chair",
+    "img_path": "img/chair/1272.jpg",
+    "mask_path": "mask/chair/1272.png",
+    "model_path": "model/chair/SS_151/model.obj"
+  },
+  {
+    "sample_id": 35,
+    "category": "chair",
+    "img_path": "img/chair/0053.png",
+    "mask_path": "mask/chair/0053.png",
+    "model_path": "model/chair/IKEA_POANG_1/model.obj"
+  },
+  {
+    "sample_id": 36,
+    "category": "chair",
+    "img_path": "img/chair/0745.jpg",
+    "mask_path": "mask/chair/0745.png",
+    "model_path": "model/chair/SS_092/model.obj"
+  },
+  {
+    "sample_id": 37,
+    "category": "chair",
+    "img_path": "img/chair/3540.jpg",
+    "mask_path": "mask/chair/3540.png",
+    "model_path": "model/chair/IKEA_TOBIAS/model.obj"
+  },
+  {
+    "sample_id": 38,
+    "category": "chair",
+    "img_path": "img/chair/2014.jpg",
+    "mask_path": "mask/chair/2014.png",
+    "model_path": "model/chair/IKEA_INGOLF/model.obj"
+  },
+  {
+    "sample_id": 39,
+    "category": "chair",
+    "img_path": "img/chair/1534.jpg",
+    "mask_path": "mask/chair/1534.png",
+    "model_path": "model/chair/SS_186/model.obj"
+  },
+  {
+    "sample_id": 40,
+    "category": "chair",
+    "img_path": "img/chair/1271.jpg",
+    "mask_path": "mask/chair/1271.png",
+    "model_path": "model/chair/SS_151/model.obj"
+  },
+  {
+    "sample_id": 41,
+    "category": "chair",
+    "img_path": "img/chair/0726.jpg",
+    "mask_path": "mask/chair/0726.png",
+    "model_path": "model/chair/SS_091/model.obj"
+  },
+  {
+    "sample_id": 42,
+    "category": "chair",
+    "img_path": "img/chair/1000.jpg",
+    "mask_path": "mask/chair/1000.png",
+    "model_path": "model/chair/SS_123/model.obj"
+  },
+  {
+    "sample_id": 43,
+    "category": "chair",
+    "img_path": "img/chair/1518.jpg",
+    "mask_path": "mask/chair/1518.png",
+    "model_path": "model/chair/SS_184/model.obj"
+  },
+  {
+    "sample_id": 44,
+    "category": "chair",
+    "img_path": "img/chair/0492.jpg",
+    "mask_path": "mask/chair/0492.png",
+    "model_path": "model/chair/SS_061/model.obj"
+  },
+  {
+    "sample_id": 45,
+    "category": "chair",
+    "img_path": "img/chair/0453.jpg",
+    "mask_path": "mask/chair/0453.png",
+    "model_path": "model/chair/SS_053/model.obj"
+  },
+  {
+    "sample_id": 46,
+    "category": "chair",
+    "img_path": "img/chair/1772.jpg",
+    "mask_path": "mask/chair/1772.png",
+    "model_path": "model/chair/IKEA_EKENAS/model.obj"
+  },
+  {
+    "sample_id": 47,
+    "category": "chair",
+    "img_path": "img/chair/0470.jpg",
+    "mask_path": "mask/chair/0470.png",
+    "model_path": "model/chair/SS_056/model.obj"
+  },
+  {
+    "sample_id": 48,
+    "category": "chair",
+    "img_path": "img/chair/1637.jpg",
+    "mask_path": "mask/chair/1637.png",
+    "model_path": "model/chair/IKEA_BORJE/model.obj"
+  },
+  {
+    "sample_id": 49,
+    "category": "chair",
+    "img_path": "img/chair/1549.jpg",
+    "mask_path": "mask/chair/1549.png",
+    "model_path": "model/chair/IKEA_BERNHARD/model.obj"
+  },
+  {
+    "sample_id": 50,
+    "category": "chair",
+    "img_path": "img/chair/3003.jpg",
+    "mask_path": "mask/chair/3003.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 51,
+    "category": "chair",
+    "img_path": "img/chair/1210.jpg",
+    "mask_path": "mask/chair/1210.png",
+    "model_path": "model/chair/SS_143/model.obj"
+  },
+  {
+    "sample_id": 52,
+    "category": "chair",
+    "img_path": "img/chair/0248.jpg",
+    "mask_path": "mask/chair/0248.png",
+    "model_path": "model/chair/SS_017/model.obj"
+  },
+  {
+    "sample_id": 53,
+    "category": "chair",
+    "img_path": "img/chair/3756.jpg",
+    "mask_path": "mask/chair/3756.png",
+    "model_path": "model/chair/IKEA_VILMAR_2/model.obj"
+  },
+  {
+    "sample_id": 54,
+    "category": "chair",
+    "img_path": "img/chair/2253.jpg",
+    "mask_path": "mask/chair/2253.png",
+    "model_path": "model/chair/IKEA_JULES_1/model_-0.36883592487_0.00134479885297.obj"
+  },
+  {
+    "sample_id": 55,
+    "category": "chair",
+    "img_path": "img/chair/2638.jpg",
+    "mask_path": "mask/chair/2638.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_-0.444581584272_-0.0497236805635.obj"
+  },
+  {
+    "sample_id": 56,
+    "category": "chair",
+    "img_path": "img/chair/0592.jpg",
+    "mask_path": "mask/chair/0592.png",
+    "model_path": "model/chair/SS_076/model.obj"
+  },
+  {
+    "sample_id": 57,
+    "category": "chair",
+    "img_path": "img/chair/1764.jpg",
+    "mask_path": "mask/chair/1764.png",
+    "model_path": "model/chair/IKEA_EKENAS/model.obj"
+  },
+  {
+    "sample_id": 58,
+    "category": "chair",
+    "img_path": "img/chair/0395.jpg",
+    "mask_path": "mask/chair/0395.png",
+    "model_path": "model/chair/SS_039/model.obj"
+  },
+  {
+    "sample_id": 59,
+    "category": "chair",
+    "img_path": "img/chair/2718.jpg",
+    "mask_path": "mask/chair/2718.png",
+    "model_path": "model/chair/IKEA_NILS/model.obj"
+  },
+  {
+    "sample_id": 60,
+    "category": "chair",
+    "img_path": "img/chair/1335.jpg",
+    "mask_path": "mask/chair/1335.png",
+    "model_path": "model/chair/SS_159/model.obj"
+  },
+  {
+    "sample_id": 61,
+    "category": "chair",
+    "img_path": "img/chair/3136.jpg",
+    "mask_path": "mask/chair/3136.png",
+    "model_path": "model/chair/IKEA_REIDAR/model.obj"
+  },
+  {
+    "sample_id": 62,
+    "category": "chair",
+    "img_path": "img/chair/3081.jpg",
+    "mask_path": "mask/chair/3081.png",
+    "model_path": "model/chair/IKEA_PREBEN/model.obj"
+  },
+  {
+    "sample_id": 63,
+    "category": "chair",
+    "img_path": "img/chair/1658.jpg",
+    "mask_path": "mask/chair/1658.png",
+    "model_path": "model/chair/IKEA_BORJE/model.obj"
+  },
+  {
+    "sample_id": 64,
+    "category": "chair",
+    "img_path": "img/chair/2854.jpg",
+    "mask_path": "mask/chair/2854.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 65,
+    "category": "chair",
+    "img_path": "img/chair/0896.jpg",
+    "mask_path": "mask/chair/0896.png",
+    "model_path": "model/chair/SS_109/model.obj"
+  },
+  {
+    "sample_id": 66,
+    "category": "chair",
+    "img_path": "img/chair/3588.jpg",
+    "mask_path": "mask/chair/3588.png",
+    "model_path": "model/chair/IKEA_TOBIAS/model.obj"
+  },
+  {
+    "sample_id": 67,
+    "category": "chair",
+    "img_path": "img/chair/0357.jpg",
+    "mask_path": "mask/chair/0357.png",
+    "model_path": "model/chair/SS_033/model.obj"
+  },
+  {
+    "sample_id": 68,
+    "category": "chair",
+    "img_path": "img/chair/0258.jpg",
+    "mask_path": "mask/chair/0258.png",
+    "model_path": "model/chair/SS_018/model.obj"
+  },
+  {
+    "sample_id": 69,
+    "category": "chair",
+    "img_path": "img/chair/3311.jpg",
+    "mask_path": "mask/chair/3311.png",
+    "model_path": "model/chair/IKEA_SNILLE_1/model_0.234139738566_-0.057290945811.obj"
+  },
+  {
+    "sample_id": 70,
+    "category": "chair",
+    "img_path": "img/chair/1058.jpg",
+    "mask_path": "mask/chair/1058.png",
+    "model_path": "model/chair/SS_128/model.obj"
+  },
+  {
+    "sample_id": 71,
+    "category": "chair",
+    "img_path": "img/chair/1319.jpg",
+    "mask_path": "mask/chair/1319.png",
+    "model_path": "model/chair/SS_157/model.obj"
+  },
+  {
+    "sample_id": 72,
+    "category": "chair",
+    "img_path": "img/chair/0400.jpg",
+    "mask_path": "mask/chair/0400.png",
+    "model_path": "model/chair/SS_040/model.obj"
+  },
+  {
+    "sample_id": 73,
+    "category": "chair",
+    "img_path": "img/chair/1078.jpg",
+    "mask_path": "mask/chair/1078.png",
+    "model_path": "model/chair/SS_130/model.obj"
+  },
+  {
+    "sample_id": 74,
+    "category": "chair",
+    "img_path": "img/chair/0487.jpg",
+    "mask_path": "mask/chair/0487.png",
+    "model_path": "model/chair/SS_060/model.obj"
+  },
+  {
+    "sample_id": 75,
+    "category": "chair",
+    "img_path": "img/chair/2229.jpg",
+    "mask_path": "mask/chair/2229.png",
+    "model_path": "model/chair/IKEA_JULES_1/model_0.23276401197_-0.0673071396119.obj"
+  },
+  {
+    "sample_id": 76,
+    "category": "chair",
+    "img_path": "img/chair/3174.jpg",
+    "mask_path": "mask/chair/3174.png",
+    "model_path": "model/chair/IKEA_SIGURD/model.obj"
+  },
+  {
+    "sample_id": 77,
+    "category": "chair",
+    "img_path": "img/chair/1675.jpg",
+    "mask_path": "mask/chair/1675.png",
+    "model_path": "model/chair/IKEA_BORJE/model.obj"
+  },
+  {
+    "sample_id": 78,
+    "category": "chair",
+    "img_path": "img/chair/0760.jpg",
+    "mask_path": "mask/chair/0760.png",
+    "model_path": "model/chair/SS_094/model.obj"
+  },
+  {
+    "sample_id": 79,
+    "category": "chair",
+    "img_path": "img/chair/1711.jpg",
+    "mask_path": "mask/chair/1711.png",
+    "model_path": "model/chair/IKEA_BORJE/model.obj"
+  },
+  {
+    "sample_id": 80,
+    "category": "chair",
+    "img_path": "img/chair/1619.jpg",
+    "mask_path": "mask/chair/1619.png",
+    "model_path": "model/chair/IKEA_BERNHARD/model.obj"
+  },
+  {
+    "sample_id": 81,
+    "category": "chair",
+    "img_path": "img/chair/0977.jpg",
+    "mask_path": "mask/chair/0977.png",
+    "model_path": "model/chair/SS_121/model.obj"
+  },
+  {
+    "sample_id": 82,
+    "category": "chair",
+    "img_path": "img/chair/3357.jpg",
+    "mask_path": "mask/chair/3357.png",
+    "model_path": "model/chair/IKEA_SOLSTA_OLARP/model.obj"
+  },
+  {
+    "sample_id": 83,
+    "category": "chair",
+    "img_path": "img/chair/1221.jpg",
+    "mask_path": "mask/chair/1221.png",
+    "model_path": "model/chair/SS_144/model.obj"
+  },
+  {
+    "sample_id": 84,
+    "category": "chair",
+    "img_path": "img/chair/3567.jpg",
+    "mask_path": "mask/chair/3567.png",
+    "model_path": "model/chair/IKEA_TOBIAS/model.obj"
+  },
+  {
+    "sample_id": 85,
+    "category": "chair",
+    "img_path": "img/chair/3430.jpg",
+    "mask_path": "mask/chair/3430.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 86,
+    "category": "chair",
+    "img_path": "img/chair/3245.jpg",
+    "mask_path": "mask/chair/3245.png",
+    "model_path": "model/chair/IKEA_SNILLE_1/model_0.725428017558_0.0404594608338.obj"
+  },
+  {
+    "sample_id": 87,
+    "category": "chair",
+    "img_path": "img/chair/0365.jpg",
+    "mask_path": "mask/chair/0365.png",
+    "model_path": "model/chair/SS_034/model.obj"
+  },
+  {
+    "sample_id": 88,
+    "category": "chair",
+    "img_path": "img/chair/3031.jpg",
+    "mask_path": "mask/chair/3031.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 89,
+    "category": "chair",
+    "img_path": "img/chair/3171.jpg",
+    "mask_path": "mask/chair/3171.png",
+    "model_path": "model/chair/IKEA_SIGURD/model.obj"
+  },
+  {
+    "sample_id": 90,
+    "category": "chair",
+    "img_path": "img/chair/0796.jpg",
+    "mask_path": "mask/chair/0796.png",
+    "model_path": "model/chair/SS_097/model.obj"
+  },
+  {
+    "sample_id": 91,
+    "category": "chair",
+    "img_path": "img/chair/2626.jpg",
+    "mask_path": "mask/chair/2626.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_0.1700827928_-0.0328753378382.obj"
+  },
+  {
+    "sample_id": 92,
+    "category": "chair",
+    "img_path": "img/chair/3754.jpg",
+    "mask_path": "mask/chair/3754.png",
+    "model_path": "model/chair/IKEA_VILMAR_2/model.obj"
+  },
+  {
+    "sample_id": 93,
+    "category": "chair",
+    "img_path": "img/chair/1129.jpg",
+    "mask_path": "mask/chair/1129.png",
+    "model_path": "model/chair/SS_137/model.obj"
+  },
+  {
+    "sample_id": 94,
+    "category": "chair",
+    "img_path": "img/chair/0763.jpg",
+    "mask_path": "mask/chair/0763.png",
+    "model_path": "model/chair/SS_095/model.obj"
+  },
+  {
+    "sample_id": 95,
+    "category": "chair",
+    "img_path": "img/chair/2268.jpg",
+    "mask_path": "mask/chair/2268.png",
+    "model_path": "model/chair/IKEA_JULES_1/model_0.31386851527_0.0150377958795.obj"
+  },
+  {
+    "sample_id": 96,
+    "category": "chair",
+    "img_path": "img/chair/1770.jpg",
+    "mask_path": "mask/chair/1770.png",
+    "model_path": "model/chair/IKEA_EKENAS/model.obj"
+  },
+  {
+    "sample_id": 97,
+    "category": "chair",
+    "img_path": "img/chair/1234.jpg",
+    "mask_path": "mask/chair/1234.png",
+    "model_path": "model/chair/SS_146/model.obj"
+  },
+  {
+    "sample_id": 98,
+    "category": "chair",
+    "img_path": "img/chair/3198.jpg",
+    "mask_path": "mask/chair/3198.png",
+    "model_path": "model/chair/IKEA_SIGURD/model.obj"
+  },
+  {
+    "sample_id": 99,
+    "category": "chair",
+    "img_path": "img/chair/3469.png",
+    "mask_path": "mask/chair/3469.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 100,
+    "category": "chair",
+    "img_path": "img/chair/2744.jpg",
+    "mask_path": "mask/chair/2744.png",
+    "model_path": "model/chair/IKEA_NILS/model.obj"
+  },
+  {
+    "sample_id": 101,
+    "category": "chair",
+    "img_path": "img/chair/1021.jpg",
+    "mask_path": "mask/chair/1021.png",
+    "model_path": "model/chair/SS_125/model.obj"
+  },
+  {
+    "sample_id": 102,
+    "category": "chair",
+    "img_path": "img/chair/3440.jpg",
+    "mask_path": "mask/chair/3440.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 103,
+    "category": "chair",
+    "img_path": "img/chair/1468.jpg",
+    "mask_path": "mask/chair/1468.png",
+    "model_path": "model/chair/SS_177/model.obj"
+  },
+  {
+    "sample_id": 104,
+    "category": "chair",
+    "img_path": "img/chair/0300.jpg",
+    "mask_path": "mask/chair/0300.png",
+    "model_path": "model/chair/SS_025/model.obj"
+  },
+  {
+    "sample_id": 105,
+    "category": "chair",
+    "img_path": "img/chair/1063.jpg",
+    "mask_path": "mask/chair/1063.png",
+    "model_path": "model/chair/SS_129/model.obj"
+  },
+  {
+    "sample_id": 106,
+    "category": "chair",
+    "img_path": "img/chair/0200.jpg",
+    "mask_path": "mask/chair/0200.png",
+    "model_path": "model/chair/SS_011/model.obj"
+  },
+  {
+    "sample_id": 107,
+    "category": "chair",
+    "img_path": "img/chair/1432.jpg",
+    "mask_path": "mask/chair/1432.png",
+    "model_path": "model/chair/SS_173/model.obj"
+  },
+  {
+    "sample_id": 108,
+    "category": "chair",
+    "img_path": "img/chair/1900.jpg",
+    "mask_path": "mask/chair/1900.png",
+    "model_path": "model/chair/IKEA_HERMAN/model.obj"
+  },
+  {
+    "sample_id": 109,
+    "category": "chair",
+    "img_path": "img/chair/1224.jpg",
+    "mask_path": "mask/chair/1224.png",
+    "model_path": "model/chair/SS_145/model.obj"
+  },
+  {
+    "sample_id": 110,
+    "category": "chair",
+    "img_path": "img/chair/0344.jpg",
+    "mask_path": "mask/chair/0344.png",
+    "model_path": "model/chair/SS_031/model.obj"
+  },
+  {
+    "sample_id": 111,
+    "category": "chair",
+    "img_path": "img/chair/0983.jpg",
+    "mask_path": "mask/chair/0983.png",
+    "model_path": "model/chair/SS_122/model.obj"
+  },
+  {
+    "sample_id": 112,
+    "category": "chair",
+    "img_path": "img/chair/2796.jpg",
+    "mask_path": "mask/chair/2796.png",
+    "model_path": "model/chair/IKEA_POANG_1/model.obj"
+  },
+  {
+    "sample_id": 113,
+    "category": "chair",
+    "img_path": "img/chair/3695.jpg",
+    "mask_path": "mask/chair/3695.png",
+    "model_path": "model/chair/IKEA_URBAN/model.obj"
+  },
+  {
+    "sample_id": 114,
+    "category": "chair",
+    "img_path": "img/chair/1428.jpg",
+    "mask_path": "mask/chair/1428.png",
+    "model_path": "model/chair/SS_172/model.obj"
+  },
+  {
+    "sample_id": 115,
+    "category": "chair",
+    "img_path": "img/chair/0989.jpg",
+    "mask_path": "mask/chair/0989.png",
+    "model_path": "model/chair/SS_122/model.obj"
+  },
+  {
+    "sample_id": 116,
+    "category": "chair",
+    "img_path": "img/chair/3280.jpg",
+    "mask_path": "mask/chair/3280.png",
+    "model_path": "model/chair/IKEA_SNILLE_1/model_0.309161832259_0.000344334084232.obj"
+  },
+  {
+    "sample_id": 117,
+    "category": "chair",
+    "img_path": "img/chair/2456.jpg",
+    "mask_path": "mask/chair/2456.png",
+    "model_path": "model/chair/IKEA_KLAPPSTA_1/model.obj"
+  },
+  {
+    "sample_id": 118,
+    "category": "chair",
+    "img_path": "img/chair/1874.jpg",
+    "mask_path": "mask/chair/1874.png",
+    "model_path": "model/chair/IKEA_FUSION/model.obj"
+  },
+  {
+    "sample_id": 119,
+    "category": "chair",
+    "img_path": "img/chair/3213.jpg",
+    "mask_path": "mask/chair/3213.png",
+    "model_path": "model/chair/IKEA_SIGURD/model.obj"
+  },
+  {
+    "sample_id": 120,
+    "category": "chair",
+    "img_path": "img/chair/2251.jpg",
+    "mask_path": "mask/chair/2251.png",
+    "model_path": "model/chair/IKEA_JULES_1/model_0.408361305863_-0.000999748488913.obj"
+  },
+  {
+    "sample_id": 121,
+    "category": "chair",
+    "img_path": "img/chair/0672.jpg",
+    "mask_path": "mask/chair/0672.png",
+    "model_path": "model/chair/SS_087/model.obj"
+  },
+  {
+    "sample_id": 122,
+    "category": "chair",
+    "img_path": "img/chair/1211.jpg",
+    "mask_path": "mask/chair/1211.png",
+    "model_path": "model/chair/SS_143/model.obj"
+  },
+  {
+    "sample_id": 123,
+    "category": "chair",
+    "img_path": "img/chair/1137.jpg",
+    "mask_path": "mask/chair/1137.png",
+    "model_path": "model/chair/SS_137/model.obj"
+  },
+  {
+    "sample_id": 124,
+    "category": "chair",
+    "img_path": "img/chair/3833.jpg",
+    "mask_path": "mask/chair/3833.png",
+    "model_path": "model/chair/IKEA_VRETA/model.obj"
+  },
+  {
+    "sample_id": 125,
+    "category": "chair",
+    "img_path": "img/chair/2764.jpeg",
+    "mask_path": "mask/chair/2764.png",
+    "model_path": "model/chair/IKEA_PATRIK/model_-0.166083752808_-0.105098894836.obj"
+  },
+  {
+    "sample_id": 126,
+    "category": "chair",
+    "img_path": "img/chair/2653.jpg",
+    "mask_path": "mask/chair/2653.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_0.166801249786_-0.0113351668888.obj"
+  },
+  {
+    "sample_id": 127,
+    "category": "chair",
+    "img_path": "img/chair/1203.jpg",
+    "mask_path": "mask/chair/1203.png",
+    "model_path": "model/chair/SS_143/model.obj"
+  },
+  {
+    "sample_id": 128,
+    "category": "chair",
+    "img_path": "img/chair/2892.jpg",
+    "mask_path": "mask/chair/2892.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 129,
+    "category": "chair",
+    "img_path": "img/chair/2044.jpg",
+    "mask_path": "mask/chair/2044.png",
+    "model_path": "model/chair/IKEA_IVAR/model.obj"
+  },
+  {
+    "sample_id": 130,
+    "category": "chair",
+    "img_path": "img/chair/2884.jpg",
+    "mask_path": "mask/chair/2884.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 131,
+    "category": "chair",
+    "img_path": "img/chair/1892.jpg",
+    "mask_path": "mask/chair/1892.png",
+    "model_path": "model/chair/IKEA_HERMAN/model.obj"
+  },
+  {
+    "sample_id": 132,
+    "category": "chair",
+    "img_path": "img/chair/1659.jpg",
+    "mask_path": "mask/chair/1659.png",
+    "model_path": "model/chair/IKEA_BORJE/model.obj"
+  },
+  {
+    "sample_id": 133,
+    "category": "chair",
+    "img_path": "img/chair/1020.jpg",
+    "mask_path": "mask/chair/1020.png",
+    "model_path": "model/chair/SS_125/model.obj"
+  },
+  {
+    "sample_id": 134,
+    "category": "chair",
+    "img_path": "img/chair/0653.jpg",
+    "mask_path": "mask/chair/0653.png",
+    "model_path": "model/chair/SS_085/model.obj"
+  },
+  {
+    "sample_id": 135,
+    "category": "chair",
+    "img_path": "img/chair/2507.jpg",
+    "mask_path": "mask/chair/2507.png",
+    "model_path": "model/chair/IKEA_MARIUS/model.obj"
+  },
+  {
+    "sample_id": 136,
+    "category": "chair",
+    "img_path": "img/chair/2426.jpg",
+    "mask_path": "mask/chair/2426.png",
+    "model_path": "model/chair/IKEA_KAUSTBY/model.obj"
+  },
+  {
+    "sample_id": 137,
+    "category": "chair",
+    "img_path": "img/chair/0446.jpg",
+    "mask_path": "mask/chair/0446.png",
+    "model_path": "model/chair/SS_051/model.obj"
+  },
+  {
+    "sample_id": 138,
+    "category": "chair",
+    "img_path": "img/chair/0263.jpg",
+    "mask_path": "mask/chair/0263.png",
+    "model_path": "model/chair/SS_018/model.obj"
+  },
+  {
+    "sample_id": 139,
+    "category": "chair",
+    "img_path": "img/chair/0526.jpg",
+    "mask_path": "mask/chair/0526.png",
+    "model_path": "model/chair/SS_067/model.obj"
+  },
+  {
+    "sample_id": 140,
+    "category": "chair",
+    "img_path": "img/chair/0716.jpg",
+    "mask_path": "mask/chair/0716.png",
+    "model_path": "model/chair/SS_091/model.obj"
+  },
+  {
+    "sample_id": 141,
+    "category": "chair",
+    "img_path": "img/chair/3129.jpg",
+    "mask_path": "mask/chair/3129.png",
+    "model_path": "model/chair/IKEA_REIDAR/model.obj"
+  },
+  {
+    "sample_id": 142,
+    "category": "chair",
+    "img_path": "img/chair/0747.jpg",
+    "mask_path": "mask/chair/0747.png",
+    "model_path": "model/chair/SS_092/model.obj"
+  },
+  {
+    "sample_id": 143,
+    "category": "chair",
+    "img_path": "img/chair/3415.jpg",
+    "mask_path": "mask/chair/3415.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 144,
+    "category": "chair",
+    "img_path": "img/chair/2011.jpg",
+    "mask_path": "mask/chair/2011.png",
+    "model_path": "model/chair/IKEA_INGOLF/model.obj"
+  },
+  {
+    "sample_id": 145,
+    "category": "chair",
+    "img_path": "img/chair/2962.jpg",
+    "mask_path": "mask/chair/2962.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 146,
+    "category": "chair",
+    "img_path": "img/chair/0333.jpg",
+    "mask_path": "mask/chair/0333.png",
+    "model_path": "model/chair/SS_029/model.obj"
+  },
+  {
+    "sample_id": 147,
+    "category": "chair",
+    "img_path": "img/chair/1808.jpg",
+    "mask_path": "mask/chair/1808.png",
+    "model_path": "model/chair/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 148,
+    "category": "chair",
+    "img_path": "img/chair/1784.jpg",
+    "mask_path": "mask/chair/1784.png",
+    "model_path": "model/chair/IKEA_EKENAS/model.obj"
+  },
+  {
+    "sample_id": 149,
+    "category": "chair",
+    "img_path": "img/chair/2958.jpg",
+    "mask_path": "mask/chair/2958.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 150,
+    "category": "chair",
+    "img_path": "img/chair/2297.jpg",
+    "mask_path": "mask/chair/2297.png",
+    "model_path": "model/chair/IKEA_JULES_1/model_-0.539484644247_0.0762560845204.obj"
+  },
+  {
+    "sample_id": 151,
+    "category": "chair",
+    "img_path": "img/chair/2599.jpg",
+    "mask_path": "mask/chair/2599.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_0.135569548539_-0.00531598970793.obj"
+  },
+  {
+    "sample_id": 152,
+    "category": "chair",
+    "img_path": "img/chair/1156.jpg",
+    "mask_path": "mask/chair/1156.png",
+    "model_path": "model/chair/SS_139/model.obj"
+  },
+  {
+    "sample_id": 153,
+    "category": "chair",
+    "img_path": "img/chair/2726.jpg",
+    "mask_path": "mask/chair/2726.png",
+    "model_path": "model/chair/IKEA_NILS/model.obj"
+  },
+  {
+    "sample_id": 154,
+    "category": "chair",
+    "img_path": "img/chair/0104.png",
+    "mask_path": "mask/chair/0104.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 155,
+    "category": "chair",
+    "img_path": "img/chair/3414.jpg",
+    "mask_path": "mask/chair/3414.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 156,
+    "category": "chair",
+    "img_path": "img/chair/3710.jpg",
+    "mask_path": "mask/chair/3710.png",
+    "model_path": "model/chair/IKEA_URBAN/model.obj"
+  },
+  {
+    "sample_id": 157,
+    "category": "chair",
+    "img_path": "img/chair/0546.jpg",
+    "mask_path": "mask/chair/0546.png",
+    "model_path": "model/chair/SS_070/model.obj"
+  },
+  {
+    "sample_id": 158,
+    "category": "chair",
+    "img_path": "img/chair/3422.jpg",
+    "mask_path": "mask/chair/3422.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 159,
+    "category": "chair",
+    "img_path": "img/chair/2643.jpeg",
+    "mask_path": "mask/chair/2643.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_-0.425071835744_-0.0722116688459.obj"
+  },
+  {
+    "sample_id": 160,
+    "category": "chair",
+    "img_path": "img/chair/1220.jpg",
+    "mask_path": "mask/chair/1220.png",
+    "model_path": "model/chair/SS_144/model.obj"
+  },
+  {
+    "sample_id": 161,
+    "category": "chair",
+    "img_path": "img/chair/3202.jpg",
+    "mask_path": "mask/chair/3202.png",
+    "model_path": "model/chair/IKEA_SIGURD/model.obj"
+  },
+  {
+    "sample_id": 162,
+    "category": "chair",
+    "img_path": "img/chair/1337.jpg",
+    "mask_path": "mask/chair/1337.png",
+    "model_path": "model/chair/SS_159/model.obj"
+  },
+  {
+    "sample_id": 163,
+    "category": "chair",
+    "img_path": "img/chair/2080.jpg",
+    "mask_path": "mask/chair/2080.png",
+    "model_path": "model/chair/IKEA_IVAR/model.obj"
+  },
+  {
+    "sample_id": 164,
+    "category": "chair",
+    "img_path": "img/chair/0738.jpg",
+    "mask_path": "mask/chair/0738.png",
+    "model_path": "model/chair/SS_092/model.obj"
+  },
+  {
+    "sample_id": 165,
+    "category": "chair",
+    "img_path": "img/chair/2230.jpg",
+    "mask_path": "mask/chair/2230.png",
+    "model_path": "model/chair/IKEA_JULES_1/model_-0.273839578866_0.00610779881406.obj"
+  },
+  {
+    "sample_id": 166,
+    "category": "chair",
+    "img_path": "img/chair/0026.png",
+    "mask_path": "mask/chair/0026.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 167,
+    "category": "chair",
+    "img_path": "img/chair/3718.jpg",
+    "mask_path": "mask/chair/3718.png",
+    "model_path": "model/chair/IKEA_URBAN/model.obj"
+  },
+  {
+    "sample_id": 168,
+    "category": "chair",
+    "img_path": "img/chair/3703.jpg",
+    "mask_path": "mask/chair/3703.png",
+    "model_path": "model/chair/IKEA_URBAN/model.obj"
+  },
+  {
+    "sample_id": 169,
+    "category": "chair",
+    "img_path": "img/chair/1205.jpg",
+    "mask_path": "mask/chair/1205.png",
+    "model_path": "model/chair/SS_143/model.obj"
+  },
+  {
+    "sample_id": 170,
+    "category": "chair",
+    "img_path": "img/chair/2462.jpg",
+    "mask_path": "mask/chair/2462.png",
+    "model_path": "model/chair/IKEA_KLAPPSTA_1/model.obj"
+  },
+  {
+    "sample_id": 171,
+    "category": "chair",
+    "img_path": "img/chair/0830.jpg",
+    "mask_path": "mask/chair/0830.png",
+    "model_path": "model/chair/SS_102/model.obj"
+  },
+  {
+    "sample_id": 172,
+    "category": "chair",
+    "img_path": "img/chair/2495.jpg",
+    "mask_path": "mask/chair/2495.png",
+    "model_path": "model/chair/IKEA_KLAPPSTA_2/model.obj"
+  },
+  {
+    "sample_id": 173,
+    "category": "chair",
+    "img_path": "img/chair/0512.jpg",
+    "mask_path": "mask/chair/0512.png",
+    "model_path": "model/chair/SS_065/model.obj"
+  },
+  {
+    "sample_id": 174,
+    "category": "chair",
+    "img_path": "img/chair/3115.jpg",
+    "mask_path": "mask/chair/3115.png",
+    "model_path": "model/chair/IKEA_REIDAR/model.obj"
+  },
+  {
+    "sample_id": 175,
+    "category": "chair",
+    "img_path": "img/chair/1359.jpg",
+    "mask_path": "mask/chair/1359.png",
+    "model_path": "model/chair/SS_162/model.obj"
+  },
+  {
+    "sample_id": 176,
+    "category": "chair",
+    "img_path": "img/chair/3192.jpg",
+    "mask_path": "mask/chair/3192.png",
+    "model_path": "model/chair/IKEA_SIGURD/model.obj"
+  },
+  {
+    "sample_id": 177,
+    "category": "chair",
+    "img_path": "img/chair/3030.jpg",
+    "mask_path": "mask/chair/3030.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 178,
+    "category": "chair",
+    "img_path": "img/chair/1736.jpg",
+    "mask_path": "mask/chair/1736.png",
+    "model_path": "model/chair/IKEA_BORJE/model.obj"
+  },
+  {
+    "sample_id": 179,
+    "category": "chair",
+    "img_path": "img/chair/0753.jpg",
+    "mask_path": "mask/chair/0753.png",
+    "model_path": "model/chair/SS_093/model.obj"
+  },
+  {
+    "sample_id": 180,
+    "category": "chair",
+    "img_path": "img/chair/2655.jpg",
+    "mask_path": "mask/chair/2655.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_-0.701775337412_-0.0810799058398.obj"
+  },
+  {
+    "sample_id": 181,
+    "category": "chair",
+    "img_path": "img/chair/2609.jpg",
+    "mask_path": "mask/chair/2609.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_0.392427996482_-0.169841808815.obj"
+  },
+  {
+    "sample_id": 182,
+    "category": "chair",
+    "img_path": "img/chair/0004.png",
+    "mask_path": "mask/chair/0004.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 183,
+    "category": "chair",
+    "img_path": "img/chair/2974.jpg",
+    "mask_path": "mask/chair/2974.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 184,
+    "category": "chair",
+    "img_path": "img/chair/1467.jpg",
+    "mask_path": "mask/chair/1467.png",
+    "model_path": "model/chair/SS_177/model.obj"
+  },
+  {
+    "sample_id": 185,
+    "category": "chair",
+    "img_path": "img/chair/2398.jpg",
+    "mask_path": "mask/chair/2398.png",
+    "model_path": "model/chair/IKEA_KAUSTBY/model.obj"
+  },
+  {
+    "sample_id": 186,
+    "category": "chair",
+    "img_path": "img/chair/0147.jpg",
+    "mask_path": "mask/chair/0147.png",
+    "model_path": "model/chair/SS_005/model.obj"
+  },
+  {
+    "sample_id": 187,
+    "category": "chair",
+    "img_path": "img/chair/0535.jpg",
+    "mask_path": "mask/chair/0535.png",
+    "model_path": "model/chair/SS_069/model.obj"
+  },
+  {
+    "sample_id": 188,
+    "category": "chair",
+    "img_path": "img/chair/1664.jpg",
+    "mask_path": "mask/chair/1664.png",
+    "model_path": "model/chair/IKEA_BORJE/model.obj"
+  },
+  {
+    "sample_id": 189,
+    "category": "chair",
+    "img_path": "img/chair/1396.jpg",
+    "mask_path": "mask/chair/1396.png",
+    "model_path": "model/chair/SS_167/model.obj"
+  },
+  {
+    "sample_id": 190,
+    "category": "chair",
+    "img_path": "img/chair/1106.jpg",
+    "mask_path": "mask/chair/1106.png",
+    "model_path": "model/chair/SS_134/model.obj"
+  },
+  {
+    "sample_id": 191,
+    "category": "chair",
+    "img_path": "img/chair/0308.jpg",
+    "mask_path": "mask/chair/0308.png",
+    "model_path": "model/chair/SS_026/model.obj"
+  },
+  {
+    "sample_id": 192,
+    "category": "chair",
+    "img_path": "img/chair/1112.jpg",
+    "mask_path": "mask/chair/1112.png",
+    "model_path": "model/chair/SS_135/model.obj"
+  },
+  {
+    "sample_id": 193,
+    "category": "chair",
+    "img_path": "img/chair/0424.jpg",
+    "mask_path": "mask/chair/0424.png",
+    "model_path": "model/chair/SS_044/model.obj"
+  },
+  {
+    "sample_id": 194,
+    "category": "chair",
+    "img_path": "img/chair/3770.jpg",
+    "mask_path": "mask/chair/3770.png",
+    "model_path": "model/chair/IKEA_VILMAR_2/model.obj"
+  },
+  {
+    "sample_id": 195,
+    "category": "chair",
+    "img_path": "img/chair/2385.jpg",
+    "mask_path": "mask/chair/2385.png",
+    "model_path": "model/chair/IKEA_KAUSTBY/model.obj"
+  },
+  {
+    "sample_id": 196,
+    "category": "chair",
+    "img_path": "img/chair/0356.jpg",
+    "mask_path": "mask/chair/0356.png",
+    "model_path": "model/chair/SS_033/model.obj"
+  },
+  {
+    "sample_id": 197,
+    "category": "chair",
+    "img_path": "img/chair/2619.jpg",
+    "mask_path": "mask/chair/2619.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_0.805839422316_-0.0492137996173.obj"
+  },
+  {
+    "sample_id": 198,
+    "category": "chair",
+    "img_path": "img/chair/0596.jpg",
+    "mask_path": "mask/chair/0596.png",
+    "model_path": "model/chair/SS_077/model.obj"
+  },
+  {
+    "sample_id": 199,
+    "category": "chair",
+    "img_path": "img/chair/0610.jpg",
+    "mask_path": "mask/chair/0610.png",
+    "model_path": "model/chair/SS_080/model.obj"
+  },
+  {
+    "sample_id": 200,
+    "category": "chair",
+    "img_path": "img/chair/3301.jpg",
+    "mask_path": "mask/chair/3301.png",
+    "model_path": "model/chair/IKEA_SNILLE_1/model_0.234407487697_0.040966288141.obj"
+  },
+  {
+    "sample_id": 201,
+    "category": "chair",
+    "img_path": "img/chair/2329.jpg",
+    "mask_path": "mask/chair/2329.png",
+    "model_path": "model/chair/IKEA_JULES_2/model.obj"
+  },
+  {
+    "sample_id": 202,
+    "category": "chair",
+    "img_path": "img/chair/2705.jpg",
+    "mask_path": "mask/chair/2705.png",
+    "model_path": "model/chair/IKEA_NILS/model.obj"
+  },
+  {
+    "sample_id": 203,
+    "category": "chair",
+    "img_path": "img/chair/0771.jpg",
+    "mask_path": "mask/chair/0771.png",
+    "model_path": "model/chair/SS_096/model.obj"
+  },
+  {
+    "sample_id": 204,
+    "category": "chair",
+    "img_path": "img/chair/1212.jpg",
+    "mask_path": "mask/chair/1212.png",
+    "model_path": "model/chair/SS_143/model.obj"
+  },
+  {
+    "sample_id": 205,
+    "category": "chair",
+    "img_path": "img/chair/2593.jpg",
+    "mask_path": "mask/chair/2593.png",
+    "model_path": "model/chair/IKEA_MARIUS/model.obj"
+  },
+  {
+    "sample_id": 206,
+    "category": "chair",
+    "img_path": "img/chair/3015.jpg",
+    "mask_path": "mask/chair/3015.png",
+    "model_path": "model/chair/IKEA_POANG_2/model.obj"
+  },
+  {
+    "sample_id": 207,
+    "category": "chair",
+    "img_path": "img/chair/2019.jpg",
+    "mask_path": "mask/chair/2019.png",
+    "model_path": "model/chair/IKEA_INGOLF/model.obj"
+  },
+  {
+    "sample_id": 208,
+    "category": "chair",
+    "img_path": "img/chair/0986.jpg",
+    "mask_path": "mask/chair/0986.png",
+    "model_path": "model/chair/SS_122/model.obj"
+  },
+  {
+    "sample_id": 209,
+    "category": "chair",
+    "img_path": "img/chair/2654.jpg",
+    "mask_path": "mask/chair/2654.png",
+    "model_path": "model/chair/IKEA_MARKUS/model_0.765573154197_-0.0543742073802.obj"
+  },
+  {
+    "sample_id": 210,
+    "category": "chair",
+    "img_path": "img/chair/3757.jpg",
+    "mask_path": "mask/chair/3757.png",
+    "model_path": "model/chair/IKEA_VILMAR_2/model.obj"
+  },
+  {
+    "sample_id": 211,
+    "category": "chair",
+    "img_path": "img/chair/3480.jpg",
+    "mask_path": "mask/chair/3480.png",
+    "model_path": "model/chair/IKEA_STEFAN/model.obj"
+  },
+  {
+    "sample_id": 212,
+    "category": "chair",
+    "img_path": "img/chair/0936.jpg",
+    "mask_path": "mask/chair/0936.png",
+    "model_path": "model/chair/SS_113/model.obj"
+  },
+  {
+    "sample_id": 213,
+    "category": "chair",
+    "img_path": "img/chair/3660.jpg",
+    "mask_path": "mask/chair/3660.png",
+    "model_path": "model/chair/IKEA_TOBIAS/model.obj"
+  },
+  {
+    "sample_id": 214,
+    "category": "chair",
+    "img_path": "img/chair/1414.jpg",
+    "mask_path": "mask/chair/1414.png",
+    "model_path": "model/chair/SS_169/model.obj"
+  },
+  {
+    "sample_id": 215,
+    "category": "chair",
+    "img_path": "img/chair/1891.jpg",
+    "mask_path": "mask/chair/1891.png",
+    "model_path": "model/chair/IKEA_HERMAN/model.obj"
+  },
+  {
+    "sample_id": 216,
+    "category": "chair",
+    "img_path": "img/chair/3363.jpg",
+    "mask_path": "mask/chair/3363.png",
+    "model_path": "model/chair/IKEA_SOLSTA_OLARP/model.obj"
+  },
+  {
+    "sample_id": 217,
+    "category": "chair",
+    "img_path": "img/chair/1732.jpg",
+    "mask_path": "mask/chair/1732.png",
+    "model_path": "model/chair/IKEA_BORJE/model.obj"
+  },
+  {
+    "sample_id": 218,
+    "category": "sofa",
+    "img_path": "img/sofa/1370.jpg",
+    "mask_path": "mask/sofa/1370.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 219,
+    "category": "sofa",
+    "img_path": "img/sofa/1582.jpg",
+    "mask_path": "mask/sofa/1582.png",
+    "model_path": "model/sofa/IKEA_SKOGABY/model.obj"
+  },
+  {
+    "sample_id": 220,
+    "category": "sofa",
+    "img_path": "img/sofa/1405.jpg",
+    "mask_path": "mask/sofa/1405.png",
+    "model_path": "model/sofa/IKEA_MANSTAD/model.obj"
+  },
+  {
+    "sample_id": 221,
+    "category": "sofa",
+    "img_path": "img/sofa/0530.jpg",
+    "mask_path": "mask/sofa/0530.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_2/model.obj"
+  },
+  {
+    "sample_id": 222,
+    "category": "sofa",
+    "img_path": "img/sofa/0888.jpg",
+    "mask_path": "mask/sofa/0888.png",
+    "model_path": "model/sofa/IKEA_KLAPPSTA/model.obj"
+  },
+  {
+    "sample_id": 223,
+    "category": "sofa",
+    "img_path": "img/sofa/0831.jpg",
+    "mask_path": "mask/sofa/0831.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 224,
+    "category": "sofa",
+    "img_path": "img/sofa/0355.jpg",
+    "mask_path": "mask/sofa/0355.png",
+    "model_path": "model/sofa/IKEA_EKTORP_3/model.obj"
+  },
+  {
+    "sample_id": 225,
+    "category": "sofa",
+    "img_path": "img/sofa/1116.jpg",
+    "mask_path": "mask/sofa/1116.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_2/model.obj"
+  },
+  {
+    "sample_id": 226,
+    "category": "sofa",
+    "img_path": "img/sofa/0142.jpg",
+    "mask_path": "mask/sofa/0142.png",
+    "model_path": "model/sofa/IKEA_EKTORP_1/model.obj"
+  },
+  {
+    "sample_id": 227,
+    "category": "sofa",
+    "img_path": "img/sofa/1751.jpg",
+    "mask_path": "mask/sofa/1751.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 228,
+    "category": "sofa",
+    "img_path": "img/sofa/1669.jpg",
+    "mask_path": "mask/sofa/1669.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 229,
+    "category": "sofa",
+    "img_path": "img/sofa/0845.jpg",
+    "mask_path": "mask/sofa/0845.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 230,
+    "category": "sofa",
+    "img_path": "img/sofa/1752.jpg",
+    "mask_path": "mask/sofa/1752.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 231,
+    "category": "sofa",
+    "img_path": "img/sofa/0814.jpg",
+    "mask_path": "mask/sofa/0814.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 232,
+    "category": "sofa",
+    "img_path": "img/sofa/0068.png",
+    "mask_path": "mask/sofa/0068.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_1/model.obj"
+  },
+  {
+    "sample_id": 233,
+    "category": "sofa",
+    "img_path": "img/sofa/0375.jpg",
+    "mask_path": "mask/sofa/0375.png",
+    "model_path": "model/sofa/IKEA_EKTORP_3/model.obj"
+  },
+  {
+    "sample_id": 234,
+    "category": "sofa",
+    "img_path": "img/sofa/1865.jpg",
+    "mask_path": "mask/sofa/1865.png",
+    "model_path": "model/sofa/IKEA_TIDAFORS/model.obj"
+  },
+  {
+    "sample_id": 235,
+    "category": "sofa",
+    "img_path": "img/sofa/0318.jpg",
+    "mask_path": "mask/sofa/0318.png",
+    "model_path": "model/sofa/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 236,
+    "category": "sofa",
+    "img_path": "img/sofa/0840.jpg",
+    "mask_path": "mask/sofa/0840.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 237,
+    "category": "sofa",
+    "img_path": "img/sofa/0367.jpg",
+    "mask_path": "mask/sofa/0367.png",
+    "model_path": "model/sofa/IKEA_EKTORP_3/model.obj"
+  },
+  {
+    "sample_id": 238,
+    "category": "sofa",
+    "img_path": "img/sofa/0185.jpg",
+    "mask_path": "mask/sofa/0185.png",
+    "model_path": "model/sofa/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 239,
+    "category": "sofa",
+    "img_path": "img/sofa/1092.jpg",
+    "mask_path": "mask/sofa/1092.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_1/model.obj"
+  },
+  {
+    "sample_id": 240,
+    "category": "sofa",
+    "img_path": "img/sofa/1572.jpg",
+    "mask_path": "mask/sofa/1572.png",
+    "model_path": "model/sofa/IKEA_SKOGABY/model.obj"
+  },
+  {
+    "sample_id": 241,
+    "category": "sofa",
+    "img_path": "img/sofa/0865.jpg",
+    "mask_path": "mask/sofa/0865.png",
+    "model_path": "model/sofa/IKEA_KLAPPSTA/model.obj"
+  },
+  {
+    "sample_id": 242,
+    "category": "sofa",
+    "img_path": "img/sofa/0964.jpg",
+    "mask_path": "mask/sofa/0964.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_1/model.obj"
+  },
+  {
+    "sample_id": 243,
+    "category": "sofa",
+    "img_path": "img/sofa/1498.jpg",
+    "mask_path": "mask/sofa/1498.png",
+    "model_path": "model/sofa/IKEA_SATER/model.obj"
+  },
+  {
+    "sample_id": 244,
+    "category": "sofa",
+    "img_path": "img/sofa/0800.jpg",
+    "mask_path": "mask/sofa/0800.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 245,
+    "category": "sofa",
+    "img_path": "img/sofa/1637.jpg",
+    "mask_path": "mask/sofa/1637.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 246,
+    "category": "sofa",
+    "img_path": "img/sofa/0567.jpg",
+    "mask_path": "mask/sofa/0567.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_3/model.obj"
+  },
+  {
+    "sample_id": 247,
+    "category": "sofa",
+    "img_path": "img/sofa/1710.jpg",
+    "mask_path": "mask/sofa/1710.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 248,
+    "category": "sofa",
+    "img_path": "img/sofa/1722.jpg",
+    "mask_path": "mask/sofa/1722.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 249,
+    "category": "sofa",
+    "img_path": "img/sofa/1469.jpg",
+    "mask_path": "mask/sofa/1469.png",
+    "model_path": "model/sofa/IKEA_SATER/model.obj"
+  },
+  {
+    "sample_id": 250,
+    "category": "sofa",
+    "img_path": "img/sofa/0876.jpg",
+    "mask_path": "mask/sofa/0876.png",
+    "model_path": "model/sofa/IKEA_KLAPPSTA/model.obj"
+  },
+  {
+    "sample_id": 251,
+    "category": "sofa",
+    "img_path": "img/sofa/1290.jpg",
+    "mask_path": "mask/sofa/1290.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 252,
+    "category": "sofa",
+    "img_path": "img/sofa/0740.jpg",
+    "mask_path": "mask/sofa/0740.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 253,
+    "category": "sofa",
+    "img_path": "img/sofa/0447.jpg",
+    "mask_path": "mask/sofa/0447.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_1/model.obj"
+  },
+  {
+    "sample_id": 254,
+    "category": "sofa",
+    "img_path": "img/sofa/0454.jpeg",
+    "mask_path": "mask/sofa/0454.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_1/model.obj"
+  },
+  {
+    "sample_id": 255,
+    "category": "sofa",
+    "img_path": "img/sofa/1946.jpg",
+    "mask_path": "mask/sofa/1946.png",
+    "model_path": "model/sofa/IKEA_VRETA/model.obj"
+  },
+  {
+    "sample_id": 256,
+    "category": "sofa",
+    "img_path": "img/sofa/1351.jpg",
+    "mask_path": "mask/sofa/1351.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 257,
+    "category": "sofa",
+    "img_path": "img/sofa/1152.jpg",
+    "mask_path": "mask/sofa/1152.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_3/model.obj"
+  },
+  {
+    "sample_id": 258,
+    "category": "sofa",
+    "img_path": "img/sofa/1329.jpg",
+    "mask_path": "mask/sofa/1329.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 259,
+    "category": "sofa",
+    "img_path": "img/sofa/1299.jpg",
+    "mask_path": "mask/sofa/1299.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 260,
+    "category": "sofa",
+    "img_path": "img/sofa/1452.jpg",
+    "mask_path": "mask/sofa/1452.png",
+    "model_path": "model/sofa/IKEA_SATER/model.obj"
+  },
+  {
+    "sample_id": 261,
+    "category": "sofa",
+    "img_path": "img/sofa/0287.jpg",
+    "mask_path": "mask/sofa/0287.png",
+    "model_path": "model/sofa/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 262,
+    "category": "sofa",
+    "img_path": "img/sofa/1929.jpg",
+    "mask_path": "mask/sofa/1929.png",
+    "model_path": "model/sofa/IKEA_TIDAFORS/model.obj"
+  },
+  {
+    "sample_id": 263,
+    "category": "sofa",
+    "img_path": "img/sofa/1910.jpg",
+    "mask_path": "mask/sofa/1910.png",
+    "model_path": "model/sofa/IKEA_TIDAFORS/model.obj"
+  },
+  {
+    "sample_id": 264,
+    "category": "sofa",
+    "img_path": "img/sofa/0463.jpg",
+    "mask_path": "mask/sofa/0463.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_1/model.obj"
+  },
+  {
+    "sample_id": 265,
+    "category": "sofa",
+    "img_path": "img/sofa/0329.jpg",
+    "mask_path": "mask/sofa/0329.png",
+    "model_path": "model/sofa/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 266,
+    "category": "sofa",
+    "img_path": "img/sofa/1280.jpg",
+    "mask_path": "mask/sofa/1280.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 267,
+    "category": "sofa",
+    "img_path": "img/sofa/1118.jpg",
+    "mask_path": "mask/sofa/1118.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_2/model.obj"
+  },
+  {
+    "sample_id": 268,
+    "category": "sofa",
+    "img_path": "img/sofa/0498.jpg",
+    "mask_path": "mask/sofa/0498.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_1/model.obj"
+  },
+  {
+    "sample_id": 269,
+    "category": "sofa",
+    "img_path": "img/sofa/0890.jpg",
+    "mask_path": "mask/sofa/0890.png",
+    "model_path": "model/sofa/IKEA_KLAPPSTA/model.obj"
+  },
+  {
+    "sample_id": 270,
+    "category": "sofa",
+    "img_path": "img/sofa/0743.jpg",
+    "mask_path": "mask/sofa/0743.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 271,
+    "category": "sofa",
+    "img_path": "img/sofa/1631.jpg",
+    "mask_path": "mask/sofa/1631.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 272,
+    "category": "sofa",
+    "img_path": "img/sofa/1399.jpg",
+    "mask_path": "mask/sofa/1399.png",
+    "model_path": "model/sofa/IKEA_MANSTAD/model.obj"
+  },
+  {
+    "sample_id": 273,
+    "category": "sofa",
+    "img_path": "img/sofa/0589.jpg",
+    "mask_path": "mask/sofa/0589.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_3/model.obj"
+  },
+  {
+    "sample_id": 274,
+    "category": "sofa",
+    "img_path": "img/sofa/1325.jpg",
+    "mask_path": "mask/sofa/1325.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 275,
+    "category": "sofa",
+    "img_path": "img/sofa/0723.jpg",
+    "mask_path": "mask/sofa/0723.png",
+    "model_path": "model/sofa/IKEA_KIVIK_1/model.obj"
+  },
+  {
+    "sample_id": 276,
+    "category": "sofa",
+    "img_path": "img/sofa/1439.jpg",
+    "mask_path": "mask/sofa/1439.png",
+    "model_path": "model/sofa/IKEA_MANSTAD/model.obj"
+  },
+  {
+    "sample_id": 277,
+    "category": "sofa",
+    "img_path": "img/sofa/0894.jpeg",
+    "mask_path": "mask/sofa/0894.png",
+    "model_path": "model/sofa/IKEA_KLAPPSTA/model.obj"
+  },
+  {
+    "sample_id": 278,
+    "category": "sofa",
+    "img_path": "img/sofa/0387.jpg",
+    "mask_path": "mask/sofa/0387.png",
+    "model_path": "model/sofa/IKEA_EKTORP_3/model.obj"
+  },
+  {
+    "sample_id": 279,
+    "category": "sofa",
+    "img_path": "img/sofa/1385.jpg",
+    "mask_path": "mask/sofa/1385.png",
+    "model_path": "model/sofa/IKEA_MANSTAD/model.obj"
+  },
+  {
+    "sample_id": 280,
+    "category": "sofa",
+    "img_path": "img/sofa/1662.jpg",
+    "mask_path": "mask/sofa/1662.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 281,
+    "category": "sofa",
+    "img_path": "img/sofa/0461.jpg",
+    "mask_path": "mask/sofa/0461.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_1/model.obj"
+  },
+  {
+    "sample_id": 282,
+    "category": "sofa",
+    "img_path": "img/sofa/0270.jpg",
+    "mask_path": "mask/sofa/0270.png",
+    "model_path": "model/sofa/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 283,
+    "category": "sofa",
+    "img_path": "img/sofa/1926.jpg",
+    "mask_path": "mask/sofa/1926.png",
+    "model_path": "model/sofa/IKEA_TIDAFORS/model.obj"
+  },
+  {
+    "sample_id": 284,
+    "category": "sofa",
+    "img_path": "img/sofa/1640.jpg",
+    "mask_path": "mask/sofa/1640.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 285,
+    "category": "sofa",
+    "img_path": "img/sofa/0118.png",
+    "mask_path": "mask/sofa/0118.png",
+    "model_path": "model/sofa/IKEA_SATER/model.obj"
+  },
+  {
+    "sample_id": 286,
+    "category": "sofa",
+    "img_path": "img/sofa/0445.jpg",
+    "mask_path": "mask/sofa/0445.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_1/model.obj"
+  },
+  {
+    "sample_id": 287,
+    "category": "sofa",
+    "img_path": "img/sofa/0862.jpg",
+    "mask_path": "mask/sofa/0862.png",
+    "model_path": "model/sofa/IKEA_KLAPPSTA/model.obj"
+  },
+  {
+    "sample_id": 288,
+    "category": "sofa",
+    "img_path": "img/sofa/0676.jpg",
+    "mask_path": "mask/sofa/0676.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_4/model.obj"
+  },
+  {
+    "sample_id": 289,
+    "category": "sofa",
+    "img_path": "img/sofa/1289.jpg",
+    "mask_path": "mask/sofa/1289.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 290,
+    "category": "sofa",
+    "img_path": "img/sofa/1488.jpg",
+    "mask_path": "mask/sofa/1488.png",
+    "model_path": "model/sofa/IKEA_SATER/model.obj"
+  },
+  {
+    "sample_id": 291,
+    "category": "sofa",
+    "img_path": "img/sofa/0799.jpg",
+    "mask_path": "mask/sofa/0799.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 292,
+    "category": "sofa",
+    "img_path": "img/sofa/1277.jpg",
+    "mask_path": "mask/sofa/1277.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 293,
+    "category": "sofa",
+    "img_path": "img/sofa/0671.jpg",
+    "mask_path": "mask/sofa/0671.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_4/model.obj"
+  },
+  {
+    "sample_id": 294,
+    "category": "sofa",
+    "img_path": "img/sofa/1215.jpg",
+    "mask_path": "mask/sofa/1215.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_3/model.obj"
+  },
+  {
+    "sample_id": 295,
+    "category": "sofa",
+    "img_path": "img/sofa/0030.png",
+    "mask_path": "mask/sofa/0030.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_1/model.obj"
+  },
+  {
+    "sample_id": 296,
+    "category": "sofa",
+    "img_path": "img/sofa/1248.jpg",
+    "mask_path": "mask/sofa/1248.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_3/model.obj"
+  },
+  {
+    "sample_id": 297,
+    "category": "sofa",
+    "img_path": "img/sofa/0931.jpg",
+    "mask_path": "mask/sofa/0931.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_1/model.obj"
+  },
+  {
+    "sample_id": 298,
+    "category": "sofa",
+    "img_path": "img/sofa/1413.jpg",
+    "mask_path": "mask/sofa/1413.png",
+    "model_path": "model/sofa/IKEA_MANSTAD/model.obj"
+  },
+  {
+    "sample_id": 299,
+    "category": "sofa",
+    "img_path": "img/sofa/0982.jpg",
+    "mask_path": "mask/sofa/0982.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_1/model.obj"
+  },
+  {
+    "sample_id": 300,
+    "category": "sofa",
+    "img_path": "img/sofa/1328.jpg",
+    "mask_path": "mask/sofa/1328.png",
+    "model_path": "model/sofa/IKEA_LYCKSELE/model.obj"
+  },
+  {
+    "sample_id": 301,
+    "category": "sofa",
+    "img_path": "img/sofa/1673.jpg",
+    "mask_path": "mask/sofa/1673.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 302,
+    "category": "sofa",
+    "img_path": "img/sofa/1501.jpg",
+    "mask_path": "mask/sofa/1501.png",
+    "model_path": "model/sofa/IKEA_SATER/model.obj"
+  },
+  {
+    "sample_id": 303,
+    "category": "sofa",
+    "img_path": "img/sofa/0638.jpg",
+    "mask_path": "mask/sofa/0638.png",
+    "model_path": "model/sofa/IKEA_KARLSTAD_3/model.obj"
+  },
+  {
+    "sample_id": 304,
+    "category": "sofa",
+    "img_path": "img/sofa/0739.jpg",
+    "mask_path": "mask/sofa/0739.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 305,
+    "category": "sofa",
+    "img_path": "img/sofa/1013.jpg",
+    "mask_path": "mask/sofa/1013.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_1/model.obj"
+  },
+  {
+    "sample_id": 306,
+    "category": "sofa",
+    "img_path": "img/sofa/0808.jpg",
+    "mask_path": "mask/sofa/0808.png",
+    "model_path": "model/sofa/IKEA_KIVIK_2/model.obj"
+  },
+  {
+    "sample_id": 307,
+    "category": "sofa",
+    "img_path": "img/sofa/0317.jpg",
+    "mask_path": "mask/sofa/0317.png",
+    "model_path": "model/sofa/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 308,
+    "category": "sofa",
+    "img_path": "img/sofa/1729.jpg",
+    "mask_path": "mask/sofa/1729.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 309,
+    "category": "sofa",
+    "img_path": "img/sofa/1644.jpg",
+    "mask_path": "mask/sofa/1644.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 310,
+    "category": "sofa",
+    "img_path": "img/sofa/1055.jpg",
+    "mask_path": "mask/sofa/1055.png",
+    "model_path": "model/sofa/IKEA_KLIPPAN_1/model.obj"
+  },
+  {
+    "sample_id": 311,
+    "category": "sofa",
+    "img_path": "img/sofa/0313.jpg",
+    "mask_path": "mask/sofa/0313.png",
+    "model_path": "model/sofa/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 312,
+    "category": "sofa",
+    "img_path": "img/sofa/0269.jpg",
+    "mask_path": "mask/sofa/0269.png",
+    "model_path": "model/sofa/IKEA_EKTORP_2/model.obj"
+  },
+  {
+    "sample_id": 313,
+    "category": "sofa",
+    "img_path": "img/sofa/1742.jpg",
+    "mask_path": "mask/sofa/1742.png",
+    "model_path": "model/sofa/IKEA_SOLSTA_d053e745b565fa391c1b3b2ed8d13bf8/model.obj"
+  },
+  {
+    "sample_id": 314,
+    "category": "table",
+    "img_path": "img/table/1620.jpg",
+    "mask_path": "mask/table/1620.png",
+    "model_path": "model/table/IKEA_TORSBY_2/model.obj"
+  },
+  {
+    "sample_id": 315,
+    "category": "table",
+    "img_path": "img/table/1684.jpg",
+    "mask_path": "mask/table/1684.png",
+    "model_path": "model/table/IKEA_UTBY_1/model.obj"
+  },
+  {
+    "sample_id": 316,
+    "category": "table",
+    "img_path": "img/table/1779.jpg",
+    "mask_path": "mask/table/1779.png",
+    "model_path": "model/table/IKEA_VITTSJO_2/model.obj"
+  },
+  {
+    "sample_id": 317,
+    "category": "table",
+    "img_path": "img/table/0734.jpg",
+    "mask_path": "mask/table/0734.png",
+    "model_path": "model/table/IKEA_INGATORP/model.obj"
+  },
+  {
+    "sample_id": 318,
+    "category": "table",
+    "img_path": "img/table/0211.jpg",
+    "mask_path": "mask/table/0211.png",
+    "model_path": "model/table/IKEA_BJURSTA_3/model.obj"
+  },
+  {
+    "sample_id": 319,
+    "category": "table",
+    "img_path": "img/table/1702.jpg",
+    "mask_path": "mask/table/1702.png",
+    "model_path": "model/table/IKEA_UTBY_2/model.obj"
+  },
+  {
+    "sample_id": 320,
+    "category": "table",
+    "img_path": "img/table/0311.jpg",
+    "mask_path": "mask/table/0311.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 321,
+    "category": "table",
+    "img_path": "img/table/0806.jpg",
+    "mask_path": "mask/table/0806.png",
+    "model_path": "model/table/IKEA_INGO_4/model.obj"
+  },
+  {
+    "sample_id": 322,
+    "category": "table",
+    "img_path": "img/table/0255.jpg",
+    "mask_path": "mask/table/0255.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 323,
+    "category": "table",
+    "img_path": "img/table/0251.jpg",
+    "mask_path": "mask/table/0251.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 324,
+    "category": "table",
+    "img_path": "img/table/0958.jpg",
+    "mask_path": "mask/table/0958.png",
+    "model_path": "model/table/IKEA_KLINGSBO_1/model.obj"
+  },
+  {
+    "sample_id": 325,
+    "category": "table",
+    "img_path": "img/table/1433.jpeg",
+    "mask_path": "mask/table/1433.png",
+    "model_path": "model/table/IKEA_NORDEN_2/model.obj"
+  },
+  {
+    "sample_id": 326,
+    "category": "table",
+    "img_path": "img/table/0616.jpg",
+    "mask_path": "mask/table/0616.png",
+    "model_path": "model/table/IKEA_HEMNES_1/model.obj"
+  },
+  {
+    "sample_id": 327,
+    "category": "table",
+    "img_path": "img/table/0983.jpg",
+    "mask_path": "mask/table/0983.png",
+    "model_path": "model/table/IKEA_KLUBBO_2/model.obj"
+  },
+  {
+    "sample_id": 328,
+    "category": "table",
+    "img_path": "img/table/0127.jpg",
+    "mask_path": "mask/table/0127.png",
+    "model_path": "model/table/IKEA_BJORKUDDEN_2/model.obj"
+  },
+  {
+    "sample_id": 329,
+    "category": "table",
+    "img_path": "img/table/0320.jpg",
+    "mask_path": "mask/table/0320.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 330,
+    "category": "table",
+    "img_path": "img/table/1468.jpg",
+    "mask_path": "mask/table/1468.png",
+    "model_path": "model/table/IKEA_ODDA/model.obj"
+  },
+  {
+    "sample_id": 331,
+    "category": "table",
+    "img_path": "img/table/1742.png",
+    "mask_path": "mask/table/1742.png",
+    "model_path": "model/table/IKEA_VEJMON_3/model.obj"
+  },
+  {
+    "sample_id": 332,
+    "category": "table",
+    "img_path": "img/table/1177.jpg",
+    "mask_path": "mask/table/1177.png",
+    "model_path": "model/table/IKEA_MALM_1/model.obj"
+  },
+  {
+    "sample_id": 333,
+    "category": "table",
+    "img_path": "img/table/1023.jpg",
+    "mask_path": "mask/table/1023.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 334,
+    "category": "table",
+    "img_path": "img/table/0851.png",
+    "mask_path": "mask/table/0851.png",
+    "model_path": "model/table/IKEA_ISALA_2/model.obj"
+  },
+  {
+    "sample_id": 335,
+    "category": "table",
+    "img_path": "img/table/1171.jpg",
+    "mask_path": "mask/table/1171.png",
+    "model_path": "model/table/IKEA_MALM_1/model.obj"
+  },
+  {
+    "sample_id": 336,
+    "category": "table",
+    "img_path": "img/table/0966.jpg",
+    "mask_path": "mask/table/0966.png",
+    "model_path": "model/table/IKEA_KLINGSBO_1/model.obj"
+  },
+  {
+    "sample_id": 337,
+    "category": "table",
+    "img_path": "img/table/1032.jpg",
+    "mask_path": "mask/table/1032.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 338,
+    "category": "table",
+    "img_path": "img/table/1400.jpg",
+    "mask_path": "mask/table/1400.png",
+    "model_path": "model/table/IKEA_NORDEN_1/model.obj"
+  },
+  {
+    "sample_id": 339,
+    "category": "table",
+    "img_path": "img/table/0642.jpg",
+    "mask_path": "mask/table/0642.png",
+    "model_path": "model/table/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 340,
+    "category": "table",
+    "img_path": "img/table/1128.png",
+    "mask_path": "mask/table/1128.png",
+    "model_path": "model/table/IKEA_LINDVED/model.obj"
+  },
+  {
+    "sample_id": 341,
+    "category": "table",
+    "img_path": "img/table/1563.jpg",
+    "mask_path": "mask/table/1563.png",
+    "model_path": "model/table/IKEA_TOFTERYD/model.obj"
+  },
+  {
+    "sample_id": 342,
+    "category": "table",
+    "img_path": "img/table/0277.jpg",
+    "mask_path": "mask/table/0277.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 343,
+    "category": "table",
+    "img_path": "img/table/0044.png",
+    "mask_path": "mask/table/0044.png",
+    "model_path": "model/table/IKEA_LACK_2/model.obj"
+  },
+  {
+    "sample_id": 344,
+    "category": "table",
+    "img_path": "img/table/1565.jpg",
+    "mask_path": "mask/table/1565.png",
+    "model_path": "model/table/IKEA_TOFTERYD/model.obj"
+  },
+  {
+    "sample_id": 345,
+    "category": "table",
+    "img_path": "img/table/0460.jpeg",
+    "mask_path": "mask/table/0460.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 346,
+    "category": "table",
+    "img_path": "img/table/0280.jpg",
+    "mask_path": "mask/table/0280.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 347,
+    "category": "table",
+    "img_path": "img/table/1816.jpg",
+    "mask_path": "mask/table/1816.png",
+    "model_path": "model/table/IKEA_VITTSJO_2/model.obj"
+  },
+  {
+    "sample_id": 348,
+    "category": "table",
+    "img_path": "img/table/0885.png",
+    "mask_path": "mask/table/0885.png",
+    "model_path": "model/table/IKEA_JOKKMOKK/model.obj"
+  },
+  {
+    "sample_id": 349,
+    "category": "table",
+    "img_path": "img/table/1693.jpg",
+    "mask_path": "mask/table/1693.png",
+    "model_path": "model/table/IKEA_UTBY_1/model.obj"
+  },
+  {
+    "sample_id": 350,
+    "category": "table",
+    "img_path": "img/table/0647.jpg",
+    "mask_path": "mask/table/0647.png",
+    "model_path": "model/table/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 351,
+    "category": "table",
+    "img_path": "img/table/1266.jpg",
+    "mask_path": "mask/table/1266.png",
+    "model_path": "model/table/IKEA_MUDDUS/model.obj"
+  },
+  {
+    "sample_id": 352,
+    "category": "table",
+    "img_path": "img/table/0979.jpg",
+    "mask_path": "mask/table/0979.png",
+    "model_path": "model/table/IKEA_KLUBBO_2/model.obj"
+  },
+  {
+    "sample_id": 353,
+    "category": "table",
+    "img_path": "img/table/1326.jpg",
+    "mask_path": "mask/table/1326.png",
+    "model_path": "model/table/IKEA_NORBO/model.obj"
+  },
+  {
+    "sample_id": 354,
+    "category": "table",
+    "img_path": "img/table/1079.jpg",
+    "mask_path": "mask/table/1079.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 355,
+    "category": "table",
+    "img_path": "img/table/0735.jpg",
+    "mask_path": "mask/table/0735.png",
+    "model_path": "model/table/IKEA_INGATORP/model.obj"
+  },
+  {
+    "sample_id": 356,
+    "category": "table",
+    "img_path": "img/table/1517.jpg",
+    "mask_path": "mask/table/1517.png",
+    "model_path": "model/table/IKEA_SALMI/model.obj"
+  },
+  {
+    "sample_id": 357,
+    "category": "table",
+    "img_path": "img/table/1849.jpg",
+    "mask_path": "mask/table/1849.png",
+    "model_path": "model/table/IKEA_VITTSJO_2/model.obj"
+  },
+  {
+    "sample_id": 358,
+    "category": "table",
+    "img_path": "img/table/1137.png",
+    "mask_path": "mask/table/1137.png",
+    "model_path": "model/table/IKEA_LINDVED/model.obj"
+  },
+  {
+    "sample_id": 359,
+    "category": "table",
+    "img_path": "img/table/1769.jpg",
+    "mask_path": "mask/table/1769.png",
+    "model_path": "model/table/IKEA_VITTSJO_2/model.obj"
+  },
+  {
+    "sample_id": 360,
+    "category": "table",
+    "img_path": "img/table/0038.png",
+    "mask_path": "mask/table/0038.png",
+    "model_path": "model/table/IKEA_LACK_2/model.obj"
+  },
+  {
+    "sample_id": 361,
+    "category": "table",
+    "img_path": "img/table/1127.jpg",
+    "mask_path": "mask/table/1127.png",
+    "model_path": "model/table/IKEA_LINDVED/model.obj"
+  },
+  {
+    "sample_id": 362,
+    "category": "table",
+    "img_path": "img/table/0485.jpg",
+    "mask_path": "mask/table/0485.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 363,
+    "category": "table",
+    "img_path": "img/table/0653.jpg",
+    "mask_path": "mask/table/0653.png",
+    "model_path": "model/table/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 364,
+    "category": "table",
+    "img_path": "img/table/1030.jpg",
+    "mask_path": "mask/table/1030.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 365,
+    "category": "table",
+    "img_path": "img/table/0602.jpg",
+    "mask_path": "mask/table/0602.png",
+    "model_path": "model/table/IKEA_GRANAS/model.obj"
+  },
+  {
+    "sample_id": 366,
+    "category": "table",
+    "img_path": "img/table/0514.jpg",
+    "mask_path": "mask/table/0514.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 367,
+    "category": "table",
+    "img_path": "img/table/0727.jpg",
+    "mask_path": "mask/table/0727.png",
+    "model_path": "model/table/IKEA_INGATORP/model.obj"
+  },
+  {
+    "sample_id": 368,
+    "category": "table",
+    "img_path": "img/table/1046.jpg",
+    "mask_path": "mask/table/1046.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 369,
+    "category": "table",
+    "img_path": "img/table/1072.png",
+    "mask_path": "mask/table/1072.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 370,
+    "category": "table",
+    "img_path": "img/table/0875.jpg",
+    "mask_path": "mask/table/0875.png",
+    "model_path": "model/table/IKEA_JOKKMOKK/model.obj"
+  },
+  {
+    "sample_id": 371,
+    "category": "table",
+    "img_path": "img/table/1250.jpg",
+    "mask_path": "mask/table/1250.png",
+    "model_path": "model/table/IKEA_MUDDUS/model.obj"
+  },
+  {
+    "sample_id": 372,
+    "category": "table",
+    "img_path": "img/table/0849.jpg",
+    "mask_path": "mask/table/0849.png",
+    "model_path": "model/table/IKEA_ISALA_2/model.obj"
+  },
+  {
+    "sample_id": 373,
+    "category": "table",
+    "img_path": "img/table/1029.jpg",
+    "mask_path": "mask/table/1029.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 374,
+    "category": "table",
+    "img_path": "img/table/1690.jpg",
+    "mask_path": "mask/table/1690.png",
+    "model_path": "model/table/IKEA_UTBY_1/model.obj"
+  },
+  {
+    "sample_id": 375,
+    "category": "table",
+    "img_path": "img/table/1652.jpg",
+    "mask_path": "mask/table/1652.png",
+    "model_path": "model/table/IKEA_TORSBY_2/model.obj"
+  },
+  {
+    "sample_id": 376,
+    "category": "table",
+    "img_path": "img/table/0995.jpg",
+    "mask_path": "mask/table/0995.png",
+    "model_path": "model/table/IKEA_KLUBBO_5/model.obj"
+  },
+  {
+    "sample_id": 377,
+    "category": "table",
+    "img_path": "img/table/0182.jpg",
+    "mask_path": "mask/table/0182.png",
+    "model_path": "model/table/IKEA_BJORKUDDEN_3/model.obj"
+  },
+  {
+    "sample_id": 378,
+    "category": "table",
+    "img_path": "img/table/0420.jpg",
+    "mask_path": "mask/table/0420.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 379,
+    "category": "table",
+    "img_path": "img/table/1481.jpg",
+    "mask_path": "mask/table/1481.png",
+    "model_path": "model/table/IKEA_RAST/model.obj"
+  },
+  {
+    "sample_id": 380,
+    "category": "table",
+    "img_path": "img/table/1057.jpg",
+    "mask_path": "mask/table/1057.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 381,
+    "category": "table",
+    "img_path": "img/table/0146.jpg",
+    "mask_path": "mask/table/0146.png",
+    "model_path": "model/table/IKEA_BJORKUDDEN_3/model.obj"
+  },
+  {
+    "sample_id": 382,
+    "category": "table",
+    "img_path": "img/table/0016.png",
+    "mask_path": "mask/table/0016.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 383,
+    "category": "table",
+    "img_path": "img/table/1219.jpg",
+    "mask_path": "mask/table/1219.png",
+    "model_path": "model/table/IKEA_MALM_3/model.obj"
+  },
+  {
+    "sample_id": 384,
+    "category": "table",
+    "img_path": "img/table/0640.jpg",
+    "mask_path": "mask/table/0640.png",
+    "model_path": "model/table/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 385,
+    "category": "table",
+    "img_path": "img/table/1025.jpg",
+    "mask_path": "mask/table/1025.png",
+    "model_path": "model/table/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 386,
+    "category": "table",
+    "img_path": "img/table/0744.jpg",
+    "mask_path": "mask/table/0744.png",
+    "model_path": "model/table/IKEA_INGO_1/model.obj"
+  },
+  {
+    "sample_id": 387,
+    "category": "table",
+    "img_path": "img/table/1524.jpg",
+    "mask_path": "mask/table/1524.png",
+    "model_path": "model/table/IKEA_SALMI/model.obj"
+  },
+  {
+    "sample_id": 388,
+    "category": "table",
+    "img_path": "img/table/1493.jpg",
+    "mask_path": "mask/table/1493.png",
+    "model_path": "model/table/IKEA_RAST/model.obj"
+  },
+  {
+    "sample_id": 389,
+    "category": "table",
+    "img_path": "img/table/0568.jpg",
+    "mask_path": "mask/table/0568.png",
+    "model_path": "model/table/IKEA_FUSION/model.obj"
+  },
+  {
+    "sample_id": 390,
+    "category": "table",
+    "img_path": "img/table/0286.jpg",
+    "mask_path": "mask/table/0286.png",
+    "model_path": "model/table/IKEA_DOCKSTA/model.obj"
+  },
+  {
+    "sample_id": 391,
+    "category": "table",
+    "img_path": "img/table/0703.jpg",
+    "mask_path": "mask/table/0703.png",
+    "model_path": "model/table/IKEA_INGATORP/model.obj"
+  },
+  {
+    "sample_id": 392,
+    "category": "table",
+    "img_path": "img/table/1866.jpg",
+    "mask_path": "mask/table/1866.png",
+    "model_path": "model/table/IKEA_VITTSJO_2/model.obj"
+  },
+  {
+    "sample_id": 393,
+    "category": "table",
+    "img_path": "img/table/0115.jpg",
+    "mask_path": "mask/table/0115.png",
+    "model_path": "model/table/IKEA_BJORKUDDEN_1/model.obj"
+  },
+  {
+    "sample_id": 394,
+    "category": "bed",
+    "img_path": "img/bed/0760.jpg",
+    "mask_path": "mask/bed/0760.png",
+    "model_path": "model/bed/IKEA_MALM_2/model.obj"
+  },
+  {
+    "sample_id": 395,
+    "category": "bed",
+    "img_path": "img/bed/0246.jpg",
+    "mask_path": "mask/bed/0246.png",
+    "model_path": "model/bed/IKEA_FJELLSE_1/model.obj"
+  },
+  {
+    "sample_id": 396,
+    "category": "bed",
+    "img_path": "img/bed/0851.jpg",
+    "mask_path": "mask/bed/0851.png",
+    "model_path": "model/bed/IKEA_MANDAL_1/model.obj"
+  },
+  {
+    "sample_id": 397,
+    "category": "bed",
+    "img_path": "img/bed/0212.jpg",
+    "mask_path": "mask/bed/0212.png",
+    "model_path": "model/bed/IKEA_FJELLSE_1/model.obj"
+  },
+  {
+    "sample_id": 398,
+    "category": "bed",
+    "img_path": "img/bed/0059.jpg",
+    "mask_path": "mask/bed/0059.png",
+    "model_path": "model/bed/IKEA_BEDDINGE/model.obj"
+  },
+  {
+    "sample_id": 399,
+    "category": "bed",
+    "img_path": "img/bed/0612.jpg",
+    "mask_path": "mask/bed/0612.png",
+    "model_path": "model/bed/IKEA_LEIRVIK/model.obj"
+  },
+  {
+    "sample_id": 400,
+    "category": "bed",
+    "img_path": "img/bed/0750.png",
+    "mask_path": "mask/bed/0750.png",
+    "model_path": "model/bed/IKEA_MALM_1/model.obj"
+  },
+  {
+    "sample_id": 401,
+    "category": "bed",
+    "img_path": "img/bed/0057.jpg",
+    "mask_path": "mask/bed/0057.png",
+    "model_path": "model/bed/IKEA_BEDDINGE/model.obj"
+  },
+  {
+    "sample_id": 402,
+    "category": "bed",
+    "img_path": "img/bed/0741.jpg",
+    "mask_path": "mask/bed/0741.png",
+    "model_path": "model/bed/IKEA_MALM_1/model.obj"
+  },
+  {
+    "sample_id": 403,
+    "category": "bed",
+    "img_path": "img/bed/0368.jpg",
+    "mask_path": "mask/bed/0368.png",
+    "model_path": "model/bed/IKEA_HEMNES_2/model.obj"
+  },
+  {
+    "sample_id": 404,
+    "category": "bed",
+    "img_path": "img/bed/0460.jpg",
+    "mask_path": "mask/bed/0460.png",
+    "model_path": "model/bed/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 405,
+    "category": "bed",
+    "img_path": "img/bed/0159.jpg",
+    "mask_path": "mask/bed/0159.png",
+    "model_path": "model/bed/IKEA_BRIMNES_1/model.obj"
+  },
+  {
+    "sample_id": 406,
+    "category": "bed",
+    "img_path": "img/bed/0730.png",
+    "mask_path": "mask/bed/0730.png",
+    "model_path": "model/bed/IKEA_LILLESAND/model.obj"
+  },
+  {
+    "sample_id": 407,
+    "category": "bed",
+    "img_path": "img/bed/0816.jpg",
+    "mask_path": "mask/bed/0816.png",
+    "model_path": "model/bed/IKEA_MALM_3/model.obj"
+  },
+  {
+    "sample_id": 408,
+    "category": "bed",
+    "img_path": "img/bed/0257.jpg",
+    "mask_path": "mask/bed/0257.png",
+    "model_path": "model/bed/IKEA_FJELLSE_2/model.obj"
+  },
+  {
+    "sample_id": 409,
+    "category": "bed",
+    "img_path": "img/bed/0430.jpg",
+    "mask_path": "mask/bed/0430.png",
+    "model_path": "model/bed/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 410,
+    "category": "bed",
+    "img_path": "img/bed/0268.jpg",
+    "mask_path": "mask/bed/0268.png",
+    "model_path": "model/bed/IKEA_FJELLSE_2/model.obj"
+  },
+  {
+    "sample_id": 411,
+    "category": "bed",
+    "img_path": "img/bed/0294.jpg",
+    "mask_path": "mask/bed/0294.png",
+    "model_path": "model/bed/IKEA_FJELLSE_2/model.obj"
+  },
+  {
+    "sample_id": 412,
+    "category": "bed",
+    "img_path": "img/bed/0823.jpg",
+    "mask_path": "mask/bed/0823.png",
+    "model_path": "model/bed/IKEA_MALM_4/model.obj"
+  },
+  {
+    "sample_id": 413,
+    "category": "bed",
+    "img_path": "img/bed/0039.png",
+    "mask_path": "mask/bed/0039.png",
+    "model_path": "model/bed/IKEA_MALM_3/model.obj"
+  },
+  {
+    "sample_id": 414,
+    "category": "bed",
+    "img_path": "img/bed/0298.jpg",
+    "mask_path": "mask/bed/0298.png",
+    "model_path": "model/bed/IKEA_FJELLSE_2/model.obj"
+  },
+  {
+    "sample_id": 415,
+    "category": "bed",
+    "img_path": "img/bed/0688.jpg",
+    "mask_path": "mask/bed/0688.png",
+    "model_path": "model/bed/IKEA_LILLESAND/model.obj"
+  },
+  {
+    "sample_id": 416,
+    "category": "bed",
+    "img_path": "img/bed/0822.jpg",
+    "mask_path": "mask/bed/0822.png",
+    "model_path": "model/bed/IKEA_MALM_4/model.obj"
+  },
+  {
+    "sample_id": 417,
+    "category": "bed",
+    "img_path": "img/bed/0454.jpg",
+    "mask_path": "mask/bed/0454.png",
+    "model_path": "model/bed/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 418,
+    "category": "bed",
+    "img_path": "img/bed/0491.jpg",
+    "mask_path": "mask/bed/0491.png",
+    "model_path": "model/bed/IKEA_LEIRVIK/model.obj"
+  },
+  {
+    "sample_id": 419,
+    "category": "bed",
+    "img_path": "img/bed/0262.jpg",
+    "mask_path": "mask/bed/0262.png",
+    "model_path": "model/bed/IKEA_FJELLSE_2/model.obj"
+  },
+  {
+    "sample_id": 420,
+    "category": "bed",
+    "img_path": "img/bed/0173.jpg",
+    "mask_path": "mask/bed/0173.png",
+    "model_path": "model/bed/IKEA_BRIMNES_1/model.obj"
+  },
+  {
+    "sample_id": 421,
+    "category": "bed",
+    "img_path": "img/bed/0782.jpg",
+    "mask_path": "mask/bed/0782.png",
+    "model_path": "model/bed/IKEA_MALM_2/model.obj"
+  },
+  {
+    "sample_id": 422,
+    "category": "bed",
+    "img_path": "img/bed/0056.jpg",
+    "mask_path": "mask/bed/0056.png",
+    "model_path": "model/bed/IKEA_BEDDINGE/model.obj"
+  },
+  {
+    "sample_id": 423,
+    "category": "bed",
+    "img_path": "img/bed/0901.jpg",
+    "mask_path": "mask/bed/0901.png",
+    "model_path": "model/bed/IKEA_NORDLI/model.obj"
+  },
+  {
+    "sample_id": 424,
+    "category": "bed",
+    "img_path": "img/bed/0395.jpg",
+    "mask_path": "mask/bed/0395.png",
+    "model_path": "model/bed/IKEA_HEMNES_2/model.obj"
+  },
+  {
+    "sample_id": 425,
+    "category": "bed",
+    "img_path": "img/bed/0347.jpg",
+    "mask_path": "mask/bed/0347.png",
+    "model_path": "model/bed/IKEA_HEMNES_2/model.obj"
+  },
+  {
+    "sample_id": 426,
+    "category": "bed",
+    "img_path": "img/bed/0887.jpg",
+    "mask_path": "mask/bed/0887.png",
+    "model_path": "model/bed/IKEA_NORDLI/model.obj"
+  },
+  {
+    "sample_id": 427,
+    "category": "bed",
+    "img_path": "img/bed/0723.jpg",
+    "mask_path": "mask/bed/0723.png",
+    "model_path": "model/bed/IKEA_LILLESAND/model.obj"
+  },
+  {
+    "sample_id": 428,
+    "category": "bed",
+    "img_path": "img/bed/0606.jpg",
+    "mask_path": "mask/bed/0606.png",
+    "model_path": "model/bed/IKEA_LEIRVIK/model.obj"
+  },
+  {
+    "sample_id": 429,
+    "category": "bed",
+    "img_path": "img/bed/0409.jpg",
+    "mask_path": "mask/bed/0409.png",
+    "model_path": "model/bed/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 430,
+    "category": "bed",
+    "img_path": "img/bed/0397.jpg",
+    "mask_path": "mask/bed/0397.png",
+    "model_path": "model/bed/IKEA_HEMNES_3/model.obj"
+  },
+  {
+    "sample_id": 431,
+    "category": "bed",
+    "img_path": "img/bed/0038.png",
+    "mask_path": "mask/bed/0038.png",
+    "model_path": "model/bed/IKEA_MALM_4/model.obj"
+  },
+  {
+    "sample_id": 432,
+    "category": "desk",
+    "img_path": "img/desk/0536.jpg",
+    "mask_path": "mask/desk/0536.png",
+    "model_path": "model/desk/IKEA_MICKE_2/model.obj"
+  },
+  {
+    "sample_id": 433,
+    "category": "desk",
+    "img_path": "img/desk/0174.jpg",
+    "mask_path": "mask/desk/0174.png",
+    "model_path": "model/desk/IKEA_GALANT_2/model.obj"
+  },
+  {
+    "sample_id": 434,
+    "category": "desk",
+    "img_path": "img/desk/0316.jpg",
+    "mask_path": "mask/desk/0316.png",
+    "model_path": "model/desk/IKEA_LEKSVIK/model.obj"
+  },
+  {
+    "sample_id": 435,
+    "category": "desk",
+    "img_path": "img/desk/0265.jpg",
+    "mask_path": "mask/desk/0265.png",
+    "model_path": "model/desk/IKEA_LAIVA/model.obj"
+  },
+  {
+    "sample_id": 436,
+    "category": "desk",
+    "img_path": "img/desk/0229.jpg",
+    "mask_path": "mask/desk/0229.png",
+    "model_path": "model/desk/IKEA_HEMNES/model.obj"
+  },
+  {
+    "sample_id": 437,
+    "category": "desk",
+    "img_path": "img/desk/0074.jpg",
+    "mask_path": "mask/desk/0074.png",
+    "model_path": "model/desk/IKEA_BESTA_2/model.obj"
+  },
+  {
+    "sample_id": 438,
+    "category": "desk",
+    "img_path": "img/desk/0629.jpg",
+    "mask_path": "mask/desk/0629.png",
+    "model_path": "model/desk/IKEA_VITTSJO/model.obj"
+  },
+  {
+    "sample_id": 439,
+    "category": "desk",
+    "img_path": "img/desk/0280.jpg",
+    "mask_path": "mask/desk/0280.png",
+    "model_path": "model/desk/IKEA_LAIVA/model.obj"
+  },
+  {
+    "sample_id": 440,
+    "category": "desk",
+    "img_path": "img/desk/0518.jpg",
+    "mask_path": "mask/desk/0518.png",
+    "model_path": "model/desk/IKEA_MICKE_1/model.obj"
+  },
+  {
+    "sample_id": 441,
+    "category": "desk",
+    "img_path": "img/desk/0417.jpg",
+    "mask_path": "mask/desk/0417.png",
+    "model_path": "model/desk/IKEA_MALM/model.obj"
+  },
+  {
+    "sample_id": 442,
+    "category": "desk",
+    "img_path": "img/desk/0548.jpg",
+    "mask_path": "mask/desk/0548.png",
+    "model_path": "model/desk/IKEA_MICKE_2/model.obj"
+  },
+  {
+    "sample_id": 443,
+    "category": "desk",
+    "img_path": "img/desk/0432.jpg",
+    "mask_path": "mask/desk/0432.png",
+    "model_path": "model/desk/IKEA_MALM/model.obj"
+  },
+  {
+    "sample_id": 444,
+    "category": "desk",
+    "img_path": "img/desk/0266.jpg",
+    "mask_path": "mask/desk/0266.png",
+    "model_path": "model/desk/IKEA_LAIVA/model.obj"
+  },
+  {
+    "sample_id": 445,
+    "category": "desk",
+    "img_path": "img/desk/0034.jpg",
+    "mask_path": "mask/desk/0034.png",
+    "model_path": "model/desk/IKEA_BESTA_2/model.obj"
+  },
+  {
+    "sample_id": 446,
+    "category": "desk",
+    "img_path": "img/desk/0123.jpg",
+    "mask_path": "mask/desk/0123.png",
+    "model_path": "model/desk/IKEA_FREDRIK/model.obj"
+  },
+  {
+    "sample_id": 447,
+    "category": "desk",
+    "img_path": "img/desk/0218.jpg",
+    "mask_path": "mask/desk/0218.png",
+    "model_path": "model/desk/IKEA_HEMNES/model.obj"
+  },
+  {
+    "sample_id": 448,
+    "category": "desk",
+    "img_path": "img/desk/0166.jpg",
+    "mask_path": "mask/desk/0166.png",
+    "model_path": "model/desk/IKEA_GALANT_1/model.obj"
+  },
+  {
+    "sample_id": 449,
+    "category": "desk",
+    "img_path": "img/desk/0468.jpeg",
+    "mask_path": "mask/desk/0468.png",
+    "model_path": "model/desk/IKEA_MALM/model.obj"
+  },
+  {
+    "sample_id": 450,
+    "category": "desk",
+    "img_path": "img/desk/0222.jpg",
+    "mask_path": "mask/desk/0222.png",
+    "model_path": "model/desk/IKEA_HEMNES/model.obj"
+  },
+  {
+    "sample_id": 451,
+    "category": "desk",
+    "img_path": "img/desk/0043.jpg",
+    "mask_path": "mask/desk/0043.png",
+    "model_path": "model/desk/IKEA_BESTA_2/model.obj"
+  },
+  {
+    "sample_id": 452,
+    "category": "desk",
+    "img_path": "img/desk/0115.jpg",
+    "mask_path": "mask/desk/0115.png",
+    "model_path": "model/desk/IKEA_EXPEDIT_1/model.obj"
+  },
+  {
+    "sample_id": 453,
+    "category": "desk",
+    "img_path": "img/desk/0481.jpg",
+    "mask_path": "mask/desk/0481.png",
+    "model_path": "model/desk/IKEA_MICKE_1/model.obj"
+  },
+  {
+    "sample_id": 454,
+    "category": "desk",
+    "img_path": "img/desk/0346.jpg",
+    "mask_path": "mask/desk/0346.png",
+    "model_path": "model/desk/IKEA_LIATORP/model.obj"
+  },
+  {
+    "sample_id": 455,
+    "category": "desk",
+    "img_path": "img/desk/0276.jpg",
+    "mask_path": "mask/desk/0276.png",
+    "model_path": "model/desk/IKEA_LAIVA/model.obj"
+  },
+  {
+    "sample_id": 456,
+    "category": "desk",
+    "img_path": "img/desk/0592.jpg",
+    "mask_path": "mask/desk/0592.png",
+    "model_path": "model/desk/IKEA_MICKE_2/model.obj"
+  },
+  {
+    "sample_id": 457,
+    "category": "desk",
+    "img_path": "img/desk/0646.jpg",
+    "mask_path": "mask/desk/0646.png",
+    "model_path": "model/desk/IKEA_VITTSJO/model.obj"
+  },
+  {
+    "sample_id": 458,
+    "category": "desk",
+    "img_path": "img/desk/0256.jpg",
+    "mask_path": "mask/desk/0256.png",
+    "model_path": "model/desk/IKEA_LAIVA/model.obj"
+  },
+  {
+    "sample_id": 459,
+    "category": "desk",
+    "img_path": "img/desk/0347.jpg",
+    "mask_path": "mask/desk/0347.png",
+    "model_path": "model/desk/IKEA_LIATORP/model.obj"
+  },
+  {
+    "sample_id": 460,
+    "category": "desk",
+    "img_path": "img/desk/0488.jpg",
+    "mask_path": "mask/desk/0488.png",
+    "model_path": "model/desk/IKEA_MICKE_1/model.obj"
+  },
+  {
+    "sample_id": 461,
+    "category": "desk",
+    "img_path": "img/desk/0419.jpg",
+    "mask_path": "mask/desk/0419.png",
+    "model_path": "model/desk/IKEA_MALM/model.obj"
+  },
+  {
+    "sample_id": 462,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0036.jpg",
+    "mask_path": "mask/bookcase/0036.png",
+    "model_path": "model/bookcase/IKEA_BILLY_3/model.obj"
+  },
+  {
+    "sample_id": 463,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0145.jpg",
+    "mask_path": "mask/bookcase/0145.png",
+    "model_path": "model/bookcase/IKEA_EXPEDIT_3/model.obj"
+  },
+  {
+    "sample_id": 464,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0223.jpg",
+    "mask_path": "mask/bookcase/0223.png",
+    "model_path": "model/bookcase/IKEA_KILBY_1/model.obj"
+  },
+  {
+    "sample_id": 465,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0068.jpg",
+    "mask_path": "mask/bookcase/0068.png",
+    "model_path": "model/bookcase/IKEA_EXPEDIT_1/model.obj"
+  },
+  {
+    "sample_id": 466,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0098.jpg",
+    "mask_path": "mask/bookcase/0098.png",
+    "model_path": "model/bookcase/IKEA_EXPEDIT_2/model.obj"
+  },
+  {
+    "sample_id": 467,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0016.jpg",
+    "mask_path": "mask/bookcase/0016.png",
+    "model_path": "model/bookcase/IKEA_BILLY_1/model.obj"
+  },
+  {
+    "sample_id": 468,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0267.jpg",
+    "mask_path": "mask/bookcase/0267.png",
+    "model_path": "model/bookcase/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 469,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0169.jpg",
+    "mask_path": "mask/bookcase/0169.png",
+    "model_path": "model/bookcase/IKEA_HEMNES/model.obj"
+  },
+  {
+    "sample_id": 470,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0001.jpg",
+    "mask_path": "mask/bookcase/0001.png",
+    "model_path": "model/bookcase/IKEA_BESTA/model.obj"
+  },
+  {
+    "sample_id": 471,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0201.jpg",
+    "mask_path": "mask/bookcase/0201.png",
+    "model_path": "model/bookcase/IKEA_HEMNES/model.obj"
+  },
+  {
+    "sample_id": 472,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0306.jpg",
+    "mask_path": "mask/bookcase/0306.png",
+    "model_path": "model/bookcase/IKEA_LAIVA/model.obj"
+  },
+  {
+    "sample_id": 473,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0206.jpg",
+    "mask_path": "mask/bookcase/0206.png",
+    "model_path": "model/bookcase/IKEA_HEMNES/model.obj"
+  },
+  {
+    "sample_id": 474,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0260.jpg",
+    "mask_path": "mask/bookcase/0260.png",
+    "model_path": "model/bookcase/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 475,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0273.jpg",
+    "mask_path": "mask/bookcase/0273.png",
+    "model_path": "model/bookcase/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 476,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0283.jpg",
+    "mask_path": "mask/bookcase/0283.png",
+    "model_path": "model/bookcase/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 477,
+    "category": "bookcase",
+    "img_path": "img/bookcase/0282.jpg",
+    "mask_path": "mask/bookcase/0282.png",
+    "model_path": "model/bookcase/IKEA_LACK_3/model.obj"
+  },
+  {
+    "sample_id": 478,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0229.jpg",
+    "mask_path": "mask/wardrobe/0229.png",
+    "model_path": "model/wardrobe/IKEA_ODDA_1/model.obj"
+  },
+  {
+    "sample_id": 479,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0060.jpg",
+    "mask_path": "mask/wardrobe/0060.png",
+    "model_path": "model/wardrobe/IKEA_ANEBODA_1/model.obj"
+  },
+  {
+    "sample_id": 480,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0123.jpg",
+    "mask_path": "mask/wardrobe/0123.png",
+    "model_path": "model/wardrobe/IKEA_DOMBAS/model.obj"
+  },
+  {
+    "sample_id": 481,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0143.jpg",
+    "mask_path": "mask/wardrobe/0143.png",
+    "model_path": "model/wardrobe/IKEA_DOMBAS/model.obj"
+  },
+  {
+    "sample_id": 482,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0022.jpg",
+    "mask_path": "mask/wardrobe/0022.png",
+    "model_path": "model/wardrobe/IKEA_ANEBODA_1/model.obj"
+  },
+  {
+    "sample_id": 483,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0228.jpg",
+    "mask_path": "mask/wardrobe/0228.png",
+    "model_path": "model/wardrobe/IKEA_ODDA_1/model.obj"
+  },
+  {
+    "sample_id": 484,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0111.jpg",
+    "mask_path": "mask/wardrobe/0111.png",
+    "model_path": "model/wardrobe/IKEA_DOMBAS/model.obj"
+  },
+  {
+    "sample_id": 485,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0211.jpg",
+    "mask_path": "mask/wardrobe/0211.png",
+    "model_path": "model/wardrobe/IKEA_HEMNES/model.obj"
+  },
+  {
+    "sample_id": 486,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0105.jpg",
+    "mask_path": "mask/wardrobe/0105.png",
+    "model_path": "model/wardrobe/IKEA_ANEBODA_2/model.obj"
+  },
+  {
+    "sample_id": 487,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0227.jpg",
+    "mask_path": "mask/wardrobe/0227.png",
+    "model_path": "model/wardrobe/IKEA_HEMNES/model.obj"
+  },
+  {
+    "sample_id": 488,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0038.jpg",
+    "mask_path": "mask/wardrobe/0038.png",
+    "model_path": "model/wardrobe/IKEA_ANEBODA_1/model.obj"
+  },
+  {
+    "sample_id": 489,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0242.jpg",
+    "mask_path": "mask/wardrobe/0242.png",
+    "model_path": "model/wardrobe/IKEA_ANEBODA_1/model.obj"
+  },
+  {
+    "sample_id": 490,
+    "category": "wardrobe",
+    "img_path": "img/wardrobe/0101.jpg",
+    "mask_path": "mask/wardrobe/0101.png",
+    "model_path": "model/wardrobe/IKEA_ANEBODA_2/model.obj"
+  },
+  {
+    "sample_id": 491,
+    "category": "misc",
+    "img_path": "img/misc/0035.jpg",
+    "mask_path": "mask/misc/0035.png",
+    "model_path": "model/misc/SS_06/model.obj"
+  },
+  {
+    "sample_id": 492,
+    "category": "misc",
+    "img_path": "img/misc/0022.jpg",
+    "mask_path": "mask/misc/0022.png",
+    "model_path": "model/misc/SS_04/model.obj"
+  },
+  {
+    "sample_id": 493,
+    "category": "misc",
+    "img_path": "img/misc/0046.jpg",
+    "mask_path": "mask/misc/0046.png",
+    "model_path": "model/misc/SS_09/model.obj"
+  },
+  {
+    "sample_id": 494,
+    "category": "misc",
+    "img_path": "img/misc/0029.jpg",
+    "mask_path": "mask/misc/0029.png",
+    "model_path": "model/misc/SS_05/model.obj"
+  },
+  {
+    "sample_id": 495,
+    "category": "misc",
+    "img_path": "img/misc/0023.jpg",
+    "mask_path": "mask/misc/0023.png",
+    "model_path": "model/misc/SS_04/model.obj"
+  },
+  {
+    "sample_id": 496,
+    "category": "tool",
+    "img_path": "img/tool/0027.jpg",
+    "mask_path": "mask/tool/0027.png",
+    "model_path": "model/tool/SS_6/model.obj"
+  },
+  {
+    "sample_id": 497,
+    "category": "tool",
+    "img_path": "img/tool/0046.jpg",
+    "mask_path": "mask/tool/0046.png",
+    "model_path": "model/tool/SS_8/model.obj"
+  },
+  {
+    "sample_id": 498,
+    "category": "tool",
+    "img_path": "img/tool/0020.jpg",
+    "mask_path": "mask/tool/0020.png",
+    "model_path": "model/tool/SS_3/model.obj"
+  },
+  {
+    "sample_id": 499,
+    "category": "tool",
+    "img_path": "img/tool/0037.jpg",
+    "mask_path": "mask/tool/0037.png",
+    "model_path": "model/tool/SS_6/model.obj"
+  }
+]
