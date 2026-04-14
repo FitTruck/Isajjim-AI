@@ -1,0 +1,4 @@
+variant,n_total,n_success,n_fail,success_rate,latency_mean,latency_std,latency_median,latency_p95,latency_min,latency_max,speedup,vram_mean_gb,vram_max_gb,rde_mean_pct,rde_std_pct,rde_median_pct,da5_pct,da10_pct,da20_pct,ve_mean_pct,ve_median_pct
+Original,500,498,2,99.6,55.272,10.631,52.098,75.136,42.596,119.699,1.00,17.621,19.454,8.277,6.857,6.657,35.5,71.7,94.8,22.971,16.156
+Fast-SAM3D,500,500,0,100.0,7.235,0.768,6.933,8.658,6.227,11.742,7.64,17.215,18.170,8.474,6.341,6.916,32.4,70.6,94.2,23.393,17.205
+Ours,500,500,0,100.0,5.571,1.834,5.149,9.328,3.831,15.447,9.92,11.139,16.710,8.588,6.964,6.950,33.4,70.0,94.2,24.523,17.228

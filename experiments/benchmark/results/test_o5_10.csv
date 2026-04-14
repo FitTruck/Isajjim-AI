@@ -1,0 +1,11 @@
+sample_id,category,img_path,mask_path,model_path,dim_small,dim_mid,dim_large,latency_seconds,vram_peak_mb,success,error
+0,chair,img/chair/3194.jpg,mask/chair/3194.png,model/chair/IKEA_SIGURD/model.obj,0.5549019827804555,0.7381946072979018,1.0,4.8,10950.4,True,
+1,chair,img/chair/0533.jpg,mask/chair/0533.png,model/chair/SS_069/model.obj,0.5658514450893648,0.6295583184922157,1.0,6.207,11087.3,True,
+218,sofa,img/sofa/1370.jpg,mask/sofa/1370.png,model/sofa/IKEA_LYCKSELE/model.obj,0.5693391432224808,0.8264054527631155,1.0,6.223,11682.9,True,
+219,sofa,img/sofa/1582.jpg,mask/sofa/1582.png,model/sofa/IKEA_SKOGABY/model.obj,0.45628702999845117,0.48961972867002546,1.0,5.666,11237.0,True,
+314,table,img/table/1620.jpg,mask/table/1620.png,model/table/IKEA_TORSBY_2/model.obj,0.6501424895171667,0.7644327041546307,1.0,4.75,10955.3,True,
+315,table,img/table/1684.jpg,mask/table/1684.png,model/table/IKEA_UTBY_1/model.obj,0.5679290372034237,0.9884422057857056,1.0,4.7,10940.3,True,
+394,bed,img/bed/0760.jpg,mask/bed/0760.png,model/bed/IKEA_MALM_2/model.obj,0.3945732906470315,0.7737674146998316,1.0,5.407,10957.0,True,
+395,bed,img/bed/0246.jpg,mask/bed/0246.png,model/bed/IKEA_FJELLSE_1/model.obj,0.38798804452222985,0.9348333537147905,1.0,5.652,11261.4,True,
+432,desk,img/desk/0536.jpg,mask/desk/0536.png,model/desk/IKEA_MICKE_2/model.obj,0.4122135010781503,0.8953482048642444,1.0,6.239,11724.2,True,
+433,desk,img/desk/0174.jpg,mask/desk/0174.png,model/desk/IKEA_GALANT_2/model.obj,0.5067952807893524,0.5453164567642418,1.0,4.583,10957.0,True,
