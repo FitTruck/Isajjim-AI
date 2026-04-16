@@ -1,7 +1,7 @@
 """
 AI Pipeline Processors
 
-AI Logic 단계별 모듈 (V2 Pipeline):
+AI Logic 단계별 모듈 (V3 Pipeline):
 1. Firebase Storage에서 이미지 가져오기
 2. YOLOE-seg로 객체 탐지 (마스크 포함)
 3. (CLIP 제거됨)
@@ -9,6 +9,8 @@ AI Logic 단계별 모듈 (V2 Pipeline):
 5. (SAM2 제거됨 - YOLOE-seg 마스크 직접 사용)
 6. SAM-3D Worker Pool로 3D 변환 (Legacy subprocess 방식 제거됨)
 7. 치수(width, depth, height) 계산 (부피는 백엔드에서 계산)
+8. 절대 부피 계산 (규칙기반)
+9. Boxer 절대 치수 추정 (V3)
 """
 
 import importlib
@@ -23,6 +25,8 @@ _stage4 = importlib.import_module('.4_DB_movability_check', package='ai.processo
 _stage7 = importlib.import_module('.7_volume_calculate', package='ai.processors')
 _stage8 = importlib.import_module('.8_absolute_volume_calculate', package='ai.processors')
 _ply_preprocess = importlib.import_module('.ply_preprocessor', package='ai.processors')
+_stage9 = importlib.import_module('.9_boxer_dimension', package='ai.processors')
+_dim_strategy = importlib.import_module('.dimension_strategy', package='ai.processors')
 
 # 클래스 노출
 ImageFetcher = _stage1.ImageFetcher
@@ -39,6 +43,14 @@ get_calculator = _stage8.get_calculator
 PLYPreprocessor = _ply_preprocess.PLYPreprocessor
 PreprocessResult = _ply_preprocess.PreprocessResult
 preprocess_ply = _ply_preprocess.preprocess_ply
+# Step 9: Boxer Dimension Estimation (V3)
+BoxerDimensionEstimator = _stage9.BoxerDimensionEstimator
+BoxerResult = _stage9.BoxerResult
+get_boxer_estimator = _stage9.get_boxer_estimator
+is_boxer_available = _stage9.is_boxer_available
+# Dimension Strategy (Boxer + Fallback)
+DimensionStrategy = _dim_strategy.DimensionStrategy
+DimensionMode = _dim_strategy.DimensionMode
 
 __all__ = [
     # Step 1-4: Detection
@@ -59,4 +71,12 @@ __all__ = [
     'PLYPreprocessor',
     'PreprocessResult',
     'preprocess_ply',
+    # Step 9: Boxer Dimension Estimation (V3)
+    'BoxerDimensionEstimator',
+    'BoxerResult',
+    'get_boxer_estimator',
+    'is_boxer_available',
+    # Dimension Strategy (Boxer + Fallback)
+    'DimensionStrategy',
+    'DimensionMode',
 ]

@@ -44,7 +44,13 @@ from ai.processors import (
     MovabilityChecker,
     DimensionCalculator,
     AbsoluteVolumeCalculator,
+    AbsoluteVolumeResult,
     PLYPreprocessor,
+    DimensionStrategy,
+    DimensionMode,
+    is_boxer_available,
+    BoxerDimensionEstimator,
+    BoxerResult,
 )
 
 # GPU pool manager import
@@ -80,8 +86,9 @@ class DetectedObject:
     glb_url: Optional[str] = None
     gif_url: Optional[str] = None
 
-    # 치수 정보 (절대 치수는 백엔드에서 계산)
+    # 치수 정보
     relative_dimensions: Optional[Dict] = None
+    absolute_dimensions: Optional["AbsoluteVolumeResult"] = None  # V3: Boxer 또는 규칙기반
 
 
 @dataclass
@@ -160,6 +167,33 @@ class FurniturePipeline:
 
         # 치수 계산기
         self.dimension_calculator = DimensionCalculator()
+
+        # V3: Boxer 절대 치수 추정 + MoGe depth
+        self.boxer_estimator: Optional[BoxerDimensionEstimator] = None
+        self._moge_model = None
+        self.dim_strategy = DimensionStrategy(
+            mode=DimensionMode.RULE_BASED_ONLY  # 기본값: 기존 규칙기반
+        )
+
+        if Config.ENABLE_BOXER and is_boxer_available():
+            try:
+                self.boxer_estimator = BoxerDimensionEstimator(device_id=device_id or 0)
+                self.dim_strategy = DimensionStrategy(
+                    mode=DimensionMode.BOXER_WITH_FALLBACK
+                )
+                print(f"[FurniturePipeline] Boxer enabled on {self._device}")
+
+                # MoGe depth 모델 로드 (Boxer SDP용)
+                try:
+                    from moge.model.v1 import MoGeModel
+                    self._moge_model = MoGeModel.from_pretrained(
+                        "Ruicheng/moge-vitl"
+                    ).to(self._device).eval()
+                    print(f"[FurniturePipeline] MoGe depth enabled for Boxer")
+                except Exception as e:
+                    print(f"[FurniturePipeline] MoGe not available, Boxer without depth: {e}")
+            except Exception as e:
+                print(f"[FurniturePipeline] Boxer init failed, using rule-based: {e}")
 
         # 클래스 매핑 (동의어 → DB 키)
         self.class_map = self.movability_checker.class_map
@@ -273,6 +307,33 @@ class FurniturePipeline:
         buffer = io.BytesIO()
         mask_pil.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    # =========================================================================
+    # MoGe depth 추론 (Boxer SDP용)
+    # =========================================================================
+
+    def _run_moge(self, image: Image.Image):
+        """
+        MoGe 단안 depth 추정. Boxer의 SDP 입력으로 사용.
+
+        Returns:
+            (depth_map, intrinsics): depth (H,W) numpy, intrinsics (3,3) tensor
+        """
+        import torch as _torch
+
+        img_resized = image.resize((512, 512))
+        img_np = np.array(img_resized.convert("RGB"))
+        img_tensor = _torch.from_numpy(img_np).permute(2, 0, 1).float() / 255.0
+
+        with _torch.no_grad():
+            output = self._moge_model.infer(
+                img_tensor.to(self._device), force_projection=False
+            )
+
+        depth = output["depth"].cpu().numpy()
+        intrinsics = output.get("intrinsics")
+
+        return depth, intrinsics
 
     # =========================================================================
     # 치수 계산
@@ -455,15 +516,67 @@ class FurniturePipeline:
                         print(f"[FurniturePipeline] No YOLOE-seg mask for {obj.label}, skipping 3D")
                         obj.mask_base64 = None
 
-            # Stage 5-6: 3D 생성 (Worker Pool 사용)
+            # Stage 5-6: SAM3D 3D 생성 + Boxer 절대 치수 (병렬)
             if enable_3d and self.enable_3d_generation and objects_with_masks:
-                # Worker Pool로 병렬 3D 생성 (use_parallel_3d 파라미터는 하위 호환성 유지)
-                gen_results = await self._parallel_3d_generation(image, objects_with_masks)
+                # --- MoGe depth 추론 (Boxer SDP용, SAM3D와 공유 가능) ---
+                moge_depth = None
+                moge_intrinsics = None
+                if self.boxer_estimator and self._moge_model is not None:
+                    try:
+                        moge_depth, moge_intrinsics = await asyncio.to_thread(
+                            self._run_moge, image
+                        )
+                    except Exception as e:
+                        print(f"[FurniturePipeline] MoGe failed: {e}")
+
+                # --- 병렬 실행: SAM3D + Boxer ---
+                sam3d_task = self._parallel_3d_generation(image, objects_with_masks)
+
+                # Boxer 추론 (별도 스레드, MoGe depth 전달)
+                boxer_results_map: Dict[int, BoxerResult] = {}
+                boxer_task = None
+                id_list: List[int] = []
+                if self.boxer_estimator:
+                    bboxes_for_boxer = [
+                        (obj_id, obj.bbox)
+                        for obj_id, obj in objects_with_masks
+                    ]
+                    bbox_list = [bbox for _, bbox in bboxes_for_boxer]
+                    id_list = [obj_id for obj_id, _ in bboxes_for_boxer]
+                    boxer_task = asyncio.to_thread(
+                        self.boxer_estimator.predict,
+                        image, bbox_list,
+                        depth_map=moge_depth,
+                        moge_intrinsics=moge_intrinsics,
+                    )
+
+                # 병렬 대기
+                if boxer_task:
+                    gen_results, boxer_raw = await asyncio.gather(
+                        sam3d_task, boxer_task,
+                        return_exceptions=True
+                    )
+                    # Boxer 결과 매핑 (인덱스 기반 1:1)
+                    if not isinstance(boxer_raw, Exception) and boxer_raw:
+                        for i, obj_id in enumerate(id_list):
+                            if i < len(boxer_raw):
+                                boxer_results_map[obj_id] = boxer_raw[i]
+                    elif isinstance(boxer_raw, Exception):
+                        print(f"[FurniturePipeline] Boxer failed: {boxer_raw}")
+                    # gen_results 예외/타입 처리
+                    if isinstance(gen_results, Exception):
+                        print(f"[FurniturePipeline] SAM3D failed: {gen_results}")
+                        gen_results = {}
+                    elif not isinstance(gen_results, dict):
+                        print(f"[FurniturePipeline] SAM3D unexpected type: {type(gen_results)}")
+                        gen_results = {}
+                else:
+                    gen_results = await sam3d_task
 
                 # GCS 업로드 작업 목록 (병렬 처리용)
                 gcs_upload_tasks = []
 
-                # 결과를 객체에 매핑
+                # 결과를 객체에 매핑 + 절대 치수 계산
                 for obj in detected_objects:
                     if obj.id in gen_results:
                         gen_result = gen_results[obj.id]
@@ -472,11 +585,25 @@ class FurniturePipeline:
                             # PLY base64 임시 저장 (GCS 업로드용)
                             obj.ply_b64 = gen_result["ply_b64"]
 
-                            # 치수 계산 (tempfile 사용)
+                            # 상대 치수 계산 (fallback용 + PLY 전처리용)
                             with tempfile.NamedTemporaryFile(suffix=".ply", delete=True) as tmp:
                                 tmp.write(base64.b64decode(gen_result["ply_b64"]))
-                                tmp.flush()  # 디스크에 쓰기 완료 보장
+                                tmp.flush()
                                 obj.relative_dimensions = self.calculate_dimensions(ply_path=tmp.name)
+
+                            # 절대 치수 결정 (Boxer 우선 → fallback)
+                            boxer_res = boxer_results_map.get(obj.id)
+                            rel_dims = obj.relative_dimensions or {}
+                            bbox_dims = rel_dims.get("bounding_box", {})
+
+                            obj.absolute_dimensions = self.dim_strategy.resolve(
+                                boxer_result=boxer_res,
+                                label=obj.label,
+                                type_name=obj.subtype_name,
+                                rel_width=bbox_dims.get("width", 0),
+                                rel_depth=bbox_dims.get("depth", 0),
+                                rel_height=bbox_dims.get("height", 0),
+                            )
 
                             # GCS 업로드 작업 추가
                             if self.gcs_service and obj.ply_b64:
@@ -488,11 +615,10 @@ class FurniturePipeline:
                                 )
                                 gcs_upload_tasks.append((obj, obj.ply_b64, filename))
 
-                # PLY 전처리 및 GCS 병렬 업로드 (V2.5)
+                # PLY 전처리 및 GCS 병렬 업로드
                 if gcs_upload_tasks:
                     print(f"[FurniturePipeline] Processing {len(gcs_upload_tasks)} PLY files")
 
-                    # PLY 전처리기 초기화 (설정에서 가져오기)
                     preprocessor = None
                     if Config.PLY_ENABLE_PREPROCESSING:
                         preprocessor = PLYPreprocessor(
@@ -503,33 +629,14 @@ class FurniturePipeline:
                             enable_downsampling=Config.PLY_ENABLE_DOWNSAMPLING
                         )
 
-                    # 절대 치수 계산기
-                    abs_calc = AbsoluteVolumeCalculator()
-
-                    # 전처리 후 업로드할 PLY 데이터
                     upload_items = []
 
                     for (obj, ply_b64, filename) in gcs_upload_tasks:
                         processed_ply_b64 = ply_b64  # 기본값: 원본
 
-                        if preprocessor and obj.relative_dimensions:
-                            # 절대 치수 계산
-                            dims = obj.relative_dimensions
-                            bbox = dims.get("bounding_box", {})
-                            rel_width = bbox.get("width", 0)
-                            rel_depth = bbox.get("depth", 0)
-                            rel_height = bbox.get("height", 0)
-
-                            abs_result = abs_calc.calculate_absolute_volume(
-                                label=obj.label,
-                                type_name=obj.subtype_name,
-                                rel_width=rel_width,
-                                rel_depth=rel_depth,
-                                rel_height=rel_height
-                            )
-
+                        abs_result = obj.absolute_dimensions
+                        if preprocessor and abs_result:
                             try:
-                                # PLY 전처리 적용 (축 정렬 + 스케일링 + 다운샘플링)
                                 processed_ply_b64, preprocess_result = preprocessor.process(
                                     ply_b64=ply_b64,
                                     target_width_mm=abs_result.width_mm,
@@ -543,10 +650,10 @@ class FurniturePipeline:
                                           f"{preprocess_result.original_size_bytes} → {preprocess_result.processed_size_bytes} bytes")
                                 else:
                                     print(f"[FurniturePipeline] PLY preprocessing failed for {obj.label}: {preprocess_result.message}")
-                                    processed_ply_b64 = ply_b64  # 실패 시 원본 사용
+                                    processed_ply_b64 = ply_b64
                             except Exception as e:
                                 print(f"[FurniturePipeline] PLY preprocessing error for {obj.label}: {e}")
-                                processed_ply_b64 = ply_b64  # 예외 시 원본 사용
+                                processed_ply_b64 = ply_b64
 
                         upload_items.append((obj, processed_ply_b64, filename))
 
@@ -774,21 +881,19 @@ class FurniturePipeline:
                     continue
 
                 if obj.relative_dimensions:
-                    dims = obj.relative_dimensions
-                    bbox = dims.get("bounding_box", {})
-
-                    rel_width = bbox.get("width", 0)
-                    rel_depth = bbox.get("depth", 0)
-                    rel_height = bbox.get("height", 0)
-
-                    # 절대 치수 및 부피 계산
-                    abs_result = abs_calc.calculate_absolute_volume(
-                        label=obj.label,
-                        type_name=obj.subtype_name,
-                        rel_width=rel_width,
-                        rel_depth=rel_depth,
-                        rel_height=rel_height
-                    )
+                    # V3: 미리 계산된 절대 치수 사용 (Boxer 또는 규칙기반)
+                    abs_result = obj.absolute_dimensions
+                    if abs_result is None:
+                        # Fallback: process_single_image에서 계산 안 된 경우
+                        dims = obj.relative_dimensions
+                        bbox = dims.get("bounding_box", {})
+                        abs_result = abs_calc.calculate_absolute_volume(
+                            label=obj.label,
+                            type_name=obj.subtype_name,
+                            rel_width=bbox.get("width", 0),
+                            rel_depth=bbox.get("depth", 0),
+                            rel_height=bbox.get("height", 0)
+                        )
 
                     objects_list.append({
                         "label": obj.label,

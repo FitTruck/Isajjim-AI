@@ -16,6 +16,8 @@ build/
 
 # External repos (cloned by setup.sh)
 sam-3d-objects/
+boxer/
+depth-anything-v2/
 
 # Model files (auto-downloaded)
 *.pt

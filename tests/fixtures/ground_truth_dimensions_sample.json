@@ -1,0 +1,36 @@
+[
+    {
+        "image": "living_room_01.jpg",
+        "objects": [
+            {
+                "label": "SOFA",
+                "type": "THREE_SEATER_SOFA",
+                "bbox": [100, 200, 800, 500],
+                "width_mm": 3000,
+                "depth_mm": 1000,
+                "height_mm": 900
+            },
+            {
+                "label": "COFFEE_TABLE",
+                "type": "DEFAULT_COFFEE_TABLE",
+                "bbox": [300, 500, 600, 650],
+                "width_mm": 1230,
+                "depth_mm": 630,
+                "height_mm": 450
+            }
+        ]
+    },
+    {
+        "image": "bedroom_01.jpg",
+        "objects": [
+            {
+                "label": "BED",
+                "type": "QUEEN_SIZE_BED",
+                "bbox": [50, 100, 900, 700],
+                "width_mm": 1500,
+                "depth_mm": 2000,
+                "height_mm": 450
+            }
+        ]
+    }
+]

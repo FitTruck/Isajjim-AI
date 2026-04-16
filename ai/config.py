@@ -101,6 +101,13 @@ class Config:
     PLY_ENABLE_SCALING: bool = True        # 절대 치수 스케일링 활성화
     PLY_ENABLE_DOWNSAMPLING: bool = True   # Stride 다운샘플링 활성화
 
+    # --- Boxer Configuration (V3 Pipeline) ---
+    ENABLE_BOXER: bool = True                    # Boxer 절대 치수 추정 활성화
+    BOXER_CONFIDENCE_THRESHOLD: float = 0.3      # 최소 신뢰도 (이하이면 fallback)
+    BOXER_FOCAL_LENGTH_FACTOR: float = 0.8       # intrinsics 추정 FOV 계수
+    BOXER_MIN_DIMENSION_MM: float = 50.0         # 물리적 타당성 최소 치수 (mm)
+    BOXER_MAX_DIMENSION_MM: float = 4000.0       # 물리적 타당성 최대 치수 (mm)
+
     # --- Advanced Features ---
     # CLAHE가 시간복잡도가 O(N)이긴 한데 저조도 환경의 명암 대비 극대화를 위해 사용
     # 필요 없을 시 관련 함수 처리나 False로 변경하면 됨.

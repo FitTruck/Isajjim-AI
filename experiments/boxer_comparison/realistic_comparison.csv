@@ -1,0 +1,211 @@
+image,gt_category,yolo_label,label_correct,boxer_nd_ARE,boxer_mg_ARE,rule_yolo_ARE,rule_gt_ARE
+0001.png,bed,Bed,True,0.0931,0.1413,0.0708,0.0708
+0004.png,bed,Bed,True,0.0853,0.1112,0.0324,0.0324
+0008.png,bed,Bed,True,0.1078,0.0493,0.1049,0.1049
+0010.png,bed,Bed,True,0.0506,0.0740,0.1024,0.1024
+0011.png,bed,Bed,True,0.1104,0.1835,0.1024,0.1024
+0012.png,bed,Bed,True,0.0720,0.1633,0.1024,0.1024
+0014.png,bed,Bed,True,0.1207,0.1546,0.1024,0.1024
+0015.png,bed,Bed,True,0.0451,0.0472,0.1204,0.1204
+0016.png,bed,Bed,True,0.0378,0.0368,0.1204,0.1204
+0017.png,bed,Bed,True,0.1005,0.1349,0.1024,0.1024
+0018.png,bed,Bed,True,0.1132,0.1730,0.0708,0.0708
+0021.png,bed,Bed,True,0.0564,0.0331,0.1024,0.1024
+0023.png,bed,Bed,True,0.0952,0.0568,0.1069,0.1069
+0024.png,bed,Bed,True,0.1167,0.1750,0.0708,0.0708
+0025.png,bed,Bed,True,0.1329,0.1498,0.1024,0.1024
+0026.png,bed,Bed,True,0.1296,0.1401,0.1024,0.1024
+0027.png,bed,Bed,True,0.0762,0.0864,0.1340,0.1340
+0028.png,bed,Bed,True,0.0753,0.0592,0.1069,0.1069
+0030.png,bed,Bed,True,0.0334,0.0733,0.0670,0.0670
+0031.png,bed,Bed,True,0.1550,0.1631,0.1340,0.1340
+0032.png,bed,Bed,True,0.1233,0.1050,0.0708,0.0708
+0033.png,bed,Bed,True,0.1181,0.2352,0.0708,0.0708
+0034.png,bed,Bed,True,0.0554,0.1170,0.0324,0.0324
+0035.png,bed,Bed,True,0.0938,0.0890,0.1024,0.1024
+0038.png,bed,Bed,True,0.1693,0.1623,0.1340,0.1340
+0039.png,bed,Bed,True,0.1167,0.0948,0.1024,0.1024
+0040.png,bed,Bed,True,0.0461,0.1118,0.0324,0.0324
+0041.png,bed,Bed,True,0.0423,0.0970,0.0420,0.0420
+0042.jpg,bed,Sofa,False,0.0326,0.0498,0.0642,0.0986
+0043.jpg,bed,Sofa,False,0.0288,0.0243,0.0642,0.0986
+0001.jpg,bookcase,Cabinet/shelf,True,0.1138,0.0300,0.1426,0.0985
+0002.jpg,bookcase,Cabinet/shelf,True,0.1005,0.0386,0.2219,0.0719
+0003.jpg,bookcase,Cabinet/shelf,True,0.2179,0.0867,0.2219,0.0719
+0007.jpg,bookcase,Cabinet/shelf,True,0.1664,0.1018,0.2219,0.0719
+0008.jpg,bookcase,Cabinet/shelf,True,0.0590,0.0475,0.2219,0.0719
+0009.jpg,bookcase,Cabinet/shelf,True,0.2186,0.0702,0.2219,0.0719
+0010.jpg,bookcase,Cabinet/shelf,True,0.1833,0.0837,0.2219,0.0719
+0011.jpg,bookcase,Cabinet/shelf,True,0.0508,0.0454,0.2219,0.0719
+0012.jpg,bookcase,Cabinet/shelf,True,0.3136,0.2019,0.2219,0.0719
+0013.jpg,bookcase,Cabinet/shelf,True,0.3888,0.0507,0.2219,0.0719
+0015.jpg,bookcase,Cabinet/shelf,True,0.4215,0.2362,0.2219,0.0719
+0016.jpg,bookcase,Cabinet/shelf,True,0.0759,0.0953,0.2219,0.0719
+0017.jpg,bookcase,Cabinet/shelf,True,0.0261,0.0309,0.2219,0.0719
+0018.jpg,bookcase,Cabinet/shelf,True,0.0893,0.0329,0.2219,0.0719
+0021.jpg,bookcase,Cabinet/shelf,True,0.2269,0.1115,0.1192,0.0893
+0022.jpg,bookcase,Cabinet/shelf,True,0.0414,0.0382,0.1192,0.0893
+0023.jpg,bookcase,Cabinet/shelf,True,0.1359,0.1421,0.1192,0.0893
+0024.jpg,bookcase,Cabinet/shelf,True,0.0693,0.1053,0.1192,0.0893
+0025.jpg,bookcase,Cabinet/shelf,True,0.0748,0.0187,0.1192,0.0893
+0026.jpg,bookcase,Cabinet/shelf,True,0.2114,0.0685,0.1192,0.0893
+0027.jpg,bookcase,Cabinet/shelf,True,0.1566,0.0907,0.1192,0.0893
+0028.jpg,bookcase,Cabinet/shelf,True,0.0639,0.0742,0.1192,0.0893
+0029.jpg,bookcase,Cabinet/shelf,True,0.0438,0.0392,0.1192,0.0893
+0030.jpg,bookcase,Cabinet/shelf,True,0.2060,0.2023,0.1192,0.0893
+0031.jpg,bookcase,Cabinet/shelf,True,0.1619,0.1652,0.1192,0.0893
+0032.jpg,bookcase,Cabinet/shelf,True,0.1722,0.0659,0.1192,0.0893
+0033.jpg,bookcase,Cabinet/shelf,True,0.1604,0.0641,0.1192,0.0893
+0034.jpg,bookcase,Cabinet/shelf,True,0.0754,0.0134,0.1864,0.1121
+0035.jpg,bookcase,NO_DETECTION,False,0.2335,0.0880,0.1864,0.1121
+0036.jpg,bookcase,Cabinet/shelf,True,0.2785,0.1105,0.1864,0.1121
+0001.png,chair,Chair,True,0.1776,0.0210,0.0549,0.1216
+0003.png,chair,Chair,True,0.1214,0.1277,0.0549,0.1216
+0004.png,chair,Floor,False,0.0895,0.0404,0.0549,0.1216
+0008.png,chair,Chair,True,0.1509,0.1615,0.0619,0.0210
+0010.png,chair,Chair,True,0.1190,0.1834,0.0549,0.1216
+0011.png,chair,Chair,True,0.0530,0.0702,0.0102,0.0565
+0013.png,chair,Chair,True,0.0349,0.0205,0.1697,0.2364
+0015.png,chair,Dining Table,False,0.2168,0.1323,0.0416,0.0806
+0016.png,chair,Chair,True,0.1992,0.1713,0.0416,0.0806
+0017.png,chair,Chair,True,0.2002,0.1541,0.0549,0.1216
+0019.png,chair,Floor,False,0.1782,0.0994,0.0473,0.1139
+0020.png,chair,Chair,True,0.1533,0.1478,0.0549,0.1216
+0022.png,chair,Chair,True,0.1118,0.0988,0.0549,0.1216
+0026.png,chair,Chair,True,0.0457,0.2044,0.0619,0.0210
+0027.png,chair,Chair,True,0.2242,0.1720,0.0619,0.0210
+0033.png,chair,Chair,True,0.1383,0.1451,0.0416,0.0806
+0040.png,chair,Stool,True,0.0269,0.0780,0.0473,0.1139
+0041.png,chair,Chair,True,0.1036,0.1131,0.0549,0.1216
+0044.png,chair,Chair,True,0.1018,0.0775,0.0416,0.0806
+0045.png,chair,Chair,True,0.2108,0.1632,0.0416,0.0806
+0046.png,chair,Chair,True,0.0998,0.1582,0.0549,0.1216
+0047.png,chair,Chair,True,0.2151,0.0834,0.0550,0.0117
+0048.png,chair,Chair,True,0.2581,0.2060,0.0550,0.0117
+0049.png,chair,Floor,False,0.0522,0.1150,0.0473,0.1139
+0050.png,chair,Chair,True,0.1395,0.0444,0.0549,0.1216
+0051.png,chair,Chair,True,0.1887,0.3112,0.0619,0.0210
+0053.png,chair,Chair,True,0.0638,0.0786,0.0473,0.1139
+0055.png,chair,Floor,False,0.0371,0.0574,0.0473,0.1139
+0058.png,chair,Stool,True,0.0521,0.0776,0.0473,0.1139
+0061.png,chair,Chair,True,0.0521,0.0432,0.0549,0.1216
+0001.jpg,desk,Desk,True,0.1431,0.1066,0.0611,0.0611
+0002.jpg,desk,Desk,True,0.0531,0.0514,0.0611,0.0611
+0003.jpg,desk,Desk,True,0.1115,0.0633,0.0611,0.0611
+0004.jpg,desk,Desk,True,0.0843,0.0573,0.0611,0.0611
+0005.jpg,desk,Desk,True,0.2298,0.1131,0.0611,0.0611
+0006.jpg,desk,Desk,True,0.0909,0.0624,0.0611,0.0611
+0009.jpg,desk,Desk,True,0.1488,0.0418,0.1880,0.1880
+0011.jpg,desk,Desk,True,0.1453,0.1754,0.1880,0.1880
+0015.jpg,desk,Desk,True,0.0887,0.0552,0.1880,0.1880
+0018.jpg,desk,Desk,True,0.0584,0.0304,0.1880,0.1880
+0023.jpg,desk,Desk,True,0.2007,0.1070,0.1880,0.1880
+0025.jpg,desk,Mirror,False,0.1594,0.0502,0.0846,0.1880
+0027.jpg,desk,Desk,True,0.1133,0.1191,0.1880,0.1880
+0030.jpg,desk,Desk,True,0.1023,0.0746,0.1880,0.1880
+0033.jpg,desk,Desk,True,0.1067,0.2335,0.1880,0.1880
+0034.jpg,desk,Desk,True,0.2983,0.0872,0.1880,0.1880
+0036.jpg,desk,Desk,True,0.2832,0.0521,0.1880,0.1880
+0038.jpg,desk,Desk,True,0.1229,0.1016,0.1880,0.1880
+0039.jpg,desk,Desk,True,0.1322,0.0810,0.1880,0.1880
+0042.jpg,desk,Desk,True,0.0504,0.0238,0.1880,0.1880
+0043.jpg,desk,Desk,True,0.1063,0.0694,0.1880,0.1880
+0047.jpg,desk,Desk,True,0.1997,0.1959,0.1880,0.1880
+0049.jpg,desk,Desk,True,0.1552,0.0945,0.1880,0.1880
+0050.jpg,desk,Desk,True,0.1095,0.0926,0.1880,0.1880
+0051.jpg,desk,Desk,True,0.0951,0.0568,0.1880,0.1880
+0052.jpg,desk,Desk,True,0.1303,0.0403,0.1880,0.1880
+0055.jpg,desk,Desk,True,0.1844,0.1527,0.1880,0.1880
+0056.jpg,desk,Desk,True,0.0975,0.0798,0.1880,0.1880
+0058.jpg,desk,Desk,True,0.0568,0.0554,0.1880,0.1880
+0060.jpg,desk,Desk,True,0.0521,0.0050,0.1880,0.1880
+0006.png,sofa,Sofa,True,0.0319,0.1180,0.0840,0.0840
+0009.png,sofa,Sofa,True,0.1712,0.1849,0.0840,0.0840
+0013.png,sofa,Sofa,True,0.1358,0.1065,0.0816,0.0816
+0026.png,sofa,Sofa,True,0.1087,0.2104,0.0816,0.0816
+0030.png,sofa,Sofa,True,0.2488,0.1255,0.0759,0.0759
+0038.png,sofa,Sofa,True,0.1956,0.1479,0.0759,0.0759
+0039.png,sofa,Sofa,True,0.0988,0.0528,0.0759,0.0759
+0051.png,sofa,Sofa,True,0.0420,0.0242,0.0759,0.0759
+0056.png,sofa,Sofa,True,0.1547,0.1914,0.0859,0.0859
+0060.png,sofa,Sofa,True,0.2481,0.1580,0.0586,0.0586
+0062.png,sofa,Sofa,True,0.0710,0.0252,0.0586,0.0586
+0063.png,sofa,Sofa,True,0.1255,0.1095,0.0759,0.0759
+0066.png,sofa,Sofa,True,0.0201,0.0356,0.0759,0.0759
+0067.png,sofa,Sofa,True,0.1371,0.1339,0.0840,0.0840
+0068.png,sofa,Sofa,True,0.0506,0.1771,0.0759,0.0759
+0069.png,sofa,Sofa,True,0.1426,0.0627,0.0757,0.0757
+0085.png,sofa,Sofa,True,0.0611,0.0307,0.0757,0.0757
+0087.png,sofa,Sofa,True,0.1642,0.1186,0.0759,0.0759
+0089.png,sofa,Sofa,True,0.0321,0.0335,0.0759,0.0759
+0095.png,sofa,Sofa,True,0.0855,0.0405,0.0757,0.0757
+0098.png,sofa,Sofa,True,0.1710,0.1861,0.0759,0.0759
+0099.png,sofa,Sofa,True,0.0454,0.1676,0.0600,0.0600
+0101.png,sofa,Sofa,True,0.2131,0.2024,0.0600,0.0600
+0103.png,sofa,Sofa,True,0.1790,0.1780,0.0859,0.0859
+0104.png,sofa,Sofa,True,0.1387,0.1590,0.0600,0.0600
+0106.png,sofa,Sofa,True,0.1276,0.1699,0.0859,0.0859
+0107.png,sofa,Sofa,True,0.0321,0.0658,0.0727,0.0727
+0111.png,sofa,Sofa,True,0.2200,0.2223,0.0600,0.0600
+0112.png,sofa,Sofa,True,0.2123,0.2161,0.0859,0.0859
+0113.png,sofa,Sofa,True,0.0590,0.1281,0.0600,0.0600
+0001.png,table,Coffee Table,True,0.0866,0.0464,0.0296,0.0463
+0002.png,table,Coffee Table,True,0.1327,0.2487,0.0296,0.0463
+0003.png,table,Coffee Table,True,0.0809,0.0340,0.0296,0.0463
+0006.png,table,Coffee Table,True,0.0571,0.0871,0.0525,0.0692
+0010.png,table,Coffee Table,True,0.0904,0.0376,0.0296,0.0463
+0011.png,table,Desk,True,0.0569,0.0283,0.2061,0.1894
+0015.png,table,Desk,True,0.2620,0.1135,0.0630,0.0463
+0016.png,table,Vanity Table,True,0.0495,0.0235,0.2061,0.1894
+0019.png,table,Desk,True,0.1690,0.2402,0.0630,0.0463
+0021.png,table,Desk,True,0.1266,0.1098,0.2061,0.1894
+0022.png,table,NO_DETECTION,False,0.0488,0.1457,0.2061,0.1894
+0027.png,table,Coffee Table,True,0.0862,0.0956,0.0993,0.1160
+0028.png,table,Vanity Table,True,0.2095,0.0600,0.2061,0.1894
+0031.png,table,Coffee Table,True,0.1055,0.1076,0.0993,0.1160
+0035.png,table,Coffee Table,True,0.0716,0.1229,0.0296,0.0463
+0036.png,table,Desk,True,0.1089,0.0525,0.2061,0.1894
+0038.png,table,Coffee Table,True,0.1852,0.1177,0.0296,0.0463
+0042.png,table,Coffee Table,True,0.0144,0.0261,0.0296,0.0463
+0043.png,table,Coffee Table,True,0.0899,0.0640,0.0296,0.0463
+0044.png,table,Desk,True,0.0554,0.0362,0.0630,0.0463
+0045.png,table,Coffee Table,True,0.0539,0.0533,0.0525,0.0692
+0047.png,table,Dining Table,True,0.2614,0.0503,0.2061,0.1894
+0048.png,table,Coffee Table,True,0.0386,0.1464,0.0525,0.0692
+0049.png,table,Desk,True,0.2314,0.0292,0.2061,0.1894
+0050.png,table,Coffee Table,True,0.1628,0.1623,0.0525,0.0692
+0052.png,table,Dining Table,True,0.1789,0.1105,0.2061,0.1894
+0053.png,table,Coffee Table,True,0.2074,0.0232,0.0296,0.0463
+0054.png,table,Coffee Table,True,0.1557,0.1422,0.0296,0.0463
+0055.png,table,Coffee Table,True,0.1098,0.2210,0.0993,0.1160
+0056.png,table,Coffee Table,True,0.1442,0.1610,0.2496,0.2329
+0001.jpg,wardrobe,Cabinet/shelf,True,0.0176,0.0701,0.1533,0.0164
+0002.jpg,wardrobe,Cabinet/shelf,True,0.0172,0.0357,0.1533,0.0164
+0003.jpg,wardrobe,Cabinet/shelf,True,0.0386,0.0081,0.1533,0.0164
+0004.jpg,wardrobe,Cabinet/shelf,True,0.0921,0.0443,0.1533,0.0164
+0006.jpg,wardrobe,Cabinet/shelf,True,0.0471,0.0184,0.1533,0.0164
+0007.jpg,wardrobe,Cabinet/shelf,True,0.0468,0.0502,0.1533,0.0164
+0008.jpg,wardrobe,Cabinet/shelf,True,0.1398,0.2564,0.1533,0.0164
+0009.jpg,wardrobe,Cabinet/shelf,True,0.2091,0.0524,0.1533,0.0164
+0010.jpg,wardrobe,Cabinet/shelf,True,0.0911,0.0463,0.1533,0.0164
+0011.jpg,wardrobe,Cabinet/shelf,True,0.0283,0.0311,0.1533,0.0164
+0012.jpg,wardrobe,Cabinet/shelf,True,0.0829,0.1093,0.1533,0.0164
+0013.jpg,wardrobe,Cabinet/shelf,True,0.2342,0.1133,0.1533,0.0164
+0014.jpg,wardrobe,Cabinet/shelf,True,0.0136,0.0159,0.1533,0.0164
+0015.jpg,wardrobe,NO_DETECTION,False,0.0169,0.0674,0.1533,0.0164
+0016.jpg,wardrobe,Cabinet/shelf,True,0.2236,0.2215,0.1533,0.0164
+0018.jpg,wardrobe,Cabinet/shelf,True,0.0537,0.3325,0.1533,0.0164
+0020.jpg,wardrobe,Cabinet/shelf,True,0.0456,0.0463,0.1533,0.0164
+0022.jpg,wardrobe,Cabinet/shelf,True,0.0380,0.0165,0.1533,0.0164
+0023.jpg,wardrobe,Wardrobe,True,0.0766,0.1313,0.0164,0.0164
+0024.jpg,wardrobe,Cabinet/shelf,True,0.1144,0.2687,0.1533,0.0164
+0025.jpg,wardrobe,Cabinet/shelf,True,0.1492,0.0888,0.1533,0.0164
+0026.jpg,wardrobe,Cabinet/shelf,True,0.2076,0.1818,0.1533,0.0164
+0027.jpg,wardrobe,Cabinet/shelf,True,0.1010,0.0679,0.1533,0.0164
+0028.jpg,wardrobe,Cabinet/shelf,True,0.1661,0.3005,0.1533,0.0164
+0029.jpg,wardrobe,Wardrobe,True,0.0580,0.0576,0.0164,0.0164
+0030.jpg,wardrobe,Cabinet/shelf,True,0.0420,0.0062,0.1533,0.0164
+0031.jpg,wardrobe,Cabinet/shelf,True,0.0959,0.0431,0.1533,0.0164
+0032.jpg,wardrobe,Cabinet/shelf,True,0.1568,0.0114,0.1533,0.0164
+0033.jpg,wardrobe,Cabinet/shelf,True,0.0361,0.2047,0.1533,0.0164
+0035.jpg,wardrobe,Cabinet/shelf,True,0.0430,0.0099,0.1533,0.0164
