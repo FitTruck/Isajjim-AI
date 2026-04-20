@@ -16,7 +16,7 @@ import argparse
 # Parse args early to set CUDA_VISIBLE_DEVICES before any torch import
 parser = argparse.ArgumentParser()
 parser.add_argument("--gpu", type=int, default=0)
-parser.add_argument("--config", type=str, required=True, choices=["baseline", "o1", "o2", "o4", "o5", "o5c", "o5_slat", "o5_ss2", "o5_ss2_slat14"])
+parser.add_argument("--config", type=str, required=True, choices=["baseline", "o1", "o2", "o4", "o5", "o5c", "o5_slat", "o5_ss2", "o5_ss2_slat14", "abo_proposed", "abo_baseline_b"])
 parser.add_argument("--samples", type=str, required=True)
 parser.add_argument("--output", type=str, required=True)
 parser.add_argument("--save-ply-dir", type=str, default=None, help="Save PLY files to this dir (for CD computation)")

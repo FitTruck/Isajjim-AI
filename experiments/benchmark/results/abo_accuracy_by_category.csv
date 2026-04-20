@@ -1,0 +1,8 @@
+category,abo_proposed_n,abo_proposed_volume_mape(%),abo_proposed_relative_mape(%),abo_proposed_gap(%pt),abo_baseline_b_n,abo_baseline_b_volume_mape(%),abo_baseline_b_relative_mape(%),abo_baseline_b_gap(%pt)
+BED,30,56.67,12.99,43.68,30,56.69,13.00,43.69
+CABINET,25,212.19,29.74,182.45,25,212.19,29.74,182.45
+CHAIR_STOOL,202,50.53,16.02,34.51,198,50.77,16.04,34.74
+DESK,25,181.76,22.49,159.27,25,181.76,22.49,159.27
+DISPLAY_SHELF,23,3581.40,19.27,3562.13,23,3581.40,19.27,3562.13
+DRAWER,25,248.87,15.91,232.96,25,248.87,15.91,232.96
+SOFA,158,216.64,16.72,199.92,158,216.64,16.72,199.92

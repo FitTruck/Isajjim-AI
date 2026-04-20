@@ -1,0 +1,150 @@
+{
+  "version": "1.0",
+  "note": "ABO product_type (lowercase_underscore) → KB base_name",
+  "abo_to_base_name": {
+    "sofa": "SOFA",
+    "couch": "SOFA",
+    "loveseat": "SOFA",
+    "sectional_sofa": "SOFA",
+    "sofa_sectional": "SOFA",
+    "bed": "BED",
+    "bed_frame": "BED",
+    "bunk_bed": "BED",
+    "daybed": "BED",
+    "chair": "CHAIR_STOOL",
+    "arm_chair": "CHAIR_STOOL",
+    "armchair": "CHAIR_STOOL",
+    "office_chair": "CHAIR_STOOL",
+    "stool": "CHAIR_STOOL",
+    "bar_stool": "CHAIR_STOOL",
+    "rocking_chair": "CHAIR_STOOL",
+    "folding_chair": "CHAIR_STOOL",
+    "accent_chair": "CHAIR_STOOL",
+    "dining_table": "DINING_TABLE",
+    "kitchen_table": "DINING_TABLE",
+    "coffee_table": "COFFEE_TABLE",
+    "cocktail_table": "COFFEE_TABLE",
+    "end_table": "COFFEE_TABLE",
+    "side_table": "COFFEE_TABLE",
+    "accent_table": "COFFEE_TABLE",
+    "desk": "DESK",
+    "writing_desk": "DESK",
+    "computer_desk": "DESK",
+    "office_desk": "DESK",
+    "bookcase": "BOOKSHELF",
+    "bookshelf": "BOOKSHELF",
+    "wardrobe": "WARDROBE",
+    "armoire": "WARDROBE",
+    "chest_of_drawers": "DRAWER",
+    "dresser": "DRAWER",
+    "nightstand": "NIGHTSTAND",
+    "bedside_table": "NIGHTSTAND",
+    "tv_stand": "TV_STAND",
+    "media_console": "TV_STAND",
+    "tv_cabinet": "TV_STAND",
+    "cabinet": "CABINET",
+    "storage_cabinet": "CABINET",
+    "filing_cabinet": "CABINET",
+    "china_cabinet": "DISH_CABINET",
+    "kitchen_cabinet": "DISH_CABINET",
+    "shelf": "DISPLAY_SHELF",
+    "shelving_unit": "DISPLAY_SHELF",
+    "display_stand": "DISPLAY_SHELF",
+    "vanity": "VANITY_TABLE",
+    "dressing_table": "VANITY_TABLE",
+    "mirror": "MIRROR",
+    "storage_box": "STORAGE_BOX",
+    "storage_bin": "STORAGE_BOX",
+    "basket": "STORAGE_BOX"
+  },
+  "base_name_to_abo": {
+    "SOFA": [
+      "sofa",
+      "couch",
+      "loveseat",
+      "sectional_sofa",
+      "sofa_sectional"
+    ],
+    "BED": [
+      "bed",
+      "bed_frame",
+      "bunk_bed",
+      "daybed"
+    ],
+    "CHAIR_STOOL": [
+      "chair",
+      "arm_chair",
+      "armchair",
+      "office_chair",
+      "stool",
+      "bar_stool",
+      "rocking_chair",
+      "folding_chair",
+      "accent_chair"
+    ],
+    "DINING_TABLE": [
+      "dining_table",
+      "kitchen_table"
+    ],
+    "COFFEE_TABLE": [
+      "coffee_table",
+      "cocktail_table",
+      "end_table",
+      "side_table",
+      "accent_table"
+    ],
+    "DESK": [
+      "desk",
+      "writing_desk",
+      "computer_desk",
+      "office_desk"
+    ],
+    "BOOKSHELF": [
+      "bookcase",
+      "bookshelf"
+    ],
+    "WARDROBE": [
+      "wardrobe",
+      "armoire"
+    ],
+    "DRAWER": [
+      "chest_of_drawers",
+      "dresser"
+    ],
+    "NIGHTSTAND": [
+      "nightstand",
+      "bedside_table"
+    ],
+    "TV_STAND": [
+      "tv_stand",
+      "media_console",
+      "tv_cabinet"
+    ],
+    "CABINET": [
+      "cabinet",
+      "storage_cabinet",
+      "filing_cabinet"
+    ],
+    "DISH_CABINET": [
+      "china_cabinet",
+      "kitchen_cabinet"
+    ],
+    "DISPLAY_SHELF": [
+      "shelf",
+      "shelving_unit",
+      "display_stand"
+    ],
+    "VANITY_TABLE": [
+      "vanity",
+      "dressing_table"
+    ],
+    "MIRROR": [
+      "mirror"
+    ],
+    "STORAGE_BOX": [
+      "storage_box",
+      "storage_bin",
+      "basket"
+    ]
+  }
+}

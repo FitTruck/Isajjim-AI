@@ -24,6 +24,16 @@ SAM3D_CONFIG = PROJECT_ROOT / "sam-3d-objects" / "checkpoints" / "hf" / "pipelin
 SAMPLES_JSON = PROJECT_ROOT / "experiments" / "benchmark" / "data" / "benchmark_samples.json"
 GT_DIMENSIONS_JSON = PROJECT_ROOT / "experiments" / "benchmark" / "data" / "gt_dimensions.json"
 
+# ABO 평가 경로 (§EXPERIMENT_ABO_ACCURACY_PLAN)
+ABO_DATA_DIR = PROJECT_ROOT / "experiments" / "benchmark" / "data" / "abo"
+ABO_METADATA_DIR = ABO_DATA_DIR / "metadata"
+ABO_IMAGES_DIR = ABO_DATA_DIR / "images"
+ABO_MESHES_DIR = ABO_DATA_DIR / "meshes"
+ABO_MASKS_DIR = ABO_DATA_DIR / "masks"
+ABO_SAMPLES_JSON = ABO_DATA_DIR / "abo_samples_500.json"
+ABO_KB_MAPPING_JSON = ABO_DATA_DIR / "abo_kb_mapping.json"
+ABO_GT_DIMENSIONS_JSON = ABO_DATA_DIR / "abo_gt_dimensions.json"
+
 # ================================================================
 # Data
 # ================================================================
@@ -178,6 +188,32 @@ CONFIGS = {
         compile=False,
         ss_cache_stride=3,
         ss_cache_warmup=2,
+    ),
+    # ABO-Proposed: §6.2.1 clean ablation용 — Gaussian-only + steps 14/4 + no VRAM unload
+    # (VRAM unload은 정확도 불변이지만 Baseline-B와 변수를 최대한 일치시키기 위함)
+    "abo_proposed": BenchmarkConfig(
+        name="ABO-Proposed (Gaussian-only 14/4)",
+        decode_formats=["gaussian"],
+        stage1_steps=14,
+        stage2_steps=4,
+        mesh_postprocess=False,
+        texture_baking=False,
+        use_vertex_color=True,
+        vram_unload=False,
+        ss_caching=False,
+    ),
+    # ABO-Baseline-B: §6.2.1 — Gaussian+Mesh 디코드 (postprocess/texture_baking 비활성 = utils3d API 호환성)
+    # 유일한 토글: decode_formats 의 mesh 추가 (clean isolation: Proposed 와 decode_formats 만 다름)
+    "abo_baseline_b": BenchmarkConfig(
+        name="ABO-Baseline-B (Gaussian+Mesh decode 14/4)",
+        decode_formats=["gaussian", "mesh"],
+        stage1_steps=14,
+        stage2_steps=4,
+        mesh_postprocess=False,  # utils3d.torch API 호환 미패치 (rasterize_triangle_faces 등)
+        texture_baking=False,
+        use_vertex_color=False,
+        vram_unload=False,
+        ss_caching=False,
     ),
     # R7: Ours + SLAT Carving (Fast-SAM3D stage2 token pruning)
     "o5_slat": BenchmarkConfig(

@@ -75,6 +75,13 @@ experiments/benchmark/results/ply_for_cd/
 experiments/benchmark/results/visual_compare/
 experiments/benchmark/results/backup_old_samples/
 
+# ABO large data (download selectively via scripts/abo/4_download_assets.py)
+experiments/benchmark/data/abo/images/
+experiments/benchmark/data/abo/meshes/
+experiments/benchmark/data/abo/masks/
+experiments/benchmark/data/abo/metadata/
+experiments/benchmark/data/abo/abo_worker_samples.json
+
 # TorchScript files (CLIP models - deprecated)
 *.ts
 !simulation/binPacking/**/*.ts
