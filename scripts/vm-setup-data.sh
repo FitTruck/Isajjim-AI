@@ -46,7 +46,7 @@ if [ ! -d "$DATA_DIR/sam-3d-objects/checkpoints/hf" ] || [ -z "$(ls -A $DATA_DIR
 
     # Install huggingface-cli if not available
     if ! command -v huggingface-cli &> /dev/null; then
-        pip install 'huggingface-hub[cli]<1.0'
+        pip3 install 'huggingface-hub[cli]<1.0'
     fi
 
     # Check if HF_TOKEN is set

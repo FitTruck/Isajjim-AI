@@ -15,7 +15,7 @@
 services:
   sam3d-api:
     # Image from GCP Artifact Registry (set via environment variable)
-    image: ${GCP_REGION:-us-central1}-docker.pkg.dev/${GCP_PROJECT_ID}/sam3d/sam3d-api:${IMAGE_TAG:-latest}
+    image: ${GCP_REGION:-asia-northeast3}-docker.pkg.dev/${GCP_PROJECT_ID}/isajjim-repo/isajjim-ai:${IMAGE_TAG:-latest}
     container_name: sam3d-api
 
     # =========================================================================
@@ -70,6 +70,9 @@ services:
       # --- CUDA settings ---
       - CUDA_HOME=/usr/local/cuda
 
+      # --- GCS configuration ---
+      - GCS_BUCKET_NAME=isajjim-3d-assets
+
       # --- HuggingFace configuration ---
       - HF_HOME=/data/sam3d/huggingface
       - TRANSFORMERS_CACHE=/data/sam3d/huggingface/transformers
@@ -92,7 +95,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s  # Allow time for model loading
+      start_period: 300s  # Allow time for model loading (~3-5min)
 
     # =========================================================================
     # Logging

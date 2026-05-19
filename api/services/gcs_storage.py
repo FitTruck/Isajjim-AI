@@ -7,6 +7,7 @@ PLY 파일을 Google Cloud Storage에 업로드하고 Public URL을 반환합니
 import asyncio
 import base64
 import logging
+import os
 import re
 import uuid
 from datetime import datetime
@@ -30,19 +31,25 @@ class GCSStorageService:
         url = await gcs.upload_ply_base64(ply_b64, "ply/sofa_123.ply")
     """
 
-    def __init__(self, bucket_name: str, credentials_path: str):
+    def __init__(self, bucket_name: str, credentials_path: Optional[str] = None):
         """
         GCS 클라이언트 초기화.
 
         Args:
             bucket_name: GCS 버킷 이름
-            credentials_path: 서비스 계정 JSON 파일 경로
+            credentials_path: 서비스 계정 JSON 파일 경로 (없으면 ADC 사용)
         """
         try:
-            credentials = service_account.Credentials.from_service_account_file(
-                credentials_path
-            )
-            self._client = storage.Client(credentials=credentials)
+            if credentials_path and os.path.exists(credentials_path):
+                credentials = service_account.Credentials.from_service_account_file(
+                    credentials_path
+                )
+                self._client = storage.Client(credentials=credentials)
+                logger.info("[GCS] Using service account credentials file")
+            else:
+                # GCP VM 서비스 계정 또는 gcloud ADC 사용
+                self._client = storage.Client()
+                logger.info("[GCS] Using Application Default Credentials")
             self._bucket = self._client.bucket(bucket_name)
             self._bucket_name = bucket_name
             logger.info(f"[GCS] Initialized with bucket: {bucket_name}")
@@ -197,7 +204,7 @@ _gcs_service: Optional[GCSStorageService] = None
 
 
 def initialize_gcs_service(
-    bucket_name: str, credentials_path: str
+    bucket_name: str, credentials_path: Optional[str] = None
 ) -> GCSStorageService:
     """
     전역 GCS 서비스 초기화.
