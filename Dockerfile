@@ -50,7 +50,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 ENV CUDA_HOME=/usr/local/cuda
 ENV PATH="${CUDA_HOME}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
-ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0"
+ENV TORCH_CUDA_ARCH_LIST="8.9"
 ENV MAX_JOBS=4
 
 # Install PyTorch with CUDA 12.1
@@ -66,8 +66,9 @@ RUN pip install --no-cache-dir spconv-cu121==2.3.8
 # Install xformers
 RUN pip install --no-cache-dir xformers==0.0.28.post3
 
-# Install flash-attn (takes a while to compile)
-RUN pip install --no-cache-dir flash-attn --no-build-isolation
+# Install flash-attn (pre-built wheel for torch2.5+cu12+py311)
+RUN pip install --no-cache-dir \
+    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1%2Bcu12torch2.5cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
 
 # Install triton
 RUN pip install --no-cache-dir triton
@@ -163,6 +164,7 @@ WORKDIR /app
 COPY api.py .
 COPY api/ ./api/
 COPY ai/ ./ai/
+COPY simulation/ ./simulation/
 
 # =============================================================================
 # Environment Variables
