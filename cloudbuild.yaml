@@ -96,19 +96,19 @@ steps:
         WORK_DIR="${_VM_WORK_DIR}"
 
         echo "=== Isajjim AI Deployment ==="
-        echo "Image   : $IMAGE"
+        echo "Image   : $$IMAGE"
         echo "Time    : $(date)"
 
         gcloud auth configure-docker ${_REGISTRY} --quiet
 
         echo "Pulling image..."
-        docker pull "$IMAGE"
+        docker pull "$$IMAGE"
 
         export GCP_REGION="asia-northeast3"
         export GCP_PROJECT_ID="${PROJECT_ID}"
         export IMAGE_TAG="${COMMIT_SHA}"
 
-        cd "$WORK_DIR"
+        cd "$$WORK_DIR"
 
         docker compose down --remove-orphans 2>/dev/null || true
         docker compose up -d
