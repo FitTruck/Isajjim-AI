@@ -9,12 +9,14 @@
 # =============================================================================
 
 services:
-  sam3d-api:
+  isajjim-ai:
     build:
       context: .
       dockerfile: Dockerfile
-    image: sam3d-api:local
-    container_name: sam3d-api
+      args:
+        BASE_IMAGE: asia-northeast3-docker.pkg.dev/knu-2026-agion427/isajjim-repo/isajjim-ai-base:latest
+    image: isajjim-ai:local
+    container_name: isajjim-ai
 
     # =========================================================================
     # GPU Configuration
@@ -114,4 +116,4 @@ volumes:
 # =============================================================================
 networks:
   default:
-    name: sam3d-network
+    name: isajjim-network

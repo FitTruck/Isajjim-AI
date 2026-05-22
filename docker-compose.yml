@@ -13,10 +13,10 @@
 # =============================================================================
 
 services:
-  sam3d-api:
+  isajjim-ai:
     # Image from GCP Artifact Registry (set via environment variable)
     image: ${GCP_REGION:-asia-northeast3}-docker.pkg.dev/${GCP_PROJECT_ID}/isajjim-repo/isajjim-ai:${IMAGE_TAG:-latest}
-    container_name: sam3d-api
+    container_name: isajjim-ai
 
     # =========================================================================
     # GPU Configuration
@@ -111,4 +111,4 @@ services:
 # =============================================================================
 networks:
   default:
-    name: sam3d-network
+    name: isajjim-network

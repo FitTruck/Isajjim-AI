@@ -36,9 +36,9 @@ on:
           - staging
 
 env:
-  GCP_REGION: us-central1
-  IMAGE_NAME: sam3d-api
-  REGISTRY: us-central1-docker.pkg.dev
+  GCP_REGION: asia-northeast3
+  IMAGE_NAME: isajjim-ai
+  REGISTRY: asia-northeast3-docker.pkg.dev
 
 jobs:
   # ===========================================================================

@@ -94,3 +94,17 @@ setup.sh
 
 # QA reports
 QA_*.md
+
+# Credentials (security)
+credentials/
+
+# CI/CD configs (not needed in image)
+cloudbuild*.yaml
+Dockerfile.base
+
+# Docs and experiments (not needed in image)
+docs/
+experiments/
+
+# Infra
+terraform/

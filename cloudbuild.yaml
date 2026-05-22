@@ -1,0 +1,207 @@
+# =============================================================================
+# Isajjim AI — GCP Cloud Build Pipeline
+#
+# Flow: GitHub push to infra/dev → Cloud Build Trigger → Build → Artifact Registry → Deploy
+#
+# One-time Setup:
+#   Cloud Build → Triggers → Create Trigger
+#   Substitutions: _VM_NAME=isajjim-ai, _VM_USER=ubuntu
+# =============================================================================
+
+substitutions:
+  _REGISTRY: asia-northeast3-docker.pkg.dev
+  _REPO: isajjim-repo
+  _IMAGE: isajjim-ai
+  _BASE_IMAGE: isajjim-ai-base
+  _VM_ZONE: asia-northeast3-a
+  _VM_WORK_DIR: ~/sam3d-api
+  # Trigger에서 설정:
+  # _VM_NAME: isajjim-ai
+  # _VM_USER: ubuntu
+
+options:
+  machineType: 'E2_STANDARD_4'
+  diskSizeGb: 50
+  logging: CLOUD_LOGGING_ONLY
+  env:
+    - 'DOCKER_BUILDKIT=1'
+
+timeout: '1200s'
+
+steps:
+  # ===========================================================================
+  # Step 1: 베이스 이미지 pull
+  # ===========================================================================
+  - id: 'pull-base'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'pull'
+      - '${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_BASE_IMAGE}:latest'
+
+  # ===========================================================================
+  # Step 2: 이전 앱 이미지 pull (Stage 2 레이어 캐시용)
+  # ===========================================================================
+  - id: 'pull-latest'
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - 'docker pull ${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:latest || true'
+
+  # ===========================================================================
+  # Step 3: 앱 이미지 빌드
+  # ===========================================================================
+  - id: 'build'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg=BASE_IMAGE=${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_BASE_IMAGE}:latest'
+      - '--cache-from=${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:latest'
+      - '--tag=${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}'
+      - '--tag=${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:latest'
+      - '.'
+    waitFor: ['pull-base', 'pull-latest']
+
+  # ===========================================================================
+  # Step 4: Artifact Registry 푸시
+  # ===========================================================================
+  - id: 'push-sha'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}'
+    waitFor: ['build']
+
+  - id: 'push-latest'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:latest'
+    waitFor: ['build']
+
+  # ===========================================================================
+  # Step 5: 배포 스크립트 생성 (Cloud Build 변수 사전 전개)
+  # ===========================================================================
+  - id: 'write-deploy-script'
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cat > /workspace/deploy.sh << 'EOF'
+        #!/bin/bash
+        set -euo pipefail
+
+        IMAGE="${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}"
+        WORK_DIR="${_VM_WORK_DIR}"
+
+        echo "=== Isajjim AI Deployment ==="
+        echo "Image   : $IMAGE"
+        echo "Time    : $(date)"
+
+        gcloud auth configure-docker ${_REGISTRY} --quiet
+
+        echo "Pulling image..."
+        docker pull "$IMAGE"
+
+        export GCP_REGION="asia-northeast3"
+        export GCP_PROJECT_ID="${PROJECT_ID}"
+        export IMAGE_TAG="${COMMIT_SHA}"
+
+        cd "$WORK_DIR"
+
+        docker compose down --remove-orphans 2>/dev/null || true
+        docker compose up -d
+
+        echo "Waiting for health check..."
+        for i in $(seq 1 20); do
+          if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+            echo "Health check passed (attempt $i)"
+            exit 0
+          fi
+          echo "  Attempt $i/20 — not ready, sleeping 10s..."
+          sleep 10
+        done
+
+        echo "ERROR: Health check failed after 200s"
+        docker compose logs --tail=50
+        exit 1
+        EOF
+        chmod +x /workspace/deploy.sh
+    waitFor: ['push-sha']
+
+  # ===========================================================================
+  # Step 6: VM에 배포 스크립트 복사
+  # ===========================================================================
+  - id: 'copy-script'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'compute'
+      - 'scp'
+      - '/workspace/deploy.sh'
+      - '${_VM_USER}@${_VM_NAME}:/tmp/isajjim-deploy.sh'
+      - '--zone=${_VM_ZONE}'
+      - '--project=${PROJECT_ID}'
+      - '--tunnel-through-iap'
+      - '--ssh-flag=-o StrictHostKeyChecking=no'
+      - '--quiet'
+    waitFor: ['write-deploy-script']
+
+  # ===========================================================================
+  # Step 7: VM에서 배포 실행
+  # ===========================================================================
+  - id: 'deploy'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'compute'
+      - 'ssh'
+      - '${_VM_USER}@${_VM_NAME}'
+      - '--zone=${_VM_ZONE}'
+      - '--project=${PROJECT_ID}'
+      - '--tunnel-through-iap'
+      - '--command=bash /tmp/isajjim-deploy.sh'
+      - '--ssh-flag=-o StrictHostKeyChecking=no'
+      - '--quiet'
+    waitFor: ['copy-script']
+
+  # ===========================================================================
+  # Step 8: 오래된 이미지 정리 (최근 5개 + latest 보존)
+  # ===========================================================================
+  - id: 'cleanup'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        REPO="${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}"
+
+        ALL=$(gcloud artifacts docker images list "$REPO" \
+          --sort-by=~CREATE_TIME \
+          --format="get(DIGEST)" \
+          --limit=100 2>/dev/null || true)
+
+        [ -z "$ALL" ] && echo "No images found" && exit 0
+
+        PROTECTED=$(gcloud artifacts docker images list "$REPO" \
+          --format="value(DIGEST)" \
+          --filter="tags:latest" 2>/dev/null || true)
+
+        echo "$ALL" | tail -n +6 | while read -r digest; do
+          [ -z "$digest" ] && continue
+          if echo "$PROTECTED" | grep -qF "$digest" 2>/dev/null; then
+            echo "Skipping protected: $digest"
+            continue
+          fi
+          echo "Deleting: $digest"
+          gcloud artifacts docker images delete "${REPO}@${digest}" \
+            --quiet --delete-tags 2>/dev/null || true
+        done
+        echo "Cleanup complete"
+    waitFor: ['deploy']
+
+images:
+  - '${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:${COMMIT_SHA}'
+  - '${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}:latest'

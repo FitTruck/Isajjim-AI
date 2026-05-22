@@ -1,0 +1,40 @@
+# =============================================================================
+# Isajjim AI Base Image Builder
+#
+# CUDA deps 변경 시에만 실행:
+#   gcloud builds submit --config=cloudbuild-base.yaml --project=knu-2026-agion427 --region=asia-northeast3
+# =============================================================================
+
+substitutions:
+  _REGISTRY: asia-northeast3-docker.pkg.dev
+  _REPO: isajjim-repo
+  _BASE_IMAGE: isajjim-ai-base
+
+options:
+  machineType: 'E2_HIGHCPU_32'
+  diskSizeGb: 300
+  logging: CLOUD_LOGGING_ONLY
+  env:
+    - 'DOCKER_BUILDKIT=1'
+
+timeout: '7200s'
+
+steps:
+  - id: 'build-base'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.base'
+      - '--tag=${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_BASE_IMAGE}:latest'
+      - '.'
+
+  - id: 'push-latest'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_BASE_IMAGE}:latest'
+    waitFor: ['build-base']
+
+images:
+  - '${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_BASE_IMAGE}:latest'
