@@ -100,7 +100,7 @@ steps:
         gcloud auth configure-docker ${_REGISTRY} --quiet
 
         echo "Pulling image..."
-        docker pull "$$IMAGE"
+        sudo docker pull "$$IMAGE"
 
         export GCP_REGION="asia-northeast3"
         export GCP_PROJECT_ID="${PROJECT_ID}"
@@ -108,8 +108,8 @@ steps:
 
         cd "$$WORK_DIR"
 
-        docker compose down --remove-orphans 2>/dev/null || true
-        docker compose up -d
+        sudo docker compose down --remove-orphans 2>/dev/null || true
+        sudo docker compose up -d
 
         echo "Waiting for health check..."
         for i in $(seq 1 20); do
@@ -122,7 +122,7 @@ steps:
         done
 
         echo "ERROR: Health check failed after 200s"
-        docker compose logs --tail=50
+        sudo docker compose logs --tail=50
         exit 1
         EOF
         chmod +x /workspace/deploy.sh
