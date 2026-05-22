@@ -67,7 +67,8 @@ RUN pip install --no-cache-dir \
     open3d \
     imageio \
     imageio-ffmpeg \
-    seaborn
+    seaborn \
+    google-cloud-storage
 
 # Set working directory
 WORKDIR /app
