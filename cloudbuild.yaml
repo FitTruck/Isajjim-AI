@@ -178,25 +178,25 @@ steps:
         set -euo pipefail
         REPO="${_REGISTRY}/${PROJECT_ID}/${_REPO}/${_IMAGE}"
 
-        ALL=$(gcloud artifacts docker images list "$REPO" \
+        ALL=$$(gcloud artifacts docker images list "$$REPO" \
           --sort-by=~CREATE_TIME \
           --format="get(DIGEST)" \
           --limit=100 2>/dev/null || true)
 
-        [ -z "$ALL" ] && echo "No images found" && exit 0
+        [ -z "$$ALL" ] && echo "No images found" && exit 0
 
-        PROTECTED=$(gcloud artifacts docker images list "$REPO" \
+        PROTECTED=$$(gcloud artifacts docker images list "$$REPO" \
           --format="value(DIGEST)" \
           --filter="tags:latest" 2>/dev/null || true)
 
-        echo "$ALL" | tail -n +6 | while read -r digest; do
-          [ -z "$digest" ] && continue
-          if echo "$PROTECTED" | grep -qF "$digest" 2>/dev/null; then
-            echo "Skipping protected: $digest"
+        echo "$$ALL" | tail -n +6 | while read -r digest; do
+          [ -z "$$digest" ] && continue
+          if echo "$$PROTECTED" | grep -qF "$$digest" 2>/dev/null; then
+            echo "Skipping protected: $$digest"
             continue
           fi
-          echo "Deleting: $digest"
-          gcloud artifacts docker images delete "${REPO}@${digest}" \
+          echo "Deleting: $$digest"
+          gcloud artifacts docker images delete "$${REPO}@$${digest}" \
             --quiet --delete-tags 2>/dev/null || true
         done
         echo "Cleanup complete"
