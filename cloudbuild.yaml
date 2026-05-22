@@ -14,7 +14,7 @@ substitutions:
   _IMAGE: isajjim-ai
   _BASE_IMAGE: isajjim-ai-base
   _VM_ZONE: asia-northeast3-a
-  _VM_WORK_DIR: ~/sam3d-api
+  _VM_WORK_DIR: /home/ubuntu/sam3d-api
   # Trigger에서 설정:
   # _VM_NAME: isajjim-ai
   # _VM_USER: ubuntu
