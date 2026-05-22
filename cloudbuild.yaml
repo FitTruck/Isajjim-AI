@@ -20,8 +20,6 @@ substitutions:
   # _VM_USER: ubuntu
 
 options:
-  machineType: 'E2_HIGHCPU_8'
-  diskSizeGb: 50
   logging: CLOUD_LOGGING_ONLY
   env:
     - 'DOCKER_BUILDKIT=1'
@@ -144,7 +142,7 @@ steps:
       - '--zone=${_VM_ZONE}'
       - '--project=${PROJECT_ID}'
       - '--tunnel-through-iap'
-      - '--ssh-flag=-o StrictHostKeyChecking=no'
+      - '--scp-flag=-o StrictHostKeyChecking=no'
       - '--quiet'
     waitFor: ['write-deploy-script']
 
